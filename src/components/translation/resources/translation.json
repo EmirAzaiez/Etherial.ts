@@ -1,0 +1,26 @@
+{
+    "0": "0",
+    "email": "e-mail",
+    "firstname": "prénom",
+    "lastname": "nom",
+    "birthdate": "date de naissance",
+    "phone_number": "numéro de téléphone",
+    "trip": "trajet",
+    "route": "route",
+    "user": "Utilisateur",
+    "password_reset_token": "token",
+    
+    "api.errors.token.invalid": "Le token n'est pas valide.",
+    "api.errors.unauthorized": "Vous n'êtes pas autorisé.",
+    "api.errors.not_found": "{param} introuvable.",
+    "api.errors.user.banned": "Vous n'êtes pas autorisé dû à votre ban.",
+
+    "api.form.errors.invalid": "Le champ {param} est invalide.",
+    "api.form.errors.already_exist_in_database": "Votre {param} existe déjà dans notre base de données.",
+    "api.form.errors.not_match": "Le champ {param} n'est pas valide.",
+
+    "api.query.errors.invalid": "Le paramètre {param} est invalide.",
+
+    "api.query.errors.is_empty": "Le paramètre {param} ne doit pas être vide."
+
+}
