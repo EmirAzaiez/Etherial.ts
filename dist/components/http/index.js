@@ -63,14 +63,14 @@ class Http {
                     this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
                         let ret = instance[route.methodName](req, res, next);
                         // if(!res.headersSent) {
-                        if (ret != null && ret instanceof Promise) {
+                        if (ret != null && ret.then && typeof ret.then === 'function') {
                             ret.then((el) => {
                                 if (el) {
                                     if (el instanceof Array) {
                                         res.success({ status: 200, data: el });
                                     }
                                     else {
-                                        if (el._options.isNewRecord) {
+                                        if (el._options && el._options.isNewRecord) {
                                             res.success({ status: 201, data: el });
                                         }
                                         else {

@@ -24,6 +24,8 @@ class HttpSecurity {
         this.authorizedRoutes = authorizedRoutes;
         this.type = type;
         this.model = model;
+        this.roles = roles;
+        this.column = column;
         if (this.type === 'JWT') {
             this.generateToken = (data) => {
                 return jwt.sign(data, this.secret);
@@ -49,7 +51,7 @@ class HttpSecurity {
             });
             this.authentificatorRoleCheckerMiddleware = (role = "CLIENT") => {
                 return (req, res, next) => {
-                    let checkrole = roles[role];
+                    let checkrole = this.roles[role];
                     if (checkrole(req.user[column])) {
                         next(null);
                     }

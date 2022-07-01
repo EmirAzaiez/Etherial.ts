@@ -14,12 +14,16 @@ export default class HttpSecurity {
     authentificatorMiddleware: any
     authentificatorRoleCheckerMiddleware: any
     model: any;
+    roles: any;
+    column: string;
 
     constructor({ secret, authorizedRoutes, type, model, roles, column }) {
         this.secret = secret
         this.authorizedRoutes = authorizedRoutes
         this.type = type
         this.model = model
+        this.roles = roles
+        this.column = column
 
         if (this.type === 'JWT') {
 
@@ -56,7 +60,7 @@ export default class HttpSecurity {
 
                 return (req, res, next) => {
 
-                    let checkrole = roles[role]
+                    let checkrole = this.roles[role]
 
                     if (checkrole(req.user[column])) {
                         next(null)
