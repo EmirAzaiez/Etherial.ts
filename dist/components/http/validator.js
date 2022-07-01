@@ -1,4 +1,13 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_validator_1 = require("express-validator");
 exports.body = express_validator_1.body;
@@ -72,6 +81,38 @@ exports.ShouldBeEmail = (options) => {
         Reflect.defineMetadata('validations', validations, target.constructor);
     };
 };
+exports.ShouldExistInModel = (model, column) => {
+    return (target, propertyKey) => __awaiter(void 0, void 0, void 0, function* () {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].custom((value) => {
+            model.findOne({ where: { [column]: value } }).then((el) => {
+                if (!el) {
+                    return Promise.reject("api.errors.not_found");
+                }
+                else {
+                    return Promise.resolve();
+                }
+            });
+        });
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    });
+};
+exports.ShouldNotExistInModel = (model, column) => {
+    return (target, propertyKey) => __awaiter(void 0, void 0, void 0, function* () {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].custom((value) => {
+            model.findOne({ where: { [column]: value } }).then((el) => {
+                if (el) {
+                    return Promise.reject("api.errors.not_found");
+                }
+                else {
+                    return Promise.resolve();
+                }
+            });
+        });
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    });
+};
 exports.ShouldCustom = (cb) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
@@ -121,7 +162,28 @@ exports.ShouldBeISO8601Date = () => {
         Reflect.defineMetadata('validations', validations, target.constructor);
     };
 };
-exports.UseForm = (form, exclude_validator = false) => {
+exports.ShouldHaveMinMaxLength = (min, max) => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min, 'max': max }).withMessage('api.form.errors.not_valid_date');
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldHaveMinLength = (min) => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min }).withMessage('api.form.errors.not_valid_date');
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldHaveMaxLength = (max) => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].isLength({ 'max': max }).withMessage('api.form.errors.not_valid_date');
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldValidateForm = (form, exclude_validator = false) => {
     const validations = Reflect.getMetadata('validations', form);
     let arr = Object.values(validations);
     if (!exclude_validator) {
@@ -137,6 +199,10 @@ exports.UseForm = (form, exclude_validator = false) => {
     }
     return provider_1.Middleware(arr);
 };
+/**
+ * @deprecated The method should not be used, use instead ShouldValidateForm
+ */
+exports.UseForm = exports.ShouldValidateForm;
 exports.custom = {
     equalTo: (field, value, obj) => {
     },

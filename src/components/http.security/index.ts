@@ -15,7 +15,7 @@ export default class HttpSecurity {
     authentificatorRoleCheckerMiddleware: any
     model: any;
 
-    constructor({ secret, authorizedRoutes, type, model }) {
+    constructor({ secret, authorizedRoutes, type, model, roles, column }) {
         this.secret = secret
         this.authorizedRoutes = authorizedRoutes
         this.type = type
@@ -52,10 +52,13 @@ export default class HttpSecurity {
             
             }
             
-            this.authentificatorRoleCheckerMiddleware = (role: number = 0) => {
+            this.authentificatorRoleCheckerMiddleware = (role: string = "CLIENT") => {
+
                 return (req, res, next) => {
 
-                    if (req.user.role >= role) {
+                    let checkrole = roles[role]
+
+                    if (checkrole(req.user[column])) {
                         next(null)
                     } else {
                         res.error({status: 401, errors: ['forbidden']})

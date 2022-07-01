@@ -62,20 +62,27 @@ class Http {
                 routes.forEach((route) => {
                     this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
                         let ret = instance[route.methodName](req, res, next);
-                        if (ret != null && typeof ret.then === 'function') {
-                            ret.then((el) => {
-                                if (el) {
-                                    if (el._options.isNewRecord) {
-                                        res.success({ status: 201, data: el });
+                        if (!res.headersSent) {
+                            if (ret != null && ret instanceof Promise) {
+                                ret.then((el) => {
+                                    if (el) {
+                                        if (el instanceof Array) {
+                                            res.success({ status: 200, data: el });
+                                        }
+                                        else {
+                                            if (el._options.isNewRecord) {
+                                                res.success({ status: 201, data: el });
+                                            }
+                                            else {
+                                                res.success({ status: 200, data: el });
+                                            }
+                                        }
                                     }
                                     else {
-                                        res.success({ status: 200, data: el });
+                                        res.error({ status: 404, errors: ["not_found"] });
                                     }
-                                }
-                                else {
-                                    res.error({ status: 404, errors: ["not_found"] });
-                                }
-                            });
+                                });
+                            }
                         }
                     });
                 });

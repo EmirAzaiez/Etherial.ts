@@ -19,7 +19,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // import * as expressJWT from 'express-jwt'
 const jwt = __importStar(require("jsonwebtoken"));
 class HttpSecurity {
-    constructor({ secret, authorizedRoutes, type, model }) {
+    constructor({ secret, authorizedRoutes, type, model, roles, column }) {
         this.secret = secret;
         this.authorizedRoutes = authorizedRoutes;
         this.type = type;
@@ -47,9 +47,10 @@ class HttpSecurity {
                     res.error({ status: 401, errors: ['forbidden'] });
                 }
             });
-            this.authentificatorRoleCheckerMiddleware = (role = 0) => {
+            this.authentificatorRoleCheckerMiddleware = (role = "CLIENT") => {
                 return (req, res, next) => {
-                    if (req.user.role >= role) {
+                    let checkrole = roles[role];
+                    if (checkrole(req.user[column])) {
                         next(null);
                     }
                     else {

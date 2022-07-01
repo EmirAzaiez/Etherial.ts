@@ -9,10 +9,12 @@ export default class HttpSecurity {
     authentificatorMiddleware: any;
     authentificatorRoleCheckerMiddleware: any;
     model: any;
-    constructor({ secret, authorizedRoutes, type, model }: {
+    constructor({ secret, authorizedRoutes, type, model, roles, column }: {
         secret: any;
         authorizedRoutes: any;
         type: any;
         model: any;
+        roles: any;
+        column: any;
     });
 }

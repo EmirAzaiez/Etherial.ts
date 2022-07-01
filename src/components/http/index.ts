@@ -2,7 +2,6 @@ import express from "express";
 import { Response, Request, RouteDefinition, NextFunction } from './provider'
 const fs = require('fs').promises
 
-
 export class Http {
 
     app: any;
@@ -79,23 +78,35 @@ export class Http {
 
                     let ret = instance[route.methodName](req, res, next);
 
-                    if (ret != null && typeof ret.then === 'function') {
+                    if(!res.headersSent) {
 
-                        ret.then((el) => {
+                        if (ret != null && ret instanceof Promise) {
 
-                            if (el) {
+                            ret.then((el) => {
 
-                                if (el._options.isNewRecord) {
-                                    res.success({status: 201, data: el})
+                                if (el) {
+
+                                    if (el instanceof Array) {
+
+                                        res.success({status: 200, data: el})
+
+                                    } else {
+
+                                        if (el._options.isNewRecord) {
+                                            res.success({status: 201, data: el})
+                                        } else {
+                                            res.success({status: 200, data: el})
+                                        }
+
+                                    }
+
                                 } else {
-                                    res.success({status: 200, data: el})
+                                    res.error({status: 404, errors: ["not_found"]})
                                 }
+                                
+                            })
 
-                            } else {
-                                res.error({status: 404, errors: ["not_found"]})
-                            }
-                            
-                        })
+                        }
 
                     }
 
@@ -134,10 +145,7 @@ export class Http {
     }
 
     async run() {
-
-        
         return this
-
     }
 
 }

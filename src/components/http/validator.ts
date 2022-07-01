@@ -138,6 +138,50 @@ export const ShouldBeEmail = (options) : PropertyDecorator => {
 
 }
 
+export const ShouldExistInModel = (model, column) : PropertyDecorator => {
+
+    return async (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].custom((value) => {
+            model.findOne({where: { [column]: value }}).then((el) => {
+                if (!el) {
+                    return Promise.reject("api.errors.not_found");
+                } else {
+                    return Promise.resolve();
+                }
+            });
+        })
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldNotExistInModel = (model, column) : PropertyDecorator => {
+
+    return async (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].custom((value) => {
+            model.findOne({where: { [column]: value }}).then((el) => {
+                if (el) {
+                    return Promise.reject("api.errors.not_found");
+                } else {
+                    return Promise.resolve();
+                }
+            });
+        })
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
 export const ShouldCustom = (cb) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
@@ -221,7 +265,49 @@ export const ShouldBeISO8601Date = () : PropertyDecorator => {
 
 }
 
-export const UseForm = (form, exclude_validator = false) => {
+export const ShouldHaveMinMaxLength = (min, max) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min, 'max': max }).withMessage('api.form.errors.not_valid_date')
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldHaveMinLength = (min) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min }).withMessage('api.form.errors.not_valid_date')
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldHaveMaxLength = (max) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].isLength({ 'max': max }).withMessage('api.form.errors.not_valid_date')
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldValidateForm = (form, exclude_validator = false) => {
 
     const validations = Reflect.getMetadata('validations', form);
 
@@ -242,6 +328,11 @@ export const UseForm = (form, exclude_validator = false) => {
     return Middleware(arr)
     
 }
+
+/**
+ * @deprecated The method should not be used, use instead ShouldValidateForm
+ */
+export const UseForm = ShouldValidateForm
 
 export const custom = {
     equalTo:  (field, value, obj) => {
