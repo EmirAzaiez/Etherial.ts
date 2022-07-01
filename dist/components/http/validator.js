@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_validator_1 = require("express-validator");
 exports.body = express_validator_1.body;
@@ -82,36 +73,40 @@ exports.ShouldBeEmail = (options) => {
     };
 };
 exports.ShouldExistInModel = (model, column) => {
-    return (target, propertyKey) => __awaiter(void 0, void 0, void 0, function* () {
+    return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
         validations[propertyKey] = validations[propertyKey].custom((value) => {
-            model.findOne({ where: { [column]: value } }).then((el) => {
-                if (!el) {
-                    return Promise.reject("api.errors.not_found");
-                }
-                else {
-                    return Promise.resolve();
-                }
+            return new Promise((resolve, reject) => {
+                model.findOne({ where: { [column]: value } }).then((el) => {
+                    if (!el) {
+                        return reject("api.errors.not_found");
+                    }
+                    else {
+                        return resolve(true);
+                    }
+                });
             });
         });
         Reflect.defineMetadata('validations', validations, target.constructor);
-    });
+    };
 };
 exports.ShouldNotExistInModel = (model, column) => {
-    return (target, propertyKey) => __awaiter(void 0, void 0, void 0, function* () {
+    return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
         validations[propertyKey] = validations[propertyKey].custom((value) => {
-            model.findOne({ where: { [column]: value } }).then((el) => {
-                if (el) {
-                    return Promise.reject("api.errors.not_found");
-                }
-                else {
-                    return Promise.resolve();
-                }
+            return new Promise((resolve, reject) => {
+                model.findOne({ where: { [column]: value } }).then((el) => {
+                    if (el) {
+                        return reject("api.errors.not_found");
+                    }
+                    else {
+                        return resolve(true);
+                    }
+                });
             });
         });
         Reflect.defineMetadata('validations', validations, target.constructor);
-    });
+    };
 };
 exports.ShouldCustom = (cb) => {
     return (target, propertyKey) => {
@@ -165,21 +160,21 @@ exports.ShouldBeISO8601Date = () => {
 exports.ShouldHaveMinMaxLength = (min, max) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
-        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min, 'max': max }).withMessage('api.form.errors.not_valid_date');
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min, 'max': max }).withMessage('api.form.errors.min_max_length_not_valid');
         Reflect.defineMetadata('validations', validations, target.constructor);
     };
 };
 exports.ShouldHaveMinLength = (min) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
-        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min }).withMessage('api.form.errors.not_valid_date');
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min }).withMessage('api.form.errors.min_length_not_valid');
         Reflect.defineMetadata('validations', validations, target.constructor);
     };
 };
 exports.ShouldHaveMaxLength = (max) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
-        validations[propertyKey] = validations[propertyKey].isLength({ 'max': max }).withMessage('api.form.errors.not_valid_date');
+        validations[propertyKey] = validations[propertyKey].isLength({ 'max': max }).withMessage('api.form.errors.max_length_not_valid');
         Reflect.defineMetadata('validations', validations, target.constructor);
     };
 };

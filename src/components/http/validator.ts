@@ -146,15 +146,19 @@ export const ShouldExistInModel = (model, column) : PropertyDecorator => {
 
         validations[propertyKey] = validations[propertyKey].custom((value) => {
 
-            return model.findOne({where: { [column]: value }}).then((el) => {
-                
-                if (!el) {
-                    return Promise.reject("api.errors.not_found");
-                } else {
-                    return Promise.resolve();
-                }
+            return new Promise((resolve, reject) => { 
 
-            });
+                model.findOne({where: { [column]: value }}).then((el) => {
+                    
+                    if (!el) {
+                        return reject("api.errors.not_found");
+                    } else {
+                        return resolve(true);
+                    }
+
+                });
+
+            })
 
         })
 
@@ -172,16 +176,20 @@ export const ShouldNotExistInModel = (model, column) : PropertyDecorator => {
 
         validations[propertyKey] = validations[propertyKey].custom((value) => {
 
-            return model.findOne({where: { [column]: value }}).then((el) => {
+            return new Promise((resolve, reject) => { 
 
-                if (el) {
-                    return Promise.reject("api.errors.not_found");
-                } else {
-                    return Promise.resolve();
-                }
+                model.findOne({where: { [column]: value }}).then((el) => {
 
-            });
-            
+                    if (el) {
+                        return reject("api.errors.not_found");
+                    } else {
+                        return resolve(true);
+                    }
+
+                });
+
+            })
+
         })
 
         Reflect.defineMetadata('validations', validations, target.constructor);
