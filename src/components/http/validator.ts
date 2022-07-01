@@ -140,7 +140,7 @@ export const ShouldBeEmail = (options) : PropertyDecorator => {
 
 export const ShouldExistInModel = (model, column) : PropertyDecorator => {
 
-    return async (target: any, propertyKey: string) => {
+    return (target: any, propertyKey: string) => {
 
         let validations = Reflect.getMetadata('validations', target.constructor)
 
@@ -162,7 +162,7 @@ export const ShouldExistInModel = (model, column) : PropertyDecorator => {
 
 export const ShouldNotExistInModel = (model, column) : PropertyDecorator => {
 
-    return async (target: any, propertyKey: string) => {
+    return (target: any, propertyKey: string) => {
 
         let validations = Reflect.getMetadata('validations', target.constructor)
 
@@ -271,7 +271,7 @@ export const ShouldHaveMinMaxLength = (min, max) : PropertyDecorator => {
 
         let validations = Reflect.getMetadata('validations', target.constructor)
 
-        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min, 'max': max }).withMessage('api.form.errors.not_valid_date')
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min, 'max': max }).withMessage('api.form.errors.min_max_length_not_valid')
 
         Reflect.defineMetadata('validations', validations, target.constructor);
 
@@ -285,7 +285,7 @@ export const ShouldHaveMinLength = (min) : PropertyDecorator => {
 
         let validations = Reflect.getMetadata('validations', target.constructor)
 
-        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min }).withMessage('api.form.errors.not_valid_date')
+        validations[propertyKey] = validations[propertyKey].isLength({ 'min': min }).withMessage('api.form.errors.min_length_not_valid')
 
         Reflect.defineMetadata('validations', validations, target.constructor);
 
@@ -299,7 +299,7 @@ export const ShouldHaveMaxLength = (max) : PropertyDecorator => {
 
         let validations = Reflect.getMetadata('validations', target.constructor)
 
-        validations[propertyKey] = validations[propertyKey].isLength({ 'max': max }).withMessage('api.form.errors.not_valid_date')
+        validations[propertyKey] = validations[propertyKey].isLength({ 'max': max }).withMessage('api.form.errors.max_length_not_valid')
 
         Reflect.defineMetadata('validations', validations, target.constructor);
 

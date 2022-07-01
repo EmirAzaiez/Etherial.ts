@@ -78,37 +78,37 @@ export class Http {
 
                     let ret = instance[route.methodName](req, res, next);
 
-                    if(!res.headersSent) {
+                    // if(!res.headersSent) {
 
-                        if (ret != null && ret instanceof Promise) {
+                    if (ret != null && ret instanceof Promise) {
 
-                            ret.then((el) => {
+                        ret.then((el) => {
 
-                                if (el) {
+                            if (el) {
 
-                                    if (el instanceof Array) {
+                                if (el instanceof Array) {
 
-                                        res.success({status: 200, data: el})
-
-                                    } else {
-
-                                        if (el._options.isNewRecord) {
-                                            res.success({status: 201, data: el})
-                                        } else {
-                                            res.success({status: 200, data: el})
-                                        }
-
-                                    }
+                                    res.success({status: 200, data: el})
 
                                 } else {
-                                    res.error({status: 404, errors: ["not_found"]})
-                                }
-                                
-                            })
 
-                        }
+                                    if (el._options.isNewRecord) {
+                                        res.success({status: 201, data: el})
+                                    } else {
+                                        res.success({status: 200, data: el})
+                                    }
+
+                                }
+
+                            } else {
+                                res.error({status: 404, errors: ["not_found"]})
+                            }
+                            
+                        })
 
                     }
+
+                    // }
 
                 });
 
