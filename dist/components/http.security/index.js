@@ -51,9 +51,14 @@ class HttpSecurity {
             });
             this.authentificatorRoleCheckerMiddleware = (role = "CLIENT") => {
                 return (req, res, next) => {
-                    let checkrole = this.roles[role];
-                    if (checkrole(req.user[column])) {
-                        next(null);
+                    if (req.user) {
+                        let checkrole = this.roles[role];
+                        if (checkrole(req.user[column])) {
+                            next(null);
+                        }
+                        else {
+                            res.error({ status: 401, errors: ['forbidden'] });
+                        }
                     }
                     else {
                         res.error({ status: 401, errors: ['forbidden'] });

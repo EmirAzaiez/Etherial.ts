@@ -1,4 +1,4 @@
-import * as format from 'string-format' 
+import format from 'string-format' 
 // import { Interceptor, InterceptorInterface, Action } from '../http/provider' 
 
 export default class Translation {
@@ -19,8 +19,8 @@ export default class Translation {
 
     error(error, lang) {
 
-        let key = this.internalizations[error.msg]
-        let keyp = this.internalizations[error.param]
+        let key = this.internalizations["FR"][error.msg]
+        let keyp = this.internalizations["FR"][error.param]
 
         if (key && keyp) {
             var obj = {
@@ -41,7 +41,7 @@ export default class Translation {
 
     string(key, argumentss, lang) {
 
-        let message = this.internalizations[key]
+        let message = this.internalizations["FR"][key]
 
         if (message) {
             return format(message, argumentss)

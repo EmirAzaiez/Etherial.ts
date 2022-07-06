@@ -60,12 +60,20 @@ export default class HttpSecurity {
 
                 return (req, res, next) => {
 
-                    let checkrole = this.roles[role]
+                    if (req.user) {
 
-                    if (checkrole(req.user[column])) {
-                        next(null)
+                        let checkrole = this.roles[role]
+
+                        if (checkrole(req.user[column])) {
+                            next(null)
+                        } else {
+                            res.error({status: 401, errors: ['forbidden']})
+                        }
+
                     } else {
+
                         res.error({status: 401, errors: ['forbidden']})
+                        
                     }
 
                 }

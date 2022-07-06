@@ -1,13 +1,9 @@
 "use strict";
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const format = __importStar(require("string-format"));
+const string_format_1 = __importDefault(require("string-format"));
 // import { Interceptor, InterceptorInterface, Action } from '../http/provider' 
 class Translation {
     constructor({ defaultLanguage, translations }) {
@@ -19,12 +15,12 @@ class Translation {
         return this;
     }
     error(error, lang) {
-        let key = this.internalizations[error.msg];
-        let keyp = this.internalizations[error.param];
+        let key = this.internalizations["FR"][error.msg];
+        let keyp = this.internalizations["FR"][error.param];
         if (key && keyp) {
             var obj = {
                 code: 0,
-                msg: format(key, { param: keyp, value: error.value })
+                msg: string_format_1.default(key, { param: keyp, value: error.value })
             };
             if ('code' in error) {
                 obj.code = error.code;
@@ -36,9 +32,9 @@ class Translation {
         }
     }
     string(key, argumentss, lang) {
-        let message = this.internalizations[key];
+        let message = this.internalizations["FR"][key];
         if (message) {
-            return format(message, argumentss);
+            return string_format_1.default(message, argumentss);
         }
         else {
             return key;
