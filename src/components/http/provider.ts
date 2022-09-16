@@ -22,7 +22,7 @@ export interface Response extends express.Response {
 
 let MethodHandler = (method, path) => {
 
-    return (target, propertyKey: string, descriptor:TypedPropertyDescriptor<{req: Request, res: Response, next?: NextFunction}>): void => {
+    return (target, propertyKey: string, descriptor:TypedPropertyDescriptor<(req: Request, res: Response, next?: NextFunction) => Promise<any>>): void => {
 
         if (! Reflect.hasMetadata('routes', target.constructor)) {
             Reflect.defineMetadata('routes', [], target.constructor);

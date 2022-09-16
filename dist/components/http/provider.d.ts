@@ -23,30 +23,10 @@ export interface Response extends express.Response {
         errors: [any];
     }) => void;
 }
-export declare const Get: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<{
-    req: Request;
-    res: Response;
-    next?: NextFunction;
-}>) => void;
-export declare const Post: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<{
-    req: Request;
-    res: Response;
-    next?: NextFunction;
-}>) => void;
-export declare const Delete: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<{
-    req: Request;
-    res: Response;
-    next?: NextFunction;
-}>) => void;
-export declare const Put: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<{
-    req: Request;
-    res: Response;
-    next?: NextFunction;
-}>) => void;
-export declare const All: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<{
-    req: Request;
-    res: Response;
-    next?: NextFunction;
-}>) => void;
+export declare const Get: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<(req: Request, res: Response, next?: NextFunction) => Promise<any>>) => void;
+export declare const Post: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<(req: Request, res: Response, next?: NextFunction) => Promise<any>>) => void;
+export declare const Delete: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<(req: Request, res: Response, next?: NextFunction) => Promise<any>>) => void;
+export declare const Put: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<(req: Request, res: Response, next?: NextFunction) => Promise<any>>) => void;
+export declare const All: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<(req: Request, res: Response, next?: NextFunction) => Promise<any>>) => void;
 export declare const Middleware: (cb: any) => (target: any, propertyKey: string) => void;
 export declare const Controller: (prefix?: string) => ClassDecorator;
