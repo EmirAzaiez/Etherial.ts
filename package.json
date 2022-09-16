@@ -6,40 +6,37 @@
   "bin": "dist/bin/index",
   "exports": {
     ".": {
-        "default": "./dist/index.js",
-        "types": "./dist/index.d.ts"
+      "default": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     },
-
     "./components/database": {
       "default": "./dist/components/database/index.js",
       "types": "./dist/components/database/index.d.ts"
     },
-
     "./components/database/provider": {
       "default": "./dist/components/database/provider.js",
       "types": "./dist/components/database/provider.d.ts"
     },
-
     "./components/http": {
       "default": "./dist/components/http/index.js",
       "types": "./dist/components/http/index.d.ts"
     },
-
+    "./components/http/provider": {
+      "default": "./dist/components/http/provider.js",
+      "types": "./dist/components/http/provider.d.ts"
+    },
     "./components/http/validator": {
       "default": "./dist/components/http/validator.js",
       "types": "./dist/components/http/validator.d.ts"
     },
-
     "./components/http.security": {
       "default": "./dist/components/http.security/index.js",
       "types": "./dist/components/http.security/index.d.ts"
     },
-
     "./components/translation": {
       "default": "./dist/components/translation/index.js",
       "types": "./dist/components/translation/index.d.ts"
     }
-
   },
   "scripts": {
     "build": "tsc"
@@ -48,7 +45,7 @@
     "@tsed/common": "^5.36.0",
     "@tsed/core": "^5.36.0",
     "@types/bluebird": "^3.5.29",
-    "@types/express": "^4.17.2",
+    "@types/express": "^4.17.14",
     "@types/node": "^12.12.14",
     "@types/validator": "10.11.3",
     "apidoc": "^0.17.7",

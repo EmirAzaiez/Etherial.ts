@@ -22,7 +22,7 @@ export interface Response extends express.Response {
 
 let MethodHandler = (method, path) => {
 
-    return (target, propertyKey: string): void => {
+    return (target, propertyKey: string, descriptor:TypedPropertyDescriptor<Array<string>>): void => {
 
         if (! Reflect.hasMetadata('routes', target.constructor)) {
             Reflect.defineMetadata('routes', [], target.constructor);
@@ -43,27 +43,27 @@ let MethodHandler = (method, path) => {
 
 }
 
-export const Get = (path: string): MethodDecorator => {
+export const Get = (path: string) => {
     return MethodHandler("get", path)
 };
 
-export const Post = (path: string): MethodDecorator => {
+export const Post = (path: string) => {
     return MethodHandler("post", path)
 };
 
-export const Delete = (path: string): MethodDecorator => {
-    return MethodHandler("all", path)
+export const Delete = (path: string) => {
+    return MethodHandler("delete", path)
 };
 
-export const Put = (path: string): MethodDecorator => {
+export const Put = (path: string) => {
     return MethodHandler("put", path)
 };
 
-export const All = (path: string): MethodDecorator => {
+export const All = (path: string) => {
     return MethodHandler("all", path)
 };
 
-export const Middleware = (cb: any): MethodDecorator => {
+export const Middleware = (cb: any) => {
 
     return (target, propertyKey: string): void => {
 

@@ -20,11 +20,11 @@ export declare const ShouldBeISO8601Date: () => PropertyDecorator;
 export declare const ShouldHaveMinMaxLength: (min: any, max: any) => PropertyDecorator;
 export declare const ShouldHaveMinLength: (min: any) => PropertyDecorator;
 export declare const ShouldHaveMaxLength: (max: any) => PropertyDecorator;
-export declare const ShouldValidateForm: (form: any, exclude_validator?: boolean) => MethodDecorator;
+export declare const ShouldValidateForm: (form: any, exclude_validator?: boolean) => (target: any, propertyKey: string) => void;
 /**
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
-export declare const UseForm: (form: any, exclude_validator?: boolean) => MethodDecorator;
+export declare const UseForm: (form: any, exclude_validator?: boolean) => (target: any, propertyKey: string) => void;
 export declare const custom: {
     equalTo: (field: any, value: any, obj: any) => void;
     checkS3File: (s3: any, folder: any) => void;

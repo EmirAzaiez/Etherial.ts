@@ -1,11 +1,11 @@
 import express from "express";
-import { Response, Request, RouteDefinition, NextFunction } from './provider'
+import { RouteDefinition, Response, Request, NextFunction } from './provider'
 
 const fs = require('fs').promises
 
 export class Http {
 
-    app: any;
+    app: express.Application;
     server: any;
     port: number
     routes: any
@@ -25,7 +25,7 @@ export class Http {
             }
         }
 
-        this.app.use((req: Request, res: Response, next: NextFunction) => {
+        this.app.use((req, res, next) => {
 
             res.success = (json) => {
                 res.status(json.status || 200)
@@ -78,36 +78,36 @@ export class Http {
                 routes.forEach((route) => {
 
                     this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req: Request, res: Response, next: NextFunction) => {
-
+                        
                         let ret = instance[route.methodName](req, res, next);
 
                         if (ret != null && ret.then && typeof ret.then === 'function') {
 
-                        ret.then((el) => {
+                            ret.then((el) => {
 
-                            if (el) {
+                                if (el) {
 
-                                if (el instanceof Array) {
+                                    if (el instanceof Array) {
 
-                                    res.success({status: 200, data: el})
-
-                                } else {
-
-                                    if (el._options && el._options.isNewRecord) {
-                                        res.success({status: 201, data: el})
-                                    } else {
                                         res.success({status: 200, data: el})
+
+                                    } else {
+
+                                        if (el._options && el._options.isNewRecord) {
+                                            res.success({status: 201, data: el})
+                                        } else {
+                                            res.success({status: 200, data: el})
+                                        }
+
                                     }
 
+                                } else {
+                                    res.error({status: 404, errors: ["not_found"]})
                                 }
+                                
+                            })
 
-                            } else {
-                                res.error({status: 404, errors: ["not_found"]})
-                            }
-                            
-                        })
-
-                    }
+                        }
 
                     });
 

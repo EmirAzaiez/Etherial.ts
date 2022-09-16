@@ -1,5 +1,6 @@
+import express from "express";
 export declare class Http {
-    app: any;
+    app: express.Application;
     server: any;
     port: number;
     routes: any;

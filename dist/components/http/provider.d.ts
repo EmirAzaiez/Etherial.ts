@@ -23,10 +23,10 @@ export interface Response extends express.Response {
         errors: [any];
     }) => void;
 }
-export declare const Get: (path: string) => MethodDecorator;
-export declare const Post: (path: string) => MethodDecorator;
-export declare const Delete: (path: string) => MethodDecorator;
-export declare const Put: (path: string) => MethodDecorator;
-export declare const All: (path: string) => MethodDecorator;
-export declare const Middleware: (cb: any) => MethodDecorator;
+export declare const Get: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<string[]>) => void;
+export declare const Post: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<string[]>) => void;
+export declare const Delete: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<string[]>) => void;
+export declare const Put: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<string[]>) => void;
+export declare const All: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<string[]>) => void;
+export declare const Middleware: (cb: any) => (target: any, propertyKey: string) => void;
 export declare const Controller: (prefix?: string) => ClassDecorator;
