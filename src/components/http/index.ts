@@ -1,5 +1,6 @@
 import express from "express";
 import { Response, Request, RouteDefinition, NextFunction } from './provider'
+
 const fs = require('fs').promises
 
 export class Http {
@@ -42,43 +43,43 @@ export class Http {
 
     }
 
-    async listen() {
+    listen() {
 
-        let controllers = []
+        return new Promise(async (resolve) => {
 
-        for (let index = 0; index < this.routes.length; index++) {
-            const route = this.routes[index];
+            let controllers = []
 
-            const stat = await fs.lstat(route)
+            for (let index = 0; index < this.routes.length; index++) {
+                const route = this.routes[index];
 
-            if (stat.isFile()) {
-                var controller =  require(route).default
-                controllers.push((controller))
-            } else if (stat.isDirectory()) {
+                const stat = await fs.lstat(route)
 
-                let routes = await fs.readdir(route)
-
-                for (let index = 0; index < routes.length; index++) {
-                    var controller = require(`${route}/${routes[index]}`).default;
+                if (stat.isFile()) {
+                    var controller =  require(route).default
                     controllers.push((controller))
+                } else if (stat.isDirectory()) {
+
+                    let routes = await fs.readdir(route)
+
+                    for (let index = 0; index < routes.length; index++) {
+                        var controller = require(`${route}/${routes[index]}`).default;
+                        controllers.push((controller))
+                    }
+
                 }
 
             }
 
-        }
+            controllers.forEach((controller) => {
+                const instance = new controller();
+                const prefix = Reflect.getMetadata('prefix', controller);
+                const routes: Array<RouteDefinition> = Reflect.getMetadata('routes', controller);
+                
+                routes.forEach((route) => {
 
-        controllers.forEach((controller) => {
-            const instance = new controller();
-            const prefix = Reflect.getMetadata('prefix', controller);
-            const routes: Array<RouteDefinition> = Reflect.getMetadata('routes', controller);
-            
-            routes.forEach((route) => {
+                    this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req: Request, res: Response, next: NextFunction) => {
 
-                this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req: Request, res: Response, next: NextFunction) => {
-
-                    let ret = instance[route.methodName](req, res, next);
-
-                    // if(!res.headersSent) {
+                        let ret = instance[route.methodName](req, res, next);
 
                         if (ret != null && ret.then && typeof ret.then === 'function') {
 
@@ -108,22 +109,28 @@ export class Http {
 
                     }
 
-                    // }
+                    });
 
                 });
 
             });
 
-        });
+            if (this.notFoundRouteMiddleware) {
+                this.app.use(this.notFoundRouteMiddleware)
+            }
 
-        this.app.listen(this.port)
-
-        return this
+            this.app.listen(this.port, () => {
+                resolve(this)
+            })
+        })
     }
 
-    loadRoutes(routes) {
-        for (let index = 0; index < routes.length; index++) {
-            routes[index](this.app)
+    addRoutes(routes) {
+
+        if (routes instanceof Array) {
+            this.routes = [...this.routes, ...routes]    
+        } else {
+            this.routes = [...this.routes, routes]    
         }
 
         return this
@@ -132,16 +139,6 @@ export class Http {
     notFoundRoute(middleware) {
         this.notFoundRouteMiddleware = middleware
         return this
-    }
-
-    loadCrons(crons) {
-
-        for (let index = 0; index < crons.length; index++) {
-            crons[index](this.app)
-        }
-
-        return this
-
     }
 
     async run() {

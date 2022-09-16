@@ -1,11 +1,9 @@
 import { Sequelize } from "sequelize-typescript";
 
-import * as sequelizeFixtures from 'sequelize-fixtures'
-
 export class Database {
 
     sequelize: Sequelize
-
+    // add ifnore sync
     constructor({server, port, name, username, password, dialect, models}) {
 
         this.sequelize = new Sequelize({
@@ -22,11 +20,15 @@ export class Database {
             }
         });
 
-        this.sequelize.addModels([models])
-
-        this.sync()
+        if (models) {
+            this.sequelize.addModels([models])
+        }
 
         return this
+    }
+
+    async run() {
+        await this.sequelize.sync()
     }
 
     addModels(models) {
@@ -55,28 +57,7 @@ export class Database {
                     '--path': [String]
                 },
 
-                callback: (args) => {
-                
-                    // this.sequelize.sync({force: true})
-
-                    // fs.readdir(env, (err, files) => {
-
-                    //     sequelizeFixtures.loadFile(process.cwd() + '/resources/fixtures/common/*.json', Etherial.database.models).then(() => {
-                    
-                    //         if (files != undefined && files.length !=0) {
-                    //             sequelizeFixtures.loadFile(env, Etherial.database.models).then(() => {
-                    //                 process.exit()
-                    //             })
-                    //         } else {
-                    //             process.exit()
-                    //         }
-                    
-                            
-                    //     })
-                    
-                    // })
-
-                }
+                callback: (args) => {}
 
             }
 

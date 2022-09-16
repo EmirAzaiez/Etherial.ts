@@ -10,6 +10,7 @@ export declare class Database {
         dialect: any;
         models: any;
     });
+    run(): Promise<void>;
     addModels(models: any): this;
     sync(): void;
     commands(): {

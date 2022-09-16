@@ -9,9 +9,8 @@ export declare class Http {
         routes: any;
         middlewares: any;
     });
-    listen(): Promise<this>;
-    loadRoutes(routes: any): this;
+    listen(): Promise<unknown>;
+    addRoutes(routes: any): this;
     notFoundRoute(middleware: any): this;
-    loadCrons(crons: any): this;
     run(): Promise<this>;
 }

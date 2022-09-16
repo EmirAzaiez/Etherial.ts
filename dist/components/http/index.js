@@ -38,7 +38,7 @@ class Http {
         });
     }
     listen() {
-        return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
             let controllers = [];
             for (let index = 0; index < this.routes.length; index++) {
                 const route = this.routes[index];
@@ -62,7 +62,6 @@ class Http {
                 routes.forEach((route) => {
                     this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
                         let ret = instance[route.methodName](req, res, next);
-                        // if(!res.headersSent) {
                         if (ret != null && ret.then && typeof ret.then === 'function') {
                             ret.then((el) => {
                                 if (el) {
@@ -83,28 +82,28 @@ class Http {
                                 }
                             });
                         }
-                        // }
                     });
                 });
             });
-            this.app.listen(this.port);
-            return this;
-        });
+            if (this.notFoundRouteMiddleware) {
+                this.app.use(this.notFoundRouteMiddleware);
+            }
+            this.app.listen(this.port, () => {
+                resolve(this);
+            });
+        }));
     }
-    loadRoutes(routes) {
-        for (let index = 0; index < routes.length; index++) {
-            routes[index](this.app);
+    addRoutes(routes) {
+        if (routes instanceof Array) {
+            this.routes = [...this.routes, ...routes];
+        }
+        else {
+            this.routes = [...this.routes, routes];
         }
         return this;
     }
     notFoundRoute(middleware) {
         this.notFoundRouteMiddleware = middleware;
-        return this;
-    }
-    loadCrons(crons) {
-        for (let index = 0; index < crons.length; index++) {
-            crons[index](this.app);
-        }
         return this;
     }
     run() {

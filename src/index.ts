@@ -1,15 +1,21 @@
-import * as colors from 'colors'
-import arg from 'arg'
+import 'reflect-metadata'
 
-colors.setTheme({
-    info: 'green',
-    warn: 'yellow',
-    error: 'red'
-});
+export interface IEtherial {
+    init(config: any): void;
+    run(): Promise<any>;
+    commands(): void;
+    initDone: boolean;
+    initInProgress: boolean;
+}
 
-class Etherial {
+export class Etherial implements IEtherial {
+
+    initDone = false;
+    initInProgress = false;
 
     init(config) {
+
+        this.initInProgress = true;
 
         Object.keys(config).forEach((element) => {
 
@@ -20,54 +26,38 @@ class Etherial {
 
         })
 
-        return this
-        
-
     }
 
     run() {
 
+        let promises = [];
+
         Object.keys(this).sort((a, b) => {
-
-            return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || + (a>b) || - (a<b);
+            return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
         }).forEach((element) => {
-
             if (this[element].run) {
-                this[element].run(this)
+                let rtn = this[element].run(this);
+            
+                if (rtn instanceof Promise) {
+                    promises.push(rtn)
+                }
+            
             }
-        })
+        });
 
-        return this
+        return new Promise((resolve) => {
 
-    }
-
-    commands() {
-
-        let commands = {}
-        let command = process.argv[2]
-
-        Object.keys(this).forEach((element) => {
-
-            if (this[element].commands) {
-
-                let cmds = this[element].commands()
-
-                Object.keys(cmds).forEach((cmd) => {
-                    commands[cmd] = cmds[cmd]
-                })
-
-            }
+            Promise.all(promises).then(() => {
+                this.initDone = true
+                this.initInProgress = false;
+                resolve(this)
+            })
 
         })
 
-        if (commands[command]) {
-            const args = arg((commands[command].arguments || {}));
-            commands[command].callback(args)
-        } else {
-            console.log(`Command ${command} not found, type --help for more informations.`)
-        }
-        
     }
+
+    commands() {}
 
 }
 
