@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 let MethodHandler = (method, path) => {
-    return (target, propertyKey, descriptor) => {
+    return (target, propertyKey) => {
         if (!Reflect.hasMetadata('routes', target.constructor)) {
             Reflect.defineMetadata('routes', [], target.constructor);
         }
