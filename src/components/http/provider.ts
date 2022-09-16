@@ -20,9 +20,15 @@ export interface Response extends express.Response {
     error?: (json: {status: number, errors: [any]}) => void
 }
 
+export interface RouteParams {
+    req: Request 
+    res: Response
+    next?: NextFunction
+}
+
 let MethodHandler = (method, path) => {
 
-    return (target, propertyKey: string, descriptor:TypedPropertyDescriptor<(req: Request, res: Response, next?: NextFunction) => Promise<any>>): void => {
+    return (target, propertyKey: string, descriptor:TypedPropertyDescriptor<RouteParams>): void => {
 
         if (! Reflect.hasMetadata('routes', target.constructor)) {
             Reflect.defineMetadata('routes', [], target.constructor);
