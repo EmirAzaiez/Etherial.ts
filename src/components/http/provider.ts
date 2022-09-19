@@ -12,7 +12,13 @@ export interface NextFunction extends express.NextFunction {}
 export interface Request extends express.Request {
     params: {}
     body: {}
-    query: {}
+    query: {
+        sort?: number;
+        limit?: number;
+        offset?: number;
+        page?: number;
+        [key: string]: any;
+    }
 }
 
 export interface Response extends express.Response {

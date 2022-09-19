@@ -11,6 +11,8 @@ export default class HttpSecurity {
     model: any;
     roles: any;
     column: string;
+    customAuthentificationChecker: (any: any) => void;
+    customAuthentificationRoleChecker: (any: any) => void;
     constructor({ secret, authorizedRoutes, type, model, roles, column }: {
         secret: any;
         authorizedRoutes: any;
@@ -19,4 +21,6 @@ export default class HttpSecurity {
         roles: any;
         column: any;
     });
+    setCustomAuthentificationChecker(customFunction: () => void): void;
+    setCustomAuthentificationRoleChecker(customFunction: () => void): void;
 }

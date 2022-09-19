@@ -16,6 +16,8 @@ export default class HttpSecurity {
     model: any;
     roles: any;
     column: string;
+    customAuthentificationChecker: (any) => void;
+    customAuthentificationRoleChecker: (any) => void;
 
     constructor({ secret, authorizedRoutes, type, model, roles, column }) {
         this.secret = secret
@@ -39,12 +41,8 @@ export default class HttpSecurity {
                     let decoded = jwt.decode(token.substring(7, token.length), this.secret);
         
                     if (decoded) {
-                        let user = await model.findOne({where: {'id': decoded.user_id} });
-        
-                        if (user != null) {
-                            req.user = user
-                            return next(false)
-                        }
+
+                        this.customAuthentificationChecker(decoded.user_id)
         
                     } else {
                         res.error({status: 401, errors: ['forbidden']})
@@ -82,6 +80,14 @@ export default class HttpSecurity {
 
         }
 
+    }
+
+    setCustomAuthentificationChecker(customFunction: () => void) {
+        this.customAuthentificationChecker = customFunction
+    }
+
+    setCustomAuthentificationRoleChecker(customFunction: () => void) {
+        this.customAuthentificationRoleChecker = customFunction
     }
 
 }

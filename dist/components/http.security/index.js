@@ -35,11 +35,7 @@ class HttpSecurity {
                 if (token.startsWith("Bearer ")) {
                     let decoded = jwt.decode(token.substring(7, token.length), this.secret);
                     if (decoded) {
-                        let user = yield model.findOne({ where: { 'id': decoded.user_id } });
-                        if (user != null) {
-                            req.user = user;
-                            return next(false);
-                        }
+                        this.customAuthentificationChecker(decoded.user_id);
                     }
                     else {
                         res.error({ status: 401, errors: ['forbidden'] });
@@ -66,6 +62,12 @@ class HttpSecurity {
                 };
             };
         }
+    }
+    setCustomAuthentificationChecker(customFunction) {
+        this.customAuthentificationChecker = customFunction;
+    }
+    setCustomAuthentificationRoleChecker(customFunction) {
+        this.customAuthentificationRoleChecker = customFunction;
     }
 }
 exports.default = HttpSecurity;
