@@ -35,7 +35,11 @@ class HttpSecurity {
                 if (token.startsWith("Bearer ")) {
                     let decoded = jwt.decode(token.substring(7, token.length), this.secret);
                     if (decoded) {
-                        this.customAuthentificationChecker(decoded.user_id);
+                        this.customAuthentificationChecker(decoded.user_id).then(() => {
+                            next();
+                        }).catch(() => {
+                            res.error({ status: 401, errors: ['forbidden'] });
+                        });
                     }
                     else {
                         res.error({ status: 401, errors: ['forbidden'] });

@@ -11,7 +11,7 @@ export default class HttpSecurity {
     model: any;
     roles: any;
     column: string;
-    customAuthentificationChecker: (any: any) => void;
+    customAuthentificationChecker: (any: any) => Promise<void>;
     customAuthentificationRoleChecker: (any: any) => void;
     constructor({ secret, authorizedRoutes, type, model, roles, column }: {
         secret: any;

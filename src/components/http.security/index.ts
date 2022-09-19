@@ -16,7 +16,7 @@ export default class HttpSecurity {
     model: any;
     roles: any;
     column: string;
-    customAuthentificationChecker: (any) => void;
+    customAuthentificationChecker: (any) => Promise<void>;
     customAuthentificationRoleChecker: (any) => void;
 
     constructor({ secret, authorizedRoutes, type, model, roles, column }) {
@@ -42,7 +42,11 @@ export default class HttpSecurity {
         
                     if (decoded) {
 
-                        this.customAuthentificationChecker(decoded.user_id)
+                        this.customAuthentificationChecker(decoded.user_id).then(() => {
+                            next()
+                        }).catch(() => {
+                            res.error({status: 401, errors: ['forbidden']})
+                        })
         
                     } else {
                         res.error({status: 401, errors: ['forbidden']})
