@@ -42,7 +42,7 @@ export default class HttpSecurity {
         
                     if (decoded) {
 
-                        this.customAuthentificationChecker(decoded.user_id).then(() => {
+                        this.customAuthentificationChecker(decoded.user_id).then((user) => {
                             next()
                         }).catch(() => {
                             res.error({status: 401, errors: ['forbidden']})
