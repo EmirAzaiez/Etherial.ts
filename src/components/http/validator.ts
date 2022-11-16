@@ -1,4 +1,4 @@
-import { validationResult, body, query, ValidationChain } from 'express-validator'
+import { validationResult, body, query, ValidationChain, matchedData } from 'express-validator'
 
 import { Middleware } from './provider'
 
@@ -32,7 +32,7 @@ export const Form = () : ClassDecorator => {
 
 };
 
-export const AddValidation = (cb) : PropertyDecorator => {
+export const AddValidation = (cb: () => any) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
   
@@ -110,7 +110,7 @@ export const ShouldBeNotEmpty = () : PropertyDecorator => {
 
 }
 
-export const ShouldMatch = (regex) : PropertyDecorator => {
+export const ShouldMatch = (regex: RegExp) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
   
@@ -138,7 +138,7 @@ export const ShouldBeEmail = (options) : PropertyDecorator => {
 
 }
 
-export const ShouldExistInModel = (model, column) : PropertyDecorator => {
+export const ShouldExistInModel = (model: any, column: string) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -168,7 +168,7 @@ export const ShouldExistInModel = (model, column) : PropertyDecorator => {
 
 }
 
-export const ShouldNotExistInModel = (model, column) : PropertyDecorator => {
+export const ShouldNotExistInModel = (model: any, column: string) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -198,7 +198,7 @@ export const ShouldNotExistInModel = (model, column) : PropertyDecorator => {
 
 }
 
-export const ShouldCustom = (cb) : PropertyDecorator => {
+export const ShouldCustom = (cb: () => void) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -212,7 +212,7 @@ export const ShouldCustom = (cb) : PropertyDecorator => {
 
 }
 
-export const ShouldBeS3File = (s3, folder) : PropertyDecorator => {
+export const ShouldBeS3File = (s3: any, folder: string) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -245,7 +245,7 @@ export const ShouldBeS3File = (s3, folder) : PropertyDecorator => {
 
 }
 
-export const ShouldBeEqualTo = (field) : PropertyDecorator => {
+export const ShouldBeEqualTo = (field: string) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -281,7 +281,7 @@ export const ShouldBeISO8601Date = () : PropertyDecorator => {
 
 }
 
-export const ShouldHaveMinMaxLength = (min, max) : PropertyDecorator => {
+export const ShouldHaveMinMaxLength = (min: number, max: number) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -295,7 +295,7 @@ export const ShouldHaveMinMaxLength = (min, max) : PropertyDecorator => {
 
 }
 
-export const ShouldHaveMinLength = (min) : PropertyDecorator => {
+export const ShouldHaveMinLength = (min: number) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -309,7 +309,7 @@ export const ShouldHaveMinLength = (min) : PropertyDecorator => {
 
 }
 
-export const ShouldHaveMaxLength = (max) : PropertyDecorator => {
+export const ShouldHaveMaxLength = (max: number) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -323,22 +323,45 @@ export const ShouldHaveMaxLength = (max) : PropertyDecorator => {
 
 }
 
-export const ShouldValidateForm = (form, exclude_validator = false) => {
+export const ShouldBeMobilePhone = (locale: string) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].isMobilePhone(locale).withMessage('api.form.errors.max_length_not_valid')
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldValidateForm = (form, {exclude_validator = false, include_optionals = true}) => {
 
     const validations = Reflect.getMetadata('validations', form);
 
     let arr = Object.values(validations)
 
     if (!exclude_validator) {
+
         arr.push((req, res, next) => {
+
             var errors = (validationResult(req)).array()
     
             if(errors.length === 0) {
+
+                req.form = matchedData(req, {
+                    includeOptionals: include_optionals,
+                })
+
                 next()
+
             } else {
                 res.error({status: 400, errors: errors})
             }
         })
+
     }
 
     return Middleware(arr)
@@ -349,13 +372,3 @@ export const ShouldValidateForm = (form, exclude_validator = false) => {
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
 export const UseForm = ShouldValidateForm
-
-export const custom = {
-    equalTo:  (field, value, obj) => {
-        
-    },
-    checkS3File:  (s3, folder) => {
-        
-
-    }
-}

@@ -1,7 +1,5 @@
 var expressLayouts = require('express-ejs-layouts');
 
-import { Http } from '../http'
-
 export default class HttpFront {
 
     viewsFolder: String;

@@ -20,7 +20,7 @@ class Translation {
         if (key && keyp) {
             var obj = {
                 code: 0,
-                msg: string_format_1.default(key, { param: keyp, value: error.value })
+                msg: (0, string_format_1.default)(key, { param: keyp, value: error.value })
             };
             if ('code' in error) {
                 obj.code = error.code;
@@ -34,7 +34,7 @@ class Translation {
     string(key, argumentss, lang) {
         let message = this.internalizations["FR"][key];
         if (message) {
-            return string_format_1.default(message, argumentss);
+            return (0, string_format_1.default)(message, argumentss);
         }
         else {
             return key;

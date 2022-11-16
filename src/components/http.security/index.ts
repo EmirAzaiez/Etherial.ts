@@ -9,23 +9,44 @@ export default class HttpSecurity {
 
     type?: String;
     secret?: String;
-    authorizedRoutes?: [{url: RegExp | String, method: String}];
     generateToken?: (data: any) => String
     authentificatorMiddleware: any
     authentificatorRoleCheckerMiddleware: any
-    model: any;
     roles: any;
     column: string;
+    role_column: string;
     customAuthentificationChecker: (any) => Promise<void>;
     customAuthentificationRoleChecker: (any) => void;
 
-    constructor({ secret, authorizedRoutes, type, model, roles, column }) {
+    constructor({ secret, type, roles, role_column }) {
         this.secret = secret
-        this.authorizedRoutes = authorizedRoutes
         this.type = type
-        this.model = model
         this.roles = roles
-        this.column = column
+        this.role_column = role_column
+
+        this.authentificatorRoleCheckerMiddleware = (role: string = "CLIENT") => {
+
+            return (req, res, next) => {
+
+                if (req.user) {
+
+                    let checkrole = this.roles[role]
+
+                    if (checkrole.includes(req.user[role_column])) {
+                        next(null)
+                    } else {
+                        res.error({status: 401, errors: ['forbidden']})
+                    }
+
+                } else {
+
+                    res.error({status: 401, errors: ['forbidden']})
+                    
+                }
+
+            }
+
+        }
 
         if (this.type === 'JWT') {
 
@@ -34,6 +55,10 @@ export default class HttpSecurity {
             }
 
             this.authentificatorMiddleware = async (req, res, next) => {
+
+                if (req.user) {
+                    return next()
+                }
 
                 let token = req.headers["authorization"];
         
@@ -58,36 +83,16 @@ export default class HttpSecurity {
                 }
             
             }
-            
-            this.authentificatorRoleCheckerMiddleware = (role: string = "CLIENT") => {
 
-                return (req, res, next) => {
+        } else if (this.type === 'SESSION') {
 
-                    if (req.user) {
-
-                        let checkrole = this.roles[role]
-
-                        if (checkrole(req.user[column])) {
-                            next(null)
-                        } else {
-                            res.error({status: 401, errors: ['forbidden']})
-                        }
-
-                    } else {
-
-                        res.error({status: 401, errors: ['forbidden']})
-                        
-                    }
-
-                }
-
-            }
+        } else if (this.type === 'BASIC') {
 
         }
 
     }
 
-    setCustomAuthentificationChecker(customFunction: () => void) {
+    setCustomAuthentificationChecker(customFunction: (any) => Promise<void>) {
         this.customAuthentificationChecker = customFunction
     }
 

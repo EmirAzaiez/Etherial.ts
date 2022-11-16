@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Controller = exports.Middleware = exports.All = exports.Put = exports.Delete = exports.Post = exports.Get = void 0;
 let MethodHandler = (method, path) => {
     return (target, propertyKey) => {
         if (!Reflect.hasMetadata('routes', target.constructor)) {
@@ -15,22 +16,27 @@ let MethodHandler = (method, path) => {
         Reflect.defineMetadata('routes', routes, target.constructor);
     };
 };
-exports.Get = (path) => {
+const Get = (path) => {
     return MethodHandler("get", path);
 };
-exports.Post = (path) => {
+exports.Get = Get;
+const Post = (path) => {
     return MethodHandler("post", path);
 };
-exports.Delete = (path) => {
+exports.Post = Post;
+const Delete = (path) => {
     return MethodHandler("delete", path);
 };
-exports.Put = (path) => {
+exports.Delete = Delete;
+const Put = (path) => {
     return MethodHandler("put", path);
 };
-exports.All = (path) => {
+exports.Put = Put;
+const All = (path) => {
     return MethodHandler("all", path);
 };
-exports.Middleware = (cb) => {
+exports.All = All;
+const Middleware = (cb) => {
     return (target, propertyKey) => {
         if (!Reflect.hasMetadata('routes', target.constructor)) {
             Reflect.defineMetadata('routes', [], target.constructor);
@@ -40,7 +46,8 @@ exports.Middleware = (cb) => {
         Reflect.defineMetadata('middlewares', middlewares, target, propertyKey);
     };
 };
-exports.Controller = (prefix = '') => {
+exports.Middleware = Middleware;
+const Controller = (prefix = '') => {
     return (target) => {
         Reflect.defineMetadata('prefix', prefix, target);
         if (!Reflect.hasMetadata('routes', target)) {
@@ -48,4 +55,5 @@ exports.Controller = (prefix = '') => {
         }
     };
 };
+exports.Controller = Controller;
 //# sourceMappingURL=provider.js.map

@@ -5,6 +5,11 @@ export const ShouldBeAuthentificate = () : MethodDecorator => {
     return Middleware(etherial['http_security'].authentificatorMiddleware)
 }
 
-export const ShouldHaveRole = (role) : MethodDecorator => {
-    return Middleware(etherial['http_security'].authentificatorRoleCheckerMiddleware(role))
+export const ShouldBeAuthentificateWithRole = (role) : MethodDecorator => {
+    
+    return Middleware([
+        etherial['http_security'].authentificatorMiddleware,
+        etherial['http_security'].authentificatorRoleCheckerMiddleware(role)
+    ])
+    
 } 

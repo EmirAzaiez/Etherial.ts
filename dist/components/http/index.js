@@ -12,11 +12,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Http = void 0;
 const express_1 = __importDefault(require("express"));
 const fs = require('fs').promises;
 class Http {
     constructor({ port, routes, middlewares }) {
-        this.app = express_1.default();
+        this.app = (0, express_1.default)();
         this.port = port;
         this.routes = routes;
         this.notFoundRouteMiddleware = null;

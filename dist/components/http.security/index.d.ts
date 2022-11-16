@@ -1,26 +1,20 @@
 export default class HttpSecurity {
     type?: String;
     secret?: String;
-    authorizedRoutes?: [{
-        url: RegExp | String;
-        method: String;
-    }];
     generateToken?: (data: any) => String;
     authentificatorMiddleware: any;
     authentificatorRoleCheckerMiddleware: any;
-    model: any;
     roles: any;
     column: string;
+    role_column: string;
     customAuthentificationChecker: (any: any) => Promise<void>;
     customAuthentificationRoleChecker: (any: any) => void;
-    constructor({ secret, authorizedRoutes, type, model, roles, column }: {
+    constructor({ secret, type, roles, role_column }: {
         secret: any;
-        authorizedRoutes: any;
         type: any;
-        model: any;
         roles: any;
-        column: any;
+        role_column: any;
     });
-    setCustomAuthentificationChecker(customFunction: () => void): void;
+    setCustomAuthentificationChecker(customFunction: (any: any) => Promise<void>): void;
     setCustomAuthentificationRoleChecker(customFunction: () => void): void;
 }

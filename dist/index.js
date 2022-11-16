@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Etherial = void 0;
 require("reflect-metadata");
 class Etherial {
     constructor() {

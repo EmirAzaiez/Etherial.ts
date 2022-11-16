@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Database = void 0;
 const sequelize_typescript_1 = require("sequelize-typescript");
 class Database {
     // add ifnore sync

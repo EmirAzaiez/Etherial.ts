@@ -1,2 +1,2 @@
 export declare const ShouldBeAuthentificate: () => MethodDecorator;
-export declare const ShouldHaveRole: (role: any) => MethodDecorator;
+export declare const ShouldBeAuthentificateWithRole: (role: any) => MethodDecorator;
