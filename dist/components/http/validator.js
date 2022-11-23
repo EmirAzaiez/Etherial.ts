@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UseForm = exports.ShouldValidateForm = exports.ShouldBeMobilePhone = exports.ShouldHaveMaxLength = exports.ShouldHaveMinLength = exports.ShouldHaveMinMaxLength = exports.ShouldBeISO8601Date = exports.ShouldBeEqualTo = exports.ShouldBeS3File = exports.ShouldCustom = exports.ShouldNotExistInModel = exports.ShouldExistInModel = exports.ShouldBeEmail = exports.ShouldMatch = exports.ShouldBeNotEmpty = exports.ShouldExist = exports.Query = exports.Body = exports.AddValidation = exports.Form = exports.FormGenerator = exports.query = exports.body = void 0;
+exports.UseForm = exports.ShouldValidateForm = exports.ShouldBeMobilePhone = exports.ShouldHaveMaxLength = exports.ShouldHaveMinLength = exports.ShouldHaveMinMaxLength = exports.ShouldBeISO8601Date = exports.ShouldBeEqualTo = exports.ShouldCustom = exports.ShouldNotExistInModel = exports.ShouldExistInModel = exports.ShouldBeEmail = exports.ShouldMatch = exports.ShouldBeNotEmpty = exports.ShouldExist = exports.Query = exports.Body = exports.AddValidation = exports.Form = exports.FormGenerator = exports.query = exports.body = void 0;
 const express_validator_1 = require("express-validator");
 Object.defineProperty(exports, "body", { enumerable: true, get: function () { return express_validator_1.body; } });
 Object.defineProperty(exports, "query", { enumerable: true, get: function () { return express_validator_1.query; } });
@@ -128,28 +128,6 @@ const ShouldCustom = (cb) => {
     };
 };
 exports.ShouldCustom = ShouldCustom;
-const ShouldBeS3File = (s3, folder) => {
-    return (target, propertyKey) => {
-        let validations = Reflect.getMetadata('validations', target.constructor);
-        validations[propertyKey] = validations[propertyKey].custom((value) => {
-            return new Promise((resolve, reject) => {
-                s3.getObject({
-                    Bucket: process.env.AWS_BUCKET,
-                    Key: folder + '/' + value
-                }, (err) => {
-                    if (err) {
-                        reject('api.form.errors.file_not_exist');
-                    }
-                    else {
-                        resolve(true);
-                    }
-                });
-            });
-        });
-        Reflect.defineMetadata('validations', validations, target.constructor);
-    };
-};
-exports.ShouldBeS3File = ShouldBeS3File;
 const ShouldBeEqualTo = (field) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
@@ -205,15 +183,15 @@ const ShouldBeMobilePhone = (locale) => {
     };
 };
 exports.ShouldBeMobilePhone = ShouldBeMobilePhone;
-const ShouldValidateForm = (form, { exclude_validator = false, include_optionals = true }) => {
+const ShouldValidateForm = (form, options = { exclude_validator: false, include_optionals: true }) => {
     const validations = Reflect.getMetadata('validations', form);
     let arr = Object.values(validations);
-    if (!exclude_validator) {
+    if (!options.exclude_validator) {
         arr.push((req, res, next) => {
             var errors = ((0, express_validator_1.validationResult)(req)).array();
             if (errors.length === 0) {
                 req.form = (0, express_validator_1.matchedData)(req, {
-                    includeOptionals: include_optionals,
+                    includeOptionals: options.include_optionals,
                 });
                 next();
             }

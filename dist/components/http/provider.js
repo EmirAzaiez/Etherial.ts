@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Controller = exports.Middleware = exports.All = exports.Put = exports.Delete = exports.Post = exports.Get = void 0;
+exports.ShouldUseRoute = exports.Controller = exports.Middleware = exports.All = exports.Put = exports.Delete = exports.Post = exports.Get = void 0;
 let MethodHandler = (method, path) => {
     return (target, propertyKey) => {
         if (!Reflect.hasMetadata('routes', target.constructor)) {
@@ -56,4 +56,5 @@ const Controller = (prefix = '') => {
     };
 };
 exports.Controller = Controller;
+exports.ShouldUseRoute = exports.Middleware;
 //# sourceMappingURL=provider.js.map

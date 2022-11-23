@@ -212,39 +212,6 @@ export const ShouldCustom = (cb: () => void) : PropertyDecorator => {
 
 }
 
-export const ShouldBeS3File = (s3: any, folder: string) : PropertyDecorator => {
-
-    return (target: any, propertyKey: string) => {
-
-        let validations = Reflect.getMetadata('validations', target.constructor)
-
-        validations[propertyKey] = validations[propertyKey].custom((value) => {
-            
-            return new Promise((resolve, reject) => {
-
-                s3.getObject({
-                    Bucket: process.env.AWS_BUCKET,
-                    Key: folder + '/' + value
-                },  (err) => {
-    
-                    if(err) {
-                        reject('api.form.errors.file_not_exist')
-                    } else {
-                        resolve(true)
-                    }
-                    
-                })
-    
-            })
-
-        })
-
-        Reflect.defineMetadata('validations', validations, target.constructor);
-
-    }
-
-}
-
 export const ShouldBeEqualTo = (field: string) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
@@ -337,13 +304,18 @@ export const ShouldBeMobilePhone = (locale: string) : PropertyDecorator => {
 
 }
 
-export const ShouldValidateForm = (form, {exclude_validator = false, include_optionals = true}) => {
+type ShouldValidateFormOptions = {
+    exclude_validator?: boolean
+    include_optionals?: boolean
+}
+
+export const ShouldValidateForm = (form, options:ShouldValidateFormOptions = {exclude_validator: false, include_optionals: true}) => {
 
     const validations = Reflect.getMetadata('validations', form);
 
     let arr = Object.values(validations)
 
-    if (!exclude_validator) {
+    if (!options.exclude_validator) {
 
         arr.push((req, res, next) => {
 
@@ -352,7 +324,7 @@ export const ShouldValidateForm = (form, {exclude_validator = false, include_opt
             if(errors.length === 0) {
 
                 req.form = matchedData(req, {
-                    includeOptionals: include_optionals,
+                    includeOptionals: options.include_optionals,
                 })
 
                 next()

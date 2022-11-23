@@ -36,3 +36,4 @@ export declare const Put: (path: string) => (target: any, propertyKey: string) =
 export declare const All: (path: string) => (target: any, propertyKey: string) => void;
 export declare const Middleware: (cb: any) => (target: any, propertyKey: string) => void;
 export declare const Controller: (prefix?: string) => ClassDecorator;
+export declare const ShouldUseRoute: (cb: any) => (target: any, propertyKey: string) => void;

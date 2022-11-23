@@ -28,7 +28,7 @@ class Database {
             }
         });
         if (models) {
-            this.sequelize.addModels([models]);
+            this.addModels(models);
         }
         return this;
     }

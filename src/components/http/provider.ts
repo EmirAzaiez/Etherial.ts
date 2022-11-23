@@ -99,3 +99,5 @@ export const Controller = (prefix: string = ''): ClassDecorator => {
     };
 
 };
+
+export const ShouldUseRoute = Middleware
