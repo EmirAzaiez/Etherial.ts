@@ -65,7 +65,7 @@ class HttpSecurity {
                     return next();
                 }
                 let token = req.headers["authorization"];
-                if (token.startsWith("Bearer ")) {
+                if (token && token.startsWith("Bearer ")) {
                     let decoded = jwt.decode(token.substring(7, token.length), this.secret);
                     if (decoded) {
                         this.customAuthentificationChecker(decoded.user_id).then((user) => {

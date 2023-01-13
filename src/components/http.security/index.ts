@@ -62,7 +62,7 @@ export default class HttpSecurity {
 
                 let token = req.headers["authorization"];
         
-                if (token.startsWith("Bearer ")) {
+                if (token && token.startsWith("Bearer ")) {
                     let decoded = jwt.decode(token.substring(7, token.length), this.secret);
         
                     if (decoded) {
@@ -83,6 +83,7 @@ export default class HttpSecurity {
                 }
             
             }
+            
 
         } else if (this.type === 'SESSION') {
 
