@@ -1,4 +1,5 @@
 import { body, query, ValidationChain } from 'express-validator';
+import { Request } from './provider';
 export { ValidationChain };
 export { body };
 export { query };
@@ -13,7 +14,7 @@ export declare const ShouldMatch: (regex: RegExp) => PropertyDecorator;
 export declare const ShouldBeEmail: (options: any) => PropertyDecorator;
 export declare const ShouldExistInModel: (model: any, column: string) => PropertyDecorator;
 export declare const ShouldNotExistInModel: (model: any, column: string) => PropertyDecorator;
-export declare const ShouldCustom: (cb: () => void) => PropertyDecorator;
+export declare const ShouldCustom: (cb: (value: string, req: Request) => Promise<never>) => PropertyDecorator;
 export declare const ShouldBeEqualTo: (field: string) => PropertyDecorator;
 export declare const ShouldBeISO8601Date: () => PropertyDecorator;
 export declare const ShouldHaveMinMaxLength: (min: number, max: number) => PropertyDecorator;

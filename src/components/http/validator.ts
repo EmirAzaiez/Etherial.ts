@@ -1,11 +1,10 @@
 import { validationResult, body, query, ValidationChain, matchedData } from 'express-validator'
 
-import { Middleware } from './provider'
+import { Middleware, Request } from './provider'
 
 export { ValidationChain }
 export { body }
 export { query }
-
 
 export const FormGenerator = (elements) => {
 
@@ -198,7 +197,7 @@ export const ShouldNotExistInModel = (model: any, column: string) : PropertyDeco
 
 }
 
-export const ShouldCustom = (cb: () => void) : PropertyDecorator => {
+export const ShouldCustom = (cb: (value: string, req: Request) => Promise<never>) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
