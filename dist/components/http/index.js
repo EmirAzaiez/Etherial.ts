@@ -78,9 +78,6 @@ class Http {
                                         }
                                     }
                                 }
-                                else {
-                                    res.error({ status: 404, errors: ["not_found"] });
-                                }
                             });
                         }
                     });
