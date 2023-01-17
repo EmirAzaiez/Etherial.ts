@@ -25,7 +25,8 @@ export default class Translation {
         if (key && keyp) {
             var obj = {
                 code: 0,
-                msg: format(key, {param: keyp, value: error.value})
+                msg: format(key, {param: keyp, value: error.value}),
+                param: keyp
             }
 
             if ('code' in error) {
