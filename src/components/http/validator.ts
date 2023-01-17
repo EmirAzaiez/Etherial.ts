@@ -180,7 +180,7 @@ export const ShouldNotExistInModel = (model: any, column: string) : PropertyDeco
                 model.findOne({where: { [column]: value }}).then((el) => {
 
                     if (el) {
-                        return reject("api.errors.not_found");
+                        return reject("api.errors.already_exist_in_database");
                     } else {
                         return resolve(true);
                     }

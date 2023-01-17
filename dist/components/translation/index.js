@@ -20,8 +20,10 @@ class Translation {
         if (key && keyp) {
             var obj = {
                 code: 0,
+                location: error.location,
                 msg: (0, string_format_1.default)(key, { param: keyp, value: error.value }),
-                param: keyp
+                param_translated: keyp,
+                param: error.param
             };
             if ('code' in error) {
                 obj.code = error.code;
