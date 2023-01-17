@@ -17,15 +17,28 @@ class Translation {
     error(error, lang) {
         let key = this.internalizations["FR"][error.msg];
         let keyp = this.internalizations["FR"][error.param];
-        if (key && keyp) {
-            var obj = {
-                code: 0,
-                location: error.location,
-                msg: (0, string_format_1.default)(key, { param: keyp, value: error.value }),
-                param_translated: keyp,
-                param: error.param
-            };
+        if (key) {
+            let obj = {};
+            if (keyp) {
+                obj = {
+                    code: 0,
+                    location: error.location,
+                    msg: (0, string_format_1.default)(key, { param: keyp, value: error.value }),
+                    param_translated: keyp,
+                    param: error.param
+                };
+            }
+            else {
+                obj = {
+                    code: 0,
+                    location: error.location,
+                    msg: (0, string_format_1.default)(key, { param: error.param, value: error.value }),
+                    param_translated: error.param,
+                    param: error.param
+                };
+            }
             if ('code' in error) {
+                //@ts-ignore
                 obj.code = error.code;
             }
             return obj;

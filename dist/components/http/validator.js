@@ -89,7 +89,7 @@ const ShouldExistInModel = (model, column) => {
             return new Promise((resolve, reject) => {
                 model.findOne({ where: { [column]: value } }).then((el) => {
                     if (!el) {
-                        return reject("api.errors.not_found");
+                        return reject("api.form.errors.not_found");
                     }
                     else {
                         return resolve(true);
@@ -108,7 +108,7 @@ const ShouldNotExistInModel = (model, column) => {
             return new Promise((resolve, reject) => {
                 model.findOne({ where: { [column]: value } }).then((el) => {
                     if (el) {
-                        return reject("api.errors.already_exist_in_database");
+                        return reject("api.form.errors.already_exist_in_database");
                     }
                     else {
                         return resolve(true);
