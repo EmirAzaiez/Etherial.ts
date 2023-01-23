@@ -15,8 +15,14 @@ export declare const ShouldBeEmail: (options: any) => PropertyDecorator;
 export declare const ShouldBeArray: (options: any) => PropertyDecorator;
 export declare const ShouldExistInModel: (model: any, column: string) => PropertyDecorator;
 export declare const ShouldNotExistInModel: (model: any, column: string) => PropertyDecorator;
-export declare const ShouldValidateCustom: (cb: (value: string, req: Request) => Promise<any>) => PropertyDecorator;
-export declare const ShouldSanitizeCustom: (cb: (value: string, req: Request) => Promise<any>) => PropertyDecorator;
+export declare const ShouldValidateCustom: (cb: (value: string, meta: {
+    req: Request;
+    path: string;
+}) => Promise<any>) => PropertyDecorator;
+export declare const ShouldSanitizeCustom: (cb: (value: string, meta: {
+    req: Request;
+    path: string;
+}) => Promise<any>) => PropertyDecorator;
 export declare const ShouldSanitizeToLowerCase: () => PropertyDecorator;
 export declare const ShouldSanitizeToUpperCase: () => PropertyDecorator;
 export declare const ShouldSanitizeToDefaultValue: (value: string) => PropertyDecorator;
@@ -38,4 +44,7 @@ export declare const UseForm: (form: any, options?: ShouldValidateFormOptions) =
 /**
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
-export declare const ShouldCustom: (cb: (value: string, req: Request) => Promise<any>) => PropertyDecorator;
+export declare const ShouldCustom: (cb: (value: string, meta: {
+    req: Request;
+    path: string;
+}) => Promise<any>) => PropertyDecorator;

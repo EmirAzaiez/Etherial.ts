@@ -211,8 +211,7 @@ export const ShouldNotExistInModel = (model: any, column: string) : PropertyDeco
 
 }
 
-
-export const ShouldValidateCustom = (cb: (value: string, req: Request) => Promise<any>) : PropertyDecorator => {
+export const ShouldValidateCustom = (cb: (value: string, meta: {req: Request, path: string}) => Promise<any>) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
@@ -226,7 +225,7 @@ export const ShouldValidateCustom = (cb: (value: string, req: Request) => Promis
 
 }
 
-export const ShouldSanitizeCustom = (cb: (value: string, req: Request) => Promise<any>) : PropertyDecorator => {
+export const ShouldSanitizeCustom = (cb: (value: string, meta: {req: Request, path: string}) => Promise<any>) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
