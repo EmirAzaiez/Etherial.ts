@@ -3,7 +3,7 @@ import { Sequelize } from "sequelize-typescript";
 export class Database {
 
     sequelize: Sequelize
-    // add ifnore sync
+    // add ignore sync
     constructor({server, port, name, username, password, dialect, models}) {
 
         this.sequelize = new Sequelize({

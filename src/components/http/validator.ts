@@ -137,6 +137,20 @@ export const ShouldBeEmail = (options) : PropertyDecorator => {
 
 }
 
+export const ShouldBeArray = (options) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+  
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].isArray().withMessage('api.form.errors.is_not_array')
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    };
+
+}
+
 export const ShouldExistInModel = (model: any, column: string) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
@@ -197,13 +211,70 @@ export const ShouldNotExistInModel = (model: any, column: string) : PropertyDeco
 
 }
 
-export const ShouldCustom = (cb: (value: string, req: Request) => Promise<never>) : PropertyDecorator => {
+
+export const ShouldValidateCustom = (cb: (value: string, req: Request) => Promise<any>) : PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
         let validations = Reflect.getMetadata('validations', target.constructor)
 
         validations[propertyKey] = validations[propertyKey].custom(cb)
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldSanitizeCustom = (cb: (value: string, req: Request) => Promise<any>) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].customSanitizer(cb)
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldSanitizeToLowerCase = () : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].toLowerCase()
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldSanitizeToUpperCase = () : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].toUpperCase()
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldSanitizeToDefaultValue = (value: string) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].default(value)
 
         Reflect.defineMetadata('validations', validations, target.constructor);
 
@@ -343,3 +414,8 @@ export const ShouldValidateForm = (form, options:ShouldValidateFormOptions = {ex
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
 export const UseForm = ShouldValidateForm
+
+/**
+ * @deprecated The method should not be used, use instead ShouldValidateForm
+ */
+export const ShouldCustom = ShouldValidateCustom

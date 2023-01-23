@@ -12,9 +12,14 @@ export declare const ShouldExist: () => PropertyDecorator;
 export declare const ShouldBeNotEmpty: () => PropertyDecorator;
 export declare const ShouldMatch: (regex: RegExp) => PropertyDecorator;
 export declare const ShouldBeEmail: (options: any) => PropertyDecorator;
+export declare const ShouldBeArray: (options: any) => PropertyDecorator;
 export declare const ShouldExistInModel: (model: any, column: string) => PropertyDecorator;
 export declare const ShouldNotExistInModel: (model: any, column: string) => PropertyDecorator;
-export declare const ShouldCustom: (cb: (value: string, req: Request) => Promise<never>) => PropertyDecorator;
+export declare const ShouldValidateCustom: (cb: (value: string, req: Request) => Promise<any>) => PropertyDecorator;
+export declare const ShouldSanitizeCustom: (cb: (value: string, req: Request) => Promise<any>) => PropertyDecorator;
+export declare const ShouldSanitizeToLowerCase: () => PropertyDecorator;
+export declare const ShouldSanitizeToUpperCase: () => PropertyDecorator;
+export declare const ShouldSanitizeToDefaultValue: (value: string) => PropertyDecorator;
 export declare const ShouldBeEqualTo: (field: string) => PropertyDecorator;
 export declare const ShouldBeISO8601Date: () => PropertyDecorator;
 export declare const ShouldHaveMinMaxLength: (min: number, max: number) => PropertyDecorator;
@@ -30,3 +35,7 @@ export declare const ShouldValidateForm: (form: any, options?: ShouldValidateFor
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
 export declare const UseForm: (form: any, options?: ShouldValidateFormOptions) => (target: any, propertyKey: string) => void;
+/**
+ * @deprecated The method should not be used, use instead ShouldValidateForm
+ */
+export declare const ShouldCustom: (cb: (value: string, req: Request) => Promise<any>) => PropertyDecorator;

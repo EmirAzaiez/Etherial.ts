@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UseForm = exports.ShouldValidateForm = exports.ShouldBeMobilePhone = exports.ShouldHaveMaxLength = exports.ShouldHaveMinLength = exports.ShouldHaveMinMaxLength = exports.ShouldBeISO8601Date = exports.ShouldBeEqualTo = exports.ShouldCustom = exports.ShouldNotExistInModel = exports.ShouldExistInModel = exports.ShouldBeEmail = exports.ShouldMatch = exports.ShouldBeNotEmpty = exports.ShouldExist = exports.Query = exports.Body = exports.AddValidation = exports.Form = exports.FormGenerator = exports.query = exports.body = void 0;
+exports.ShouldCustom = exports.UseForm = exports.ShouldValidateForm = exports.ShouldBeMobilePhone = exports.ShouldHaveMaxLength = exports.ShouldHaveMinLength = exports.ShouldHaveMinMaxLength = exports.ShouldBeISO8601Date = exports.ShouldBeEqualTo = exports.ShouldSanitizeToDefaultValue = exports.ShouldSanitizeToUpperCase = exports.ShouldSanitizeToLowerCase = exports.ShouldSanitizeCustom = exports.ShouldValidateCustom = exports.ShouldNotExistInModel = exports.ShouldExistInModel = exports.ShouldBeArray = exports.ShouldBeEmail = exports.ShouldMatch = exports.ShouldBeNotEmpty = exports.ShouldExist = exports.Query = exports.Body = exports.AddValidation = exports.Form = exports.FormGenerator = exports.query = exports.body = void 0;
 const express_validator_1 = require("express-validator");
 Object.defineProperty(exports, "body", { enumerable: true, get: function () { return express_validator_1.body; } });
 Object.defineProperty(exports, "query", { enumerable: true, get: function () { return express_validator_1.query; } });
@@ -82,6 +82,14 @@ const ShouldBeEmail = (options) => {
     };
 };
 exports.ShouldBeEmail = ShouldBeEmail;
+const ShouldBeArray = (options) => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].isArray().withMessage('api.form.errors.is_not_array');
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldBeArray = ShouldBeArray;
 const ShouldExistInModel = (model, column) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
@@ -120,14 +128,46 @@ const ShouldNotExistInModel = (model, column) => {
     };
 };
 exports.ShouldNotExistInModel = ShouldNotExistInModel;
-const ShouldCustom = (cb) => {
+const ShouldValidateCustom = (cb) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
         validations[propertyKey] = validations[propertyKey].custom(cb);
         Reflect.defineMetadata('validations', validations, target.constructor);
     };
 };
-exports.ShouldCustom = ShouldCustom;
+exports.ShouldValidateCustom = ShouldValidateCustom;
+const ShouldSanitizeCustom = (cb) => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].customSanitizer(cb);
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldSanitizeCustom = ShouldSanitizeCustom;
+const ShouldSanitizeToLowerCase = () => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].toLowerCase();
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldSanitizeToLowerCase = ShouldSanitizeToLowerCase;
+const ShouldSanitizeToUpperCase = () => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].toUpperCase();
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldSanitizeToUpperCase = ShouldSanitizeToUpperCase;
+const ShouldSanitizeToDefaultValue = (value) => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].default(value);
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldSanitizeToDefaultValue = ShouldSanitizeToDefaultValue;
 const ShouldBeEqualTo = (field) => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
@@ -207,4 +247,8 @@ exports.ShouldValidateForm = ShouldValidateForm;
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
 exports.UseForm = exports.ShouldValidateForm;
+/**
+ * @deprecated The method should not be used, use instead ShouldValidateForm
+ */
+exports.ShouldCustom = exports.ShouldValidateCustom;
 //# sourceMappingURL=validator.js.map

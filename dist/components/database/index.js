@@ -12,7 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Database = void 0;
 const sequelize_typescript_1 = require("sequelize-typescript");
 class Database {
-    // add ifnore sync
+    // add ignore sync
     constructor({ server, port, name, username, password, dialect, models }) {
         this.sequelize = new sequelize_typescript_1.Sequelize({
             host: server,
