@@ -29,5 +29,6 @@ declare global {
     interface Response  {
         success?: (json: {status: number, data: {}, count?: number}) => void
         error?: (json: {status: number, errors: [any]}) => void
+        render?: (file: string, data: {}) => void
     }
 }

@@ -24,6 +24,7 @@ export interface Request extends express.Request {
 export interface Response extends express.Response {
     success?: (json: {status: number, data: {}, count?: number}) => void
     error?: (json: {status: number, errors: [any]}) => void
+    render?: (file: string, data: {}) => void
 }
 
 let MethodHandler = (method, path) => {

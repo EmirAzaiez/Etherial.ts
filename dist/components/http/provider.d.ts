@@ -28,6 +28,7 @@ export interface Response extends express.Response {
         status: number;
         errors: [any];
     }) => void;
+    render?: (file: string, data: {}) => void;
 }
 export declare const Get: (path: string) => (target: any, propertyKey: string) => void;
 export declare const Post: (path: string) => (target: any, propertyKey: string) => void;

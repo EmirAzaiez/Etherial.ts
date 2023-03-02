@@ -27,6 +27,9 @@ class Http {
             }
         }
         this.app.use((req, res, next) => {
+            res.render = (view, data) => {
+                res.render(view, data);
+            };
             res.success = (json) => {
                 res.status(json.status || 200);
                 res.json(json);
