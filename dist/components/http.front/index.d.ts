@@ -1,9 +1,10 @@
 export default class HttpFront {
-    viewsFolder: String;
-    defaultLayout: String;
+    viewsFolder: string;
+    defaultLayout: string;
+    viewEngine: string;
     constructor({ viewsFolder, defaultLayout }: {
-        viewsFolder: any;
-        defaultLayout: any;
+        viewsFolder?: string;
+        defaultLayout?: string;
     });
     run({ http }: {
         http: any;
