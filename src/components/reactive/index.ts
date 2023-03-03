@@ -10,38 +10,43 @@ export class Reactive {
         return this
     }
 
-    run({ http, http_security }) {
+    listen() {
 
-        this.io = new Server(http.server);
+        return new Promise((resolve) => {
 
-        this.io.on("connection", (socket) => {
+            this.io = new Server(etherial["http"].server);
 
-            socket.join('all')
+            this.io.on("connection", (socket) => {
 
-            if (http_security) {
+                socket.join('all')
 
-                socket.on('auth', (token) => {
+                if (etherial["http_security"]) {
 
-                    let decoded = etherial["http_security"].decodeToken(token)
+                    socket.on('auth', (token) => {
 
-                    if (decoded) {
+                        let decoded = etherial["http_security"].decodeToken(token)
 
-                        etherial["http_security"].customAuthentificationChecker(decoded.user_id).then((user) => {
-                            socket.join(`user_${user.id}`)
-                            socket.join(`users`)
-                            if (this.userJoinCustomRoom) {
-                                this.userJoinCustomRoom(user).then((room) => {
-                                    socket.join(room)
-                                })
-                            }
-                        })
-        
-                    }
+                        if (decoded) {
+
+                            etherial["http_security"].customAuthentificationChecker(decoded.user_id).then((user) => {
+                                socket.join(`user_${user.id}`)
+                                socket.join(`users`)
+                                if (this.userJoinCustomRoom) {
+                                    this.userJoinCustomRoom(user).then((room) => {
+                                        socket.join(room)
+                                    })
+                                }
+                            })
             
-                })
+                        }
+                
+                    })
 
-            }
+                }
 
+            })
+
+            resolve(true)
         })
 
     }
