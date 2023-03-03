@@ -10,6 +10,7 @@ export default class HttpSecurity {
     type?: String;
     secret?: String;
     generateToken?: (data: any) => String
+    decodeToken?: (token: string) => any
     authentificatorMiddleware: any
     authentificatorRoleCheckerMiddleware: any
     roles: any;
@@ -48,48 +49,52 @@ export default class HttpSecurity {
 
         }
 
-        if (this.type === 'JWT') {
+        // if (this.type === 'JWT') {
 
-            this.generateToken = (data: {}) => {
-                return jwt.sign(data, this.secret) as String
+        this.generateToken = (data: {}) => {
+            return jwt.sign(data, this.secret) as String
+        }
+
+        this.decodeToken = (token) => {
+            jwt.decode(token.substring(7, token.length), this.secret)
+        }
+
+        this.authentificatorMiddleware = async (req, res, next) => {
+
+            if (req.user) {
+                return next()
             }
 
-            this.authentificatorMiddleware = async (req, res, next) => {
+            let token = req.headers["authorization"];
+    
+            if (token && token.startsWith("Bearer ")) {
+                let decoded = this.decodeToken(token.substring(7, token.length))
+    
+                if (decoded) {
 
-                if (req.user) {
-                    return next()
-                }
-
-                let token = req.headers["authorization"];
-        
-                if (token && token.startsWith("Bearer ")) {
-                    let decoded = jwt.decode(token.substring(7, token.length), this.secret);
-        
-                    if (decoded) {
-
-                        this.customAuthentificationChecker(decoded.user_id).then((user) => {
-                            req.user = user
-                            next()
-                        }).catch(() => {
-                            res.error({status: 401, errors: ['forbidden']})
-                        })
-        
-                    } else {
+                    this.customAuthentificationChecker(decoded.user_id).then((user) => {
+                        req.user = user
+                        next()
+                    }).catch(() => {
                         res.error({status: 401, errors: ['forbidden']})
-                    }
-        
+                    })
+    
                 } else {
                     res.error({status: 401, errors: ['forbidden']})
                 }
-            
+    
+            } else {
+                res.error({status: 401, errors: ['forbidden']})
             }
+        
+        }
             
 
-        } else if (this.type === 'SESSION') {
+        // } else if (this.type === 'SESSION') {
 
-        } else if (this.type === 'BASIC') {
+        // } else if (this.type === 'BASIC') {
 
-        }
+        // }
 
     }
 

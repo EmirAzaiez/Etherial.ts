@@ -56,38 +56,39 @@ class HttpSecurity {
                 }
             };
         };
-        if (this.type === 'JWT') {
-            this.generateToken = (data) => {
-                return jwt.sign(data, this.secret);
-            };
-            this.authentificatorMiddleware = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
-                if (req.user) {
-                    return next();
-                }
-                let token = req.headers["authorization"];
-                if (token && token.startsWith("Bearer ")) {
-                    let decoded = jwt.decode(token.substring(7, token.length), this.secret);
-                    if (decoded) {
-                        this.customAuthentificationChecker(decoded.user_id).then((user) => {
-                            req.user = user;
-                            next();
-                        }).catch(() => {
-                            res.error({ status: 401, errors: ['forbidden'] });
-                        });
-                    }
-                    else {
+        // if (this.type === 'JWT') {
+        this.generateToken = (data) => {
+            return jwt.sign(data, this.secret);
+        };
+        this.decodeToken = (token) => {
+            jwt.decode(token.substring(7, token.length), this.secret);
+        };
+        this.authentificatorMiddleware = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
+            if (req.user) {
+                return next();
+            }
+            let token = req.headers["authorization"];
+            if (token && token.startsWith("Bearer ")) {
+                let decoded = this.decodeToken(token.substring(7, token.length));
+                if (decoded) {
+                    this.customAuthentificationChecker(decoded.user_id).then((user) => {
+                        req.user = user;
+                        next();
+                    }).catch(() => {
                         res.error({ status: 401, errors: ['forbidden'] });
-                    }
+                    });
                 }
                 else {
                     res.error({ status: 401, errors: ['forbidden'] });
                 }
-            });
-        }
-        else if (this.type === 'SESSION') {
-        }
-        else if (this.type === 'BASIC') {
-        }
+            }
+            else {
+                res.error({ status: 401, errors: ['forbidden'] });
+            }
+        });
+        // } else if (this.type === 'SESSION') {
+        // } else if (this.type === 'BASIC') {
+        // }
     }
     setCustomAuthentificationChecker(customFunction) {
         this.customAuthentificationChecker = customFunction;

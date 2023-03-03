@@ -20,7 +20,6 @@ export class Database {
             }
         });
 
-
         if (models) {
             this.addModels(models)
         }

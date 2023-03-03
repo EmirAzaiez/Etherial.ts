@@ -2,6 +2,7 @@ export default class HttpSecurity {
     type?: String;
     secret?: String;
     generateToken?: (data: any) => String;
+    decodeToken?: (token: string) => any;
     authentificatorMiddleware: any;
     authentificatorRoleCheckerMiddleware: any;
     roles: any;
