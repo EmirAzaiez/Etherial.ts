@@ -1,7 +1,9 @@
+/// <reference types="node" />
 import express from "express";
+import http from "http";
 export declare class Http {
     app: express.Application;
-    server: any;
+    server: http.Server;
     port: number;
     routes: any;
     notFoundRouteMiddleware: any;

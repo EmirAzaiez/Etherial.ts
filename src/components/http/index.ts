@@ -1,19 +1,21 @@
 import express from "express";
 import { RouteDefinition, Response, Request, NextFunction } from './provider'
-
+import http from "http"
 const fs = require('fs').promises
 
 export class Http {
 
     app: express.Application;
-    server: any;
-    port: number
-    routes: any
-    notFoundRouteMiddleware: any
+    server: http.Server;
+    port: number;
+    routes: any;
+    notFoundRouteMiddleware: any;
 
     constructor({port, routes, middlewares}) {
  
         this.app = express()
+
+        this.server = http.createServer(this.app);
 
         this.port = port
         this.routes = routes
@@ -117,7 +119,7 @@ export class Http {
                 this.app.use(this.notFoundRouteMiddleware)
             }
 
-            this.app.listen(this.port, () => {
+            this.server.listen(this.port, () => {
                 resolve(this)
             })
         })

@@ -14,10 +14,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Http = void 0;
 const express_1 = __importDefault(require("express"));
+const http_1 = __importDefault(require("http"));
 const fs = require('fs').promises;
 class Http {
     constructor({ port, routes, middlewares }) {
         this.app = (0, express_1.default)();
+        this.server = http_1.default.createServer(this.app);
         this.port = port;
         this.routes = routes;
         this.notFoundRouteMiddleware = null;
@@ -86,7 +88,7 @@ class Http {
             if (this.notFoundRouteMiddleware) {
                 this.app.use(this.notFoundRouteMiddleware);
             }
-            this.app.listen(this.port, () => {
+            this.server.listen(this.port, () => {
                 resolve(this);
             });
         }));
