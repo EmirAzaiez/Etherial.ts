@@ -31,7 +31,7 @@ export const ReactiveTable = (options: any) => {
                         forwardToUsers: (ids: number[], newInstance = instance) => {
 
                             ids.map((id) => {
-                                etherial["http_database_reactive"].io.to(`user_${id}`, {
+                                etherial["reactive"].io.to(`user_${id}`, {
                                     data: JSON.parse(JSON.stringify(instance))
                                 })
                             })
@@ -40,7 +40,7 @@ export const ReactiveTable = (options: any) => {
                         forwardToRooms: (rooms: string[], newInstance = instance) => {
 
                             rooms.forEach((room) => {
-                                etherial["http_database_reactive"].io.to(room, {
+                                etherial["reactive"].io.to(room, {
                                     data: JSON.parse(JSON.stringify(instance))
                                 })
                             })
