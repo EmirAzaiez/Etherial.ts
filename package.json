@@ -41,6 +41,14 @@
       "default": "./dist/components/http.security/provider.js",
       "types": "./dist/components/http.security/provider.d.ts"
     },
+    "./components/reactive": {
+      "default": "./dist/components/reactive/index.js",
+      "types": "./dist/components/reactive/index.d.ts"
+    },
+    "./components/reactive/provider": {
+      "default": "./dist/components/reactive/provider.js",
+      "types": "./dist/components/reactive/provider.d.ts"
+    },
     "./components/translation": {
       "default": "./dist/components/translation/index.js",
       "types": "./dist/components/translation/index.d.ts"
