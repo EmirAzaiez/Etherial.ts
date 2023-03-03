@@ -12,7 +12,13 @@ class Reactive {
     }
     listen() {
         return new Promise((resolve) => {
-            this.io = new socket_io_1.Server(index_1.default["http"].server);
+            this.io = new socket_io_1.Server(index_1.default["http"].server, {
+                cors: {
+                    origin: "*",
+                    methods: ["PUT", "GET", "POST", "DELETE", "OPTIONS"],
+                    credentials: false
+                }
+            });
             this.io.on("connection", (socket) => {
                 socket.join('all');
                 if (index_1.default["http_security"]) {

@@ -14,7 +14,13 @@ export class Reactive {
 
         return new Promise((resolve) => {
 
-            this.io = new Server(etherial["http"].server);
+            this.io = new Server(etherial["http"].server, {
+                cors: {
+                    origin: "*",
+                    methods: ["PUT", "GET", "POST", "DELETE", "OPTIONS"],
+                    credentials: false
+                  }
+            });
 
             this.io.on("connection", (socket) => {
 
