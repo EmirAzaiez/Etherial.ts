@@ -13,6 +13,7 @@ class Reactive {
     run({ http, http_security }) {
         this.io = new socket_io_1.Server(http.server);
         this.io.on("connection", (socket) => {
+            socket.join('all');
             if (http_security) {
                 socket.on('auth', (token) => {
                     let decoded = index_1.default["http_security"].decodeToken(token);

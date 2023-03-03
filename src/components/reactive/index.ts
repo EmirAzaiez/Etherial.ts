@@ -16,6 +16,8 @@ export class Reactive {
 
         this.io.on("connection", (socket) => {
 
+            socket.join('all')
+
             if (http_security) {
 
                 socket.on('auth', (token) => {
