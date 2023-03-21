@@ -56,7 +56,7 @@ export default class HttpSecurity {
         }
 
         this.decodeToken = (token) => {
-            jwt.decode(token.substring(7, token.length), this.secret)
+            return jwt.decode(token.substring(7, token.length), this.secret)
         }
 
         this.authentificatorMiddleware = async (req, res, next) => {
