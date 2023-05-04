@@ -61,7 +61,7 @@ class HttpSecurity {
             return jwt.sign(data, this.secret);
         };
         this.decodeToken = (token) => {
-            return jwt.decode(token.substring(7, token.length), this.secret);
+            return jwt.decode(token, this.secret);
         };
         this.authentificatorMiddleware = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
             if (req.user) {
