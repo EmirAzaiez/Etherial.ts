@@ -21,6 +21,7 @@ class Reactive {
             });
             this.io.on("connection", (socket) => {
                 socket.join('all');
+                socket.join('visitors');
                 if (index_1.default["http_security"]) {
                     socket.on('auth', (token) => {
                         let decoded = index_1.default["http_security"].decodeToken(token);
@@ -28,6 +29,7 @@ class Reactive {
                             index_1.default["http_security"].customAuthentificationChecker(decoded.user_id).then((user) => {
                                 socket.join(`user_${user.id}`);
                                 socket.join(`users`);
+                                socket.leave(`visitors`);
                                 if (this.userJoinCustomRoom) {
                                     this.userJoinCustomRoom(user).then((room) => {
                                         socket.join(room);

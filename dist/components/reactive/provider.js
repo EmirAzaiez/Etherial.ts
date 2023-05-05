@@ -29,14 +29,14 @@ const ReactiveTable = (options) => {
                         instance: instance,
                         forwardToUsers: (ids, newInstance = instance) => {
                             ids.map((id) => {
-                                index_1.default["reactive"].io.to(`user_${id}`, {
+                                index_1.default["reactive"].io.to(`user_${id}`).emit("reactive", {
                                     data: JSON.parse(JSON.stringify(instance))
                                 });
                             });
                         },
                         forwardToRooms: (rooms, newInstance = instance) => {
                             rooms.forEach((room) => {
-                                index_1.default["reactive"].io.to(room, {
+                                index_1.default["reactive"].io.to(room).emit("reactive", {
                                     data: JSON.parse(JSON.stringify(instance))
                                 });
                             });

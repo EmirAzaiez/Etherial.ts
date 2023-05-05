@@ -25,6 +25,7 @@ export class Reactive {
             this.io.on("connection", (socket) => {
 
                 socket.join('all')
+                socket.join('visitors')
 
                 if (etherial["http_security"]) {
 
@@ -37,6 +38,7 @@ export class Reactive {
                             etherial["http_security"].customAuthentificationChecker(decoded.user_id).then((user) => {
                                 socket.join(`user_${user.id}`)
                                 socket.join(`users`)
+                                socket.leave(`visitors`)
                                 if (this.userJoinCustomRoom) {
                                     this.userJoinCustomRoom(user).then((room) => {
                                         socket.join(room)
