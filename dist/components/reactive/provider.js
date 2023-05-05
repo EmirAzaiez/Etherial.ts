@@ -23,13 +23,15 @@ const ReactiveTable = (options) => {
             options.hooks = {};
         }
         if (options.reactive) {
-            const createHook = (func) => {
+            const createHook = (func, type) => {
                 return (instance) => {
                     func({
                         instance: instance,
                         forwardToUsers: (ids, newInstance = instance) => {
                             ids.map((id) => {
                                 index_1.default["reactive"].io.to(`user_${id}`).emit("reactive", {
+                                    action: type,
+                                    model: newInstance.constructor.name,
                                     data: JSON.parse(JSON.stringify(instance))
                                 });
                             });
@@ -37,6 +39,8 @@ const ReactiveTable = (options) => {
                         forwardToRooms: (rooms, newInstance = instance) => {
                             rooms.forEach((room) => {
                                 index_1.default["reactive"].io.to(room).emit("reactive", {
+                                    action: type,
+                                    model: newInstance.constructor.name,
                                     data: JSON.parse(JSON.stringify(instance))
                                 });
                             });
@@ -45,13 +49,13 @@ const ReactiveTable = (options) => {
                 };
             };
             if (options.reactive[ReactiveTableHookType.CREATE]) {
-                options.hooks.afterCreate = createHook(options.reactive[ReactiveTableHookType.CREATE]);
+                options.hooks.afterCreate = createHook(options.reactive[ReactiveTableHookType.CREATE], ReactiveTableHookType.CREATE);
             }
             if (options.reactive[ReactiveTableHookType.UPDATE]) {
-                options.hooks.afterUpdate = createHook(options.reactive[ReactiveTableHookType.UPDATE]);
+                options.hooks.afterUpdate = createHook(options.reactive[ReactiveTableHookType.UPDATE], ReactiveTableHookType.UPDATE);
             }
             if (options.reactive[ReactiveTableHookType.DELETE]) {
-                options.hooks.afterDelete = createHook(options.reactive[ReactiveTableHookType.DELETE]);
+                options.hooks.afterDelete = createHook(options.reactive[ReactiveTableHookType.DELETE], ReactiveTableHookType.DELETE);
             }
         }
         delete options.reactive;
@@ -59,9 +63,4 @@ const ReactiveTable = (options) => {
     };
 };
 exports.ReactiveTable = ReactiveTable;
-// let test = {
-//     [ReactiveTableHookType.CREATE]: ({forwardToRooms, instance}) => {
-//         forwardToRooms(["users"])
-//     }
-// }
 //# sourceMappingURL=provider.js.map
