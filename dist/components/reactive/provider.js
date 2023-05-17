@@ -55,7 +55,7 @@ const ReactiveTable = (options) => {
                 options.hooks.afterUpdate = createHook(options.reactive[ReactiveTableHookType.UPDATE], ReactiveTableHookType.UPDATE);
             }
             if (options.reactive[ReactiveTableHookType.DELETE]) {
-                options.hooks.afterDelete = createHook(options.reactive[ReactiveTableHookType.DELETE], ReactiveTableHookType.DELETE);
+                options.hooks.afterDestroy = createHook(options.reactive[ReactiveTableHookType.DELETE], ReactiveTableHookType.DELETE);
             }
         }
         delete options.reactive;
