@@ -19,12 +19,16 @@ export const FormGenerator = (elements) => {
 
 }
 
-export const Form = () : ClassDecorator => {
+export const Form = (name?: string) : ClassDecorator => {
 
     return (target: any) => {
   
         if (!Reflect.hasMetadata('validations', target)) {
             Reflect.defineMetadata('validations', {}, target);
+        }
+
+        if (!Reflect.hasMetadata('instances_of_model', target)) {
+            Reflect.defineMetadata('instances_of_model', {}, target);
         }
 
     };
@@ -80,6 +84,38 @@ export const Query = () : PropertyDecorator => {
     };
 
 }
+
+export const ModelInstance = (property) : PropertyDecorator => {
+    
+    return (target: any, propertyKey: string) => {
+
+        let instances_of_model = Reflect.getMetadata('instances_of_model', target.constructor) || {}
+
+        instances_of_model[property] = {
+            rproperty: propertyKey, //user
+            instance: null
+        }
+
+        Reflect.defineMetadata('instances_of_model', instances_of_model, target.constructor);
+
+    };
+
+}
+
+
+export const ShouldBeOptional = () : PropertyDecorator => {
+    
+        return (target: any, propertyKey: string) => {
+    
+            let validations = Reflect.getMetadata('validations', target.constructor);
+    
+            validations[propertyKey] = validations[propertyKey].optional()
+    
+            Reflect.defineMetadata('validations', validations, target.constructor);
+    
+        };
+    
+    }
 
 export const ShouldExist = () : PropertyDecorator => {
 
@@ -164,8 +200,18 @@ export const ShouldExistInModel = (model: any, column: string) : PropertyDecorat
                 model.findOne({where: { [column]: value }}).then((el) => {
                     
                     if (!el) {
-                        return reject("api.form.errors.not_found");
+                        return reject("api.form.errors.not_found_in_database");
                     } else {
+
+                        let iom = Reflect.getMetadata('instances_of_model', target.constructor)
+    
+                        iom[propertyKey] = {
+                            ...iom[propertyKey],
+                            instance: el
+                        }
+                
+                        Reflect.defineMetadata('instances_of_model', iom, target.constructor);
+
                         return resolve(true);
                     }
 
@@ -290,12 +336,44 @@ export const ShouldBeEqualTo = (field: string) : PropertyDecorator => {
         validations[propertyKey] = validations[propertyKey].custom((value, obj) => {
             
             if (value !== obj.req.body[field]) {
-                throw new Error('api.form.errors.not_equal_to_' + field)
+                throw new Error('api.form.errors.not_equal')
             } else {
                 return value
             }
 
         })
+
+        Reflect.defineMetadata('validations', validations, target.constructor);
+
+    }
+
+}
+
+export const ShouldBeBoolean = () : PropertyDecorator => {
+        
+        return (target: any, propertyKey: string) => {
+    
+            let validations = Reflect.getMetadata('validations', target.constructor)
+    
+            validations[propertyKey] = validations[propertyKey].isBoolean().withMessage('api.form.errors.not_boolean').toBoolean(true)
+    
+            Reflect.defineMetadata('validations', validations, target.constructor);
+    
+        }
+    
+    }
+
+export const ShouldBeDate = (format: string) : PropertyDecorator => {
+
+    return (target: any, propertyKey: string) => {
+
+        let validations = Reflect.getMetadata('validations', target.constructor)
+
+        validations[propertyKey] = validations[propertyKey].isDate({
+            format: format,
+            delimeters: ['/', '-'],
+            strictMode: true
+        }).withMessage('api.form.errors.not_valid_date').toDate()
 
         Reflect.defineMetadata('validations', validations, target.constructor);
 
@@ -373,6 +451,7 @@ export const ShouldBeMobilePhone = (locale: string) : PropertyDecorator => {
 
 }
 
+
 type ShouldValidateFormOptions = {
     exclude_validator?: boolean
     include_optionals?: boolean
@@ -388,13 +467,25 @@ export const ShouldValidateForm = (form, options:ShouldValidateFormOptions = {ex
 
         arr.push((req, res, next) => {
 
-            var errors = (validationResult(req)).array()
-    
+            var errors = (validationResult(req)).array().map((el) => {
+                return {
+                    params: [el.param], 
+                    value: el.value, 
+                    msg: el.msg
+                }
+            })
+
             if(errors.length === 0) {
+
+                const instances_of_model = Reflect.getMetadata('instances_of_model', form);
 
                 req.form = matchedData(req, {
                     includeOptionals: options.include_optionals,
                 })
+
+                for (let key in instances_of_model) {
+                    req.form[instances_of_model[key]["rproperty"]] = instances_of_model[key]["instance"]
+                }
 
                 next()
 

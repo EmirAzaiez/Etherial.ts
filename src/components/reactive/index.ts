@@ -1,16 +1,20 @@
 import { Server } from "socket.io";
 import etherial from "../../index"
 
+interface ReactiveListener {
+    event: string,
+    callback: (data: any) => void
+}
+
 export class Reactive {
 
     io: Server;
-    userJoinCustomRoom: (user) => Promise<string>
 
     constructor() {
         return this
     }
 
-    listen() {
+    listen(listeners: ReactiveListener[] = []) {
 
         return new Promise((resolve) => {
 
@@ -19,13 +23,13 @@ export class Reactive {
                     origin: "*",
                     methods: ["PUT", "GET", "POST", "DELETE", "OPTIONS"],
                     credentials: false
-                  }
+                }
             });
 
             this.io.on("connection", (socket) => {
 
                 socket.join('all')
-                socket.join('visitors')
+                socket.join('guests')
 
                 if (etherial["http_security"]) {
 
@@ -38,16 +42,27 @@ export class Reactive {
                             etherial["http_security"].customAuthentificationChecker(decoded.user_id).then((user) => {
                                 socket.join(`user_${user.id}`)
                                 socket.join(`users`)
-                                socket.leave(`visitors`)
-                                if (this.userJoinCustomRoom) {
-                                    this.userJoinCustomRoom(user).then((room) => {
-                                        socket.join(room)
-                                    })
-                                }
+                                socket.leave(`guests`)
                             })
             
                         }
                 
+                    })
+
+                    socket.on('deauth', () => {
+                        
+                        Object.keys(socket.rooms).forEach(async (room) => {
+                            if (room !== socket.id && room !== 'all') {
+                                await socket.leave(room);
+                            }
+                        });
+
+                        socket.join('guests')
+
+                    })
+
+                    listeners.forEach((listener) => {
+                        socket.on(listener.event, listener.callback)
                     })
 
                 }
@@ -56,6 +71,38 @@ export class Reactive {
 
             resolve(true)
         })
+
+    }
+
+    async userJoinRoom(userId: string, room: string) {
+
+        if (this.io) {
+            
+            const userRoom = `user_${userId}`;
+            const clients = this.io.sockets.adapter.rooms.get(userRoom);
+            
+            for (const clientId of clients) {
+                const clientSocket = this.io.sockets.sockets.get(clientId);
+                await clientSocket.join(room)
+           }
+
+        }
+
+    }
+
+    async userLeaveRoom(userId: string, room: string) {
+
+        if (this.io) {
+
+            const userRoom = `user_${userId}`;
+            const clients = this.io.sockets.adapter.rooms.get(userRoom);
+            
+            for (const clientId of clients) {
+                const clientSocket = this.io.sockets.sockets.get(clientId);
+                await clientSocket.leave(room)
+           }
+
+        }
 
     }
 

@@ -14,15 +14,12 @@ export declare class Database {
     addModels(models: any): this;
     sync(): void;
     commands(): {
-        'database:destroy': {
-            arguments: {};
-            callback: (args: any) => void;
-        };
-        'database:load:fixtures': {
-            arguments: {
-                '--path': StringConstructor[];
-            };
-            callback: (args: any) => void;
-        };
-    };
+        command: string;
+        description: string;
+        warn: boolean;
+        action: (etherial: any, env: any) => Promise<{
+            success: boolean;
+            message: any;
+        }>;
+    }[];
 }

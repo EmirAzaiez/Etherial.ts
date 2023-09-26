@@ -1,20 +1,58 @@
-import { Table } from "sequelize-typescript"
+import { Table, TableOptions, Model } from "sequelize-typescript"
 import etherial from '../../index'
 
-export enum ReactiveTableHookType {
-    CREATE = 'create',
-    UPDATE = 'update',
-    DELETE = 'delete'
+interface ReactiveParams {
+    onCreate?: ( cb:(instance?:  Model<any, any>) => ReactiveHookCallbackReturn ) => void,
+    onUpdate?: ( cb:(instance?:  Model<any, any>) => ReactiveHookCallbackReturn ) => void,
+    onDelete?: ( cb:(instance?:  Model<any, any>) => ReactiveHookCallbackReturn ) => void,
+    onAll?: ( cb:(instance?:  Model<any, any>) => ReactiveHookCallbackReturn ) => void,
 }
 
-export enum ReactiveTableForwardType {
-    ROOMS = 'rooms',
-    USERS = 'users',
+interface ReactiveTableOptions extends TableOptions {
+    hook?: any,
+    reactive: (options: ReactiveParams) => void
 }
 
-export const ReactiveTable = (options: any) => {
+interface ReactiveHookCallbackReturn {
+    instance?: any 
+    users?: number[] 
+    rooms?: (string | "all" | "guests" | "users")[];
+}
 
-    return function(target: any, propertyKey: string) {
+export const ReactiveTable = (options: ReactiveTableOptions) => {
+
+    const generateHook = (cb, type: string) => {
+
+        return async (instance: Model<any, any>) => {
+
+            let rtnOptions = await cb(instance)
+            let rooms = []
+    
+            if (rtnOptions.instance) {
+                instance = rtnOptions.instance;
+            }
+    
+            if (rtnOptions.users) {
+                rooms = [...rooms, rtnOptions.users.map((id) => `user_${id}`)]
+            }
+    
+            if (rtnOptions.rooms) {
+                rooms = [...rooms, ...rtnOptions.rooms]
+            }
+    
+            rooms.forEach((room) => {
+                etherial["reactive"].io.to(room).emit("reactive", {
+                    action: type,
+                    model: instance.constructor.name,
+                    data: JSON.parse(JSON.stringify(instance))
+                })
+            })
+        }
+
+    }
+    
+
+    return function(target: Function) {
 
         if (!options.hook) {
             options.hooks = {}
@@ -22,58 +60,22 @@ export const ReactiveTable = (options: any) => {
 
         if (options.reactive) {
 
-            const createHook = (func, type) => {
-
-                return (instance: any) => {
-
-                    func({
-                        instance: instance,
-                        forwardToUsers: (ids: number[], newInstance = instance) => {
-
-                            ids.map((id) => {
-                                etherial["reactive"].io.to(`user_${id}`).emit("reactive", {
-                                    action: type,
-                                    model: newInstance.constructor.name,
-                                    data: JSON.parse(JSON.stringify(instance))
-                                })
-                            })
-                            
-                        },
-                        forwardToRooms: (rooms: string[], newInstance = instance) => {
-
-                            rooms.forEach((room) => {
-                                etherial["reactive"].io.to(room,).emit("reactive", {
-                                    action: type,
-                                    model: newInstance.constructor.name,
-                                    data: JSON.parse(JSON.stringify(instance))
-                                })
-                            })
-
-                        }
-
-                    })
-    
+            options.reactive({
+                onCreate: (cb) => options.hooks.afterCreate = generateHook(cb, "create"),
+                onUpdate: (cb) => options.hooks.afterUpdate = generateHook(cb, "update"),
+                onDelete: (cb) => options.hooks.afterDestroy = generateHook(cb, "delete"),
+                onAll: (cb) => {
+                    options.hooks.afterCreate = generateHook(cb, "create")
+                    options.hooks.afterUpdate = generateHook(cb, "update")
+                    options.hooks.afterDestroy = generateHook(cb, "delete")
                 }
+            })
 
-            }
-
-            if (options.reactive[ReactiveTableHookType.CREATE]) {
-                options.hooks.afterCreate = createHook(options.reactive[ReactiveTableHookType.CREATE], ReactiveTableHookType.CREATE)
-            }
-
-            if (options.reactive[ReactiveTableHookType.UPDATE]) {
-                options.hooks.afterUpdate = createHook(options.reactive[ReactiveTableHookType.UPDATE], ReactiveTableHookType.UPDATE)
-            }
-
-            if (options.reactive[ReactiveTableHookType.DELETE]) {
-                options.hooks.afterDestroy = createHook(options.reactive[ReactiveTableHookType.DELETE], ReactiveTableHookType.DELETE)
-            }
+            delete options.reactive
 
         }
 
-        delete options.reactive
-
-        return Table(options)(target, propertyKey)
-    };
+        return Table(options)(target)
+    }
 
 }

@@ -1,6 +1,9 @@
 import express from "express";
 import { RouteDefinition, Response, Request, NextFunction } from './provider'
 import http from "http"
+
+import docGenerator from "./doc:generator"
+
 const fs = require('fs').promises
 
 export class Http {
@@ -59,59 +62,95 @@ export class Http {
                 if (stat.isFile()) {
                     var controller =  require(route).default
                     controllers.push((controller))
+
+                    controllers = [...controllers, {
+                        route: `route`,
+                        controller: require(route).default
+                    }]
+
                 } else if (stat.isDirectory()) {
 
                     let routes = await fs.readdir(route)
+                    let promises = []
 
                     for (let index = 0; index < routes.length; index++) {
-                        var controller = require(`${route}/${routes[index]}`).default;
-                        controllers.push((controller))
+                        const filePath = `${route}/${routes[index]}`;
+
+                        controllers = [...controllers, {
+                            route: filePath,
+                            // controller: (await import(filePath)).default
+                        }]
+
+                        promises.push(import(filePath))
+
                     }
+
+                    const begin = Date.now();
+
+                    await Promise.all(promises).then((pro) => {
+                        console.log(`Runing http module in ${(Date.now() - begin) / 1000 + "s"}`);
+
+                        pro.map((a, i) => {
+                            controllers[i].controller = a.default
+                        })
+                    })
 
                 }
 
             }
 
-            controllers.forEach((controller) => {
-                const instance = new controller();
-                const prefix = Reflect.getMetadata('prefix', controller);
-                const routes: Array<RouteDefinition> = Reflect.getMetadata('routes', controller);
-                
-                routes.forEach((route) => {
+            controllers.forEach(({ controller, route }) => {
 
-                    this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req: Request, res: Response, next: NextFunction) => {
-                        
-                        let ret = instance[route.methodName](req, res, next);
+                try {
 
-                        if (ret != null && ret.then && typeof ret.then === 'function') {
+                    const instance = new controller();
 
-                            ret.then((el) => {
+                    const prefix = Reflect.getMetadata('prefix', controller);
+                    const routes: Array<RouteDefinition> = Reflect.getMetadata('routes', controller);
+                    
+                    routes.forEach((route) => {
 
-                                if (el) {
+                        this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req: Request, res: Response, next: NextFunction) => {
+                            
+                            let ret = instance[route.methodName](req, res, next);
 
-                                    if (el instanceof Array) {
+                            if (ret != null && ret instanceof Array) {
+                            
+                                res.success({status: 200, data: ret})
 
-                                        res.success({status: 200, data: el})
+                            } else if (ret != null && ret.then && typeof ret.then === 'function') {
 
-                                    } else {
+                                ret.then((el) => {
 
-                                        if (el._options && el._options.isNewRecord) {
-                                            res.success({status: 201, data: el})
-                                        } else {
+                                    if (el) {
+
+                                        if (el instanceof Array) {
+
                                             res.success({status: 200, data: el})
+
+                                        } else {
+
+                                            if (el._options && el._options.isNewRecord) {
+                                                res.success({status: 201, data: el})
+                                            } else {
+                                                res.success({status: 200, data: el})
+                                            }
+
                                         }
 
                                     }
+                                    
+                                })
 
-                                }
-                                
-                            })
+                            }
 
-                        }
+                        });
 
                     });
 
-                });
+                } catch (e) {
+                    throw new Error(`Error when loading ${route}. Please be sure your controller respect the Etherial Http Norm.`)
+                }
 
             });
 
@@ -122,6 +161,7 @@ export class Http {
             this.server.listen(this.port, () => {
                 resolve(this)
             })
+
         })
     }
 
@@ -143,6 +183,25 @@ export class Http {
 
     async run() {
         return this
+    }
+
+    commands() {
+
+        return [{
+            command: 'generate:documentation',
+            description: 'Generate a full Swagger documentation.',
+            warn: false,
+            action: async (etherial) => {
+
+                let rtn = docGenerator(etherial)
+
+                fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => { })
+
+                return { success: true, message: 'Http server destroyed successfully.' }
+
+            }
+        }]
+
     }
 
 }

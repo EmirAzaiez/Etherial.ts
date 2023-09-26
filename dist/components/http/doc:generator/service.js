@@ -1,10 +1,13 @@
-import { extractForm } from "./h-forms";
-import { extractRoutes } from "./h-routes";
-
-import fs from "fs"
-const routes = extractRoutes(__dirname + "/../../../../groci-api-etherial-ts/src/routes/users.ts")[0].properties
-const form = extractForm(__dirname + "/../../../../groci-api-etherial-ts/src/forms/user_form.ts")
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const h_forms_1 = require("./h-forms");
+const h_routes_1 = require("./h-routes");
+const fs_1 = __importDefault(require("fs"));
+const routes = (0, h_routes_1.extractRoutes)(__dirname + "/../../../../groci-api-etherial-ts/src/routes/users.ts")[0].properties;
+const form = (0, h_forms_1.extractForm)(__dirname + "/../../../../groci-api-etherial-ts/src/forms/user_form.ts");
 let obj = {
     "openapi": "3.0.3",
     "info": {
@@ -18,7 +21,7 @@ let obj = {
     },
     "servers": [
         {
-          "url": "http://localhost:3031"
+            "url": "http://localhost:3031"
         }
     ],
     "components": {
@@ -30,23 +33,17 @@ let obj = {
         }
     },
     "paths": {},
-}
-
+};
 const forms = {
     "UserForm": form
 };
-
 routes.map((route) => {
-
     //@ts-ignore
-    const method = route.decorators.find((el) => ["Post", "Put", "Delete", "Get"].includes(el.name))
-
+    const method = route.decorators.find((el) => ["Post", "Put", "Delete", "Get"].includes(el.name));
     //@ts-ignore
-    const form = route.decorators.find((el) => el.name === "ShouldValidateForm")
-
+    const form = route.decorators.find((el) => el.name === "ShouldValidateForm");
     //@ts-ignore
-    const authentificationNeeded = route.decorators.find((el) => el.name === "ShouldBeAuthentificate")
-
+    const authentificationNeeded = route.decorators.find((el) => el.name === "ShouldBeAuthentificate");
     if (obj["paths"][method.arguments[0]]) {
         obj["paths"][method.arguments[0]][method.name.toLowerCase()] = {
             responses: {
@@ -54,8 +51,9 @@ routes.map((route) => {
                     data: {}
                 }
             }
-        }
-    } else {
+        };
+    }
+    else {
         obj["paths"][method.arguments[0]] = {
             [method.name.toLowerCase()]: {
                 responses: {
@@ -64,57 +62,43 @@ routes.map((route) => {
                     }
                 }
             }
-        }
+        };
     }
-
     if (authentificationNeeded) {
         obj["paths"][method.arguments[0]][method.name.toLowerCase()]["security"] = {
             security: [{
-                BearerAuth: []
-            }],
-        }
+                    BearerAuth: []
+                }],
+        };
     }
-
     if (form) {
-        const [formName] = form.arguments
+        const [formName] = form.arguments;
         if (formName) {
-
-            let split = formName.split('.')
-
+            let split = formName.split('.');
             if (split) {
-
-                let fff = forms[split[0]]
-
+                let fff = forms[split[0]];
                 if (fff) {
-                    
-                    const ffff2 = fff.find((ffff1) => ffff1.name === split[1])
-
+                    const ffff2 = fff.find((ffff1) => ffff1.name === split[1]);
                     obj["paths"][method.arguments[0]][method.name.toLowerCase()]["requestBody"] = {
                         required: true,
                         content: {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
-                                    "properties" : {}
+                                    "properties": {}
                                 }
                             }
                         }
-                    }
-
+                    };
                     ffff2.properties.map((property) => {
                         obj["paths"][method.arguments[0]][method.name.toLowerCase()]["requestBody"]["content"]["application/json"]["schema"]["properties"][property.name] = {
                             type: "string"
-                        }
-                    })
-
+                        };
+                    });
                 }
-
             }
-        
         }
-
     }
-
-})
-
-fs.writeFileSync("./swagger.json", JSON.stringify(obj))
+});
+fs_1.default.writeFileSync("./swagger.json", JSON.stringify(obj));
+//# sourceMappingURL=service.js.map

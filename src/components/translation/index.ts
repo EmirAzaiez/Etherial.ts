@@ -1,5 +1,16 @@
-import format from 'string-format' 
-// import { Interceptor, InterceptorInterface, Action } from '../http/provider' 
+function format(str, data) {
+    return str.replace(/\{([^}]+)\}/g, (match, key) => {
+        const keys = key.split('[').map(part => part.replace(']', ''));
+        let value = data;
+        for (const k of keys) {
+            value = value[k];
+            if (value === undefined) {
+                break; // Stop if any key is undefined
+            }
+        }
+        return value !== undefined ? value : match;
+    });
+}
 
 export default class Translation {
 
@@ -8,10 +19,18 @@ export default class Translation {
 
     constructor({defaultLanguage, translations}) {
         this.defaultLanguage = defaultLanguage
-        this.internalizations = {...require('../../../resources/components/translation/translation.json')}
+        this.internalizations = {
+            "EN": require('../../../resources/components/translation/translation.json')
+        }
             
         translations.forEach((translation) => {
-            this.internalizations = {...this.internalizations, ...translation}
+            this.internalizations = {
+                ...this.internalizations, 
+                [translation.lang]: {
+                    ...this.internalizations[translation.lang],
+                    ...translation.internalization
+                }
+            }
         })
 
         return this
@@ -19,59 +38,38 @@ export default class Translation {
 
     error(error, lang) {
 
-        let key = this.internalizations["FR"][error.msg]
-        let keyp = this.internalizations["FR"][error.param]
+        let key = this.internalizations[lang][error.msg]
 
         if (key) {
 
-            let obj = {}
+            if (error.params) {
+                let keyp = error.params.map((param) => this.internalizations[lang][param])
 
-            if (keyp) {
-                
-                obj = {
-                    code: 0,
-                    location: error.location,
-                    msg: format(key, {param: keyp, value: error.value}),
-                    param_translated: keyp,
-                    param: error.param
-                }
-
-            } else {
-
-                obj = {
-                    code: 0,
-                    location: error.location,
-                    msg: format(key, {param: error.param, value: error.value}),
-                    param_translated: error.param,
-                    param: error.param
+                if (keyp.every((element) => element !== undefined)) {
+                    return format(key, { params: keyp, value: error.value })
                 }
 
             }
-            
 
-            if ('code' in error) {
-                //@ts-ignore
-                obj.code = error.code
-            }
+            return format(key, { params: error.params, value: error.value })
 
-            return obj
         } else {
             return error
         }
 
     }
 
-    string(key, argumentss, lang) {
+    // string(key, argumentss, lang) {
 
-        let message = this.internalizations["FR"][key]
+    //     let message = this.internalizations["FR"][key]
 
-        if (message) {
-            return format(message, argumentss)
-        } else {
-            return key
-        }
+    //     if (message) {
+    //         return format(message, argumentss)
+    //     } else {
+    //         return key
+    //     }
 
-    }
+    // }
 
     run({http = undefined}) {
 
@@ -79,15 +77,26 @@ export default class Translation {
 
             http.app.use((req, res, next) => {
 
+                let userLang = this.defaultLanguage || 'EN'
+
+                if (req.headers['accept-language']) {
+                    try {
+                        userLang = req.headers['accept-language'].split(',')[0].toUpperCase()
+                    } catch(e) {}
+                }
+
+                // @ts-ignore
+                if (this.internalizations[userLang] == undefined) {
+                    userLang = 'EN'
+                }
+
                 res.error = ({status = 400, error, errors}) => {
 
-                    res.status(status)
-        
                     var nerrors = []
         
-                    if (error != undefined && typeof error == 'string') {
-                        nerrors = [{location: 'api', param: '0', value: '0', msg: error}]
-                    }
+                    // if (error != undefined && typeof error == 'string') {
+                    //     nerrors = [{location: 'api', param: '0', value: '0', msg: error}]
+                    // }
         
                     if (errors != undefined && errors instanceof Array) {
         
@@ -95,7 +104,7 @@ export default class Translation {
                             const error = errors[index]
         
                             if (typeof error == 'string') {
-                                nerrors.push({location: 'api', param: '0', value: '0', msg: error})
+                                nerrors.push({ msg: error })
                             } else {
                                 nerrors.push(error)
                             }
@@ -105,10 +114,10 @@ export default class Translation {
                     }
 
                     for (let index2 = 0; index2 < nerrors.length; index2++) {
-                        nerrors[index2] = this.error(nerrors[index2], req.headers['accept-language'])
+                        nerrors[index2] = this.error(nerrors[index2], userLang)
                     }
         
-                    res.json({status: status, errors: nerrors})
+                    res.status(status).json({status: status, errors: nerrors})
 
                 }
 

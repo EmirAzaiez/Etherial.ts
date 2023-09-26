@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ShouldCustom = exports.UseForm = exports.ShouldValidateForm = exports.ShouldBeMobilePhone = exports.ShouldHaveMaxLength = exports.ShouldHaveMinLength = exports.ShouldHaveMinMaxLength = exports.ShouldBeISO8601Date = exports.ShouldBeEqualTo = exports.ShouldSanitizeToDefaultValue = exports.ShouldSanitizeToUpperCase = exports.ShouldSanitizeToLowerCase = exports.ShouldSanitizeCustom = exports.ShouldValidateCustom = exports.ShouldNotExistInModel = exports.ShouldExistInModel = exports.ShouldBeArray = exports.ShouldBeEmail = exports.ShouldMatch = exports.ShouldBeNotEmpty = exports.ShouldExist = exports.Query = exports.Body = exports.AddValidation = exports.Form = exports.FormGenerator = exports.query = exports.body = void 0;
+exports.ShouldCustom = exports.UseForm = exports.ShouldValidateForm = exports.ShouldBeMobilePhone = exports.ShouldHaveMaxLength = exports.ShouldHaveMinLength = exports.ShouldHaveMinMaxLength = exports.ShouldBeISO8601Date = exports.ShouldBeDate = exports.ShouldBeBoolean = exports.ShouldBeEqualTo = exports.ShouldSanitizeToDefaultValue = exports.ShouldSanitizeToUpperCase = exports.ShouldSanitizeToLowerCase = exports.ShouldSanitizeCustom = exports.ShouldValidateCustom = exports.ShouldNotExistInModel = exports.ShouldExistInModel = exports.ShouldBeArray = exports.ShouldBeEmail = exports.ShouldMatch = exports.ShouldBeNotEmpty = exports.ShouldExist = exports.ShouldBeOptional = exports.ModelInstance = exports.Query = exports.Body = exports.AddValidation = exports.Form = exports.FormGenerator = exports.query = exports.body = void 0;
 const express_validator_1 = require("express-validator");
 Object.defineProperty(exports, "body", { enumerable: true, get: function () { return express_validator_1.body; } });
 Object.defineProperty(exports, "query", { enumerable: true, get: function () { return express_validator_1.query; } });
@@ -14,10 +14,13 @@ const FormGenerator = (elements) => {
     return validations;
 };
 exports.FormGenerator = FormGenerator;
-const Form = () => {
+const Form = (name) => {
     return (target) => {
         if (!Reflect.hasMetadata('validations', target)) {
             Reflect.defineMetadata('validations', {}, target);
+        }
+        if (!Reflect.hasMetadata('instances_of_model', target)) {
+            Reflect.defineMetadata('instances_of_model', {}, target);
         }
     };
 };
@@ -50,6 +53,25 @@ const Query = () => {
     };
 };
 exports.Query = Query;
+const ModelInstance = (property) => {
+    return (target, propertyKey) => {
+        let instances_of_model = Reflect.getMetadata('instances_of_model', target.constructor) || {};
+        instances_of_model[property] = {
+            rproperty: propertyKey,
+            instance: null
+        };
+        Reflect.defineMetadata('instances_of_model', instances_of_model, target.constructor);
+    };
+};
+exports.ModelInstance = ModelInstance;
+const ShouldBeOptional = () => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].optional();
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldBeOptional = ShouldBeOptional;
 const ShouldExist = () => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
@@ -97,9 +119,12 @@ const ShouldExistInModel = (model, column) => {
             return new Promise((resolve, reject) => {
                 model.findOne({ where: { [column]: value } }).then((el) => {
                     if (!el) {
-                        return reject("api.form.errors.not_found");
+                        return reject("api.form.errors.not_found_in_database");
                     }
                     else {
+                        let iom = Reflect.getMetadata('instances_of_model', target.constructor);
+                        iom[propertyKey] = Object.assign(Object.assign({}, iom[propertyKey]), { instance: el });
+                        Reflect.defineMetadata('instances_of_model', iom, target.constructor);
                         return resolve(true);
                     }
                 });
@@ -173,7 +198,7 @@ const ShouldBeEqualTo = (field) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
         validations[propertyKey] = validations[propertyKey].custom((value, obj) => {
             if (value !== obj.req.body[field]) {
-                throw new Error('api.form.errors.not_equal_to_' + field);
+                throw new Error('api.form.errors.not_equal');
             }
             else {
                 return value;
@@ -183,6 +208,26 @@ const ShouldBeEqualTo = (field) => {
     };
 };
 exports.ShouldBeEqualTo = ShouldBeEqualTo;
+const ShouldBeBoolean = () => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].isBoolean().withMessage('api.form.errors.not_boolean').toBoolean(true);
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldBeBoolean = ShouldBeBoolean;
+const ShouldBeDate = (format) => {
+    return (target, propertyKey) => {
+        let validations = Reflect.getMetadata('validations', target.constructor);
+        validations[propertyKey] = validations[propertyKey].isDate({
+            format: format,
+            delimeters: ['/', '-'],
+            strictMode: true
+        }).withMessage('api.form.errors.not_valid_date').toDate();
+        Reflect.defineMetadata('validations', validations, target.constructor);
+    };
+};
+exports.ShouldBeDate = ShouldBeDate;
 const ShouldBeISO8601Date = () => {
     return (target, propertyKey) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
@@ -228,11 +273,21 @@ const ShouldValidateForm = (form, options = { exclude_validator: false, include_
     let arr = Object.values(validations);
     if (!options.exclude_validator) {
         arr.push((req, res, next) => {
-            var errors = ((0, express_validator_1.validationResult)(req)).array();
+            var errors = ((0, express_validator_1.validationResult)(req)).array().map((el) => {
+                return {
+                    params: [el.param],
+                    value: el.value,
+                    msg: el.msg
+                };
+            });
             if (errors.length === 0) {
+                const instances_of_model = Reflect.getMetadata('instances_of_model', form);
                 req.form = (0, express_validator_1.matchedData)(req, {
                     includeOptionals: options.include_optionals,
                 });
+                for (let key in instances_of_model) {
+                    req.form[instances_of_model[key]["rproperty"]] = instances_of_model[key]["instance"];
+                }
                 next();
             }
             else {

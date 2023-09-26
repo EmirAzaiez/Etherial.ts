@@ -1,4 +1,27 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -15,6 +38,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Http = void 0;
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
+const doc_generator_1 = __importDefault(require("./doc:generator"));
 const fs = require('fs').promises;
 class Http {
     constructor({ port, routes, middlewares }) {
@@ -49,41 +73,65 @@ class Http {
                 if (stat.isFile()) {
                     var controller = require(route).default;
                     controllers.push((controller));
+                    controllers = [...controllers, {
+                            route: `route`,
+                            controller: require(route).default
+                        }];
                 }
                 else if (stat.isDirectory()) {
                     let routes = yield fs.readdir(route);
+                    let promises = [];
                     for (let index = 0; index < routes.length; index++) {
-                        var controller = require(`${route}/${routes[index]}`).default;
-                        controllers.push((controller));
+                        const filePath = `${route}/${routes[index]}`;
+                        controllers = [...controllers, {
+                                route: filePath,
+                                // controller: (await import(filePath)).default
+                            }];
+                        promises.push(Promise.resolve(`${filePath}`).then(s => __importStar(require(s))));
                     }
+                    const begin = Date.now();
+                    yield Promise.all(promises).then((pro) => {
+                        console.log(`Runing http module in ${(Date.now() - begin) / 1000 + "s"}`);
+                        pro.map((a, i) => {
+                            controllers[i].controller = a.default;
+                        });
+                    });
                 }
             }
-            controllers.forEach((controller) => {
-                const instance = new controller();
-                const prefix = Reflect.getMetadata('prefix', controller);
-                const routes = Reflect.getMetadata('routes', controller);
-                routes.forEach((route) => {
-                    this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
-                        let ret = instance[route.methodName](req, res, next);
-                        if (ret != null && ret.then && typeof ret.then === 'function') {
-                            ret.then((el) => {
-                                if (el) {
-                                    if (el instanceof Array) {
-                                        res.success({ status: 200, data: el });
-                                    }
-                                    else {
-                                        if (el._options && el._options.isNewRecord) {
-                                            res.success({ status: 201, data: el });
-                                        }
-                                        else {
+            controllers.forEach(({ controller, route }) => {
+                try {
+                    const instance = new controller();
+                    const prefix = Reflect.getMetadata('prefix', controller);
+                    const routes = Reflect.getMetadata('routes', controller);
+                    routes.forEach((route) => {
+                        this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
+                            let ret = instance[route.methodName](req, res, next);
+                            if (ret != null && ret instanceof Array) {
+                                res.success({ status: 200, data: ret });
+                            }
+                            else if (ret != null && ret.then && typeof ret.then === 'function') {
+                                ret.then((el) => {
+                                    if (el) {
+                                        if (el instanceof Array) {
                                             res.success({ status: 200, data: el });
                                         }
+                                        else {
+                                            if (el._options && el._options.isNewRecord) {
+                                                res.success({ status: 201, data: el });
+                                            }
+                                            else {
+                                                res.success({ status: 200, data: el });
+                                            }
+                                        }
                                     }
-                                }
-                            });
-                        }
+                                });
+                            }
+                        });
                     });
-                });
+                }
+                catch (e) {
+                    throw new Error(`Error when loading ${route}. Please be sure your controller respect the Etherial Http Norm.`);
+                }
             });
             if (this.notFoundRouteMiddleware) {
                 this.app.use(this.notFoundRouteMiddleware);
@@ -110,6 +158,18 @@ class Http {
         return __awaiter(this, void 0, void 0, function* () {
             return this;
         });
+    }
+    commands() {
+        return [{
+                command: 'generate:documentation',
+                description: 'Generate a full Swagger documentation.',
+                warn: false,
+                action: (etherial) => __awaiter(this, void 0, void 0, function* () {
+                    let rtn = (0, doc_generator_1.default)(etherial);
+                    fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => { });
+                    return { success: true, message: 'Http server destroyed successfully.' };
+                })
+            }];
     }
 }
 exports.Http = Http;

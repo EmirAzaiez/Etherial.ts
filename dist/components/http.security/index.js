@@ -32,48 +32,106 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.HttpSecurity = void 0;
 // import * as expressJWT from 'express-jwt'
 const jwt = __importStar(require("jsonwebtoken"));
 class HttpSecurity {
-    constructor({ secret, type, roles, role_column }) {
+    constructor({ secret, type }) {
+        if (!secret) {
+            throw new Error('etherial:http.security ERROR - No secret defined in your app/Config.js .');
+        }
+        if (!type) {
+            throw new Error('etherial:http.security ERROR - No type defined in your app/Config.js .');
+        }
+        if (type !== "JWT" && type !== "BasicAuth" && type !== "Session") {
+            throw new Error('etherial:http.security ERROR - Type should be JWT, BasicAuth or Session.');
+        }
         this.secret = secret;
         this.type = type;
-        this.roles = roles;
-        this.role_column = role_column;
-        this.authentificatorRoleCheckerMiddleware = (role = "CLIENT") => {
+        this.authentificatorRoleCheckerMiddleware = (role) => {
             return (req, res, next) => {
                 if (req.user) {
-                    let checkrole = this.roles[role];
-                    if (checkrole.includes(req.user[role_column])) {
+                    this.customAuthentificationRoleChecker(req.user, role).then((result) => {
                         next(null);
-                    }
-                    else {
+                    }).catch(() => {
                         res.error({ status: 401, errors: ['forbidden'] });
-                    }
+                    });
                 }
                 else {
                     res.error({ status: 401, errors: ['forbidden'] });
                 }
             };
         };
-        // if (this.type === 'JWT') {
+        //BEGIN Basic Authentification
+        this.authentificatorMiddlewareBA = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
+            if (req.user) {
+                return next();
+            }
+            let token = req.headers["authorization"];
+            if (token && token.startsWith("Basic ")) {
+                let decoded = Buffer.from(token.substring(6, token.length), 'base64').toString('ascii').split(':');
+                if (decoded) {
+                    if (this.customAuthentificationBAChecker) {
+                        this.customAuthentificationBAChecker({ username: decoded[0], password: decoded[1] }).then((user) => {
+                            if (user) {
+                                req.user = user;
+                                next();
+                            }
+                            else {
+                                res.error({ status: 401, errors: ['forbidden'] });
+                            }
+                        }).catch(() => {
+                            res.error({ status: 401, errors: ['forbidden'] });
+                        });
+                    }
+                    else {
+                        throw new Error('No customAuthentificationChecker for JWT defined in your app.ts .');
+                    }
+                }
+                else {
+                    res.error({ status: 401, errors: ['forbidden'] });
+                }
+            }
+            else {
+                res.error({ status: 401, errors: ['forbidden'] });
+            }
+        });
+        //END Basic Authentification
+        //JWT PART BEGIN
+        /**
+         * @deprecated This function is deprecated and should be replaced with generateJWTToken.
+         */
         this.generateToken = (data) => {
             return jwt.sign(data, this.secret);
         };
+        /**
+         * @deprecated This function is deprecated and should be replaced with decodeJWTToken.
+         */
         this.decodeToken = (token) => {
             return jwt.decode(token, this.secret);
         };
-        this.authentificatorMiddleware = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
+        this.generateJWTToken = (data) => {
+            return jwt.sign(data, this.secret);
+        };
+        this.decodeJWTToken = (token) => {
+            return jwt.decode(token, this.secret);
+        };
+        this.authentificatorMiddlewareJWT = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
             if (req.user) {
                 return next();
             }
             let token = req.headers["authorization"];
             if (token && token.startsWith("Bearer ")) {
-                let decoded = this.decodeToken(token.substring(7, token.length));
+                let decoded = this.decodeJWTToken(token.substring(7, token.length));
                 if (decoded) {
-                    this.customAuthentificationChecker(decoded.user_id).then((user) => {
-                        req.user = user;
-                        next();
+                    this.customAuthentificationJWTChecker(decoded).then((user) => {
+                        if (user) {
+                            req.user = user;
+                            next();
+                        }
+                        else {
+                            res.error({ status: 401, errors: ['forbidden'] });
+                        }
                     }).catch(() => {
                         res.error({ status: 401, errors: ['forbidden'] });
                     });
@@ -86,16 +144,34 @@ class HttpSecurity {
                 res.error({ status: 401, errors: ['forbidden'] });
             }
         });
-        // } else if (this.type === 'SESSION') {
-        // } else if (this.type === 'BASIC') {
-        // }
     }
-    setCustomAuthentificationChecker(customFunction) {
-        this.customAuthentificationChecker = customFunction;
+    //JWT PART END
+    setCustomAuthentificationChecker(cb, type = this.type) {
+        if (type === "JWT") {
+            this.customAuthentificationChecker = cb;
+            this.customAuthentificationJWTChecker = cb;
+        }
+        else if (type === "BasicAuth") {
+            this.customAuthentificationBAChecker = cb;
+        }
+        else if (type === "Session") {
+            // return Middleware(etherial['http_security'].authentificatorMiddlewareSESSION)
+        }
     }
-    setCustomAuthentificationRoleChecker(customFunction) {
-        this.customAuthentificationRoleChecker = customFunction;
+    setCustomAuthentificationRoleChecker(cb) {
+        this.customAuthentificationRoleChecker = cb;
+    }
+    commands() {
+        return [
+            {
+                command: 'generate:token:jwt <user_id>',
+                description: 'Generate a JWT token based on a user_id.',
+                action: (etherial, user_id) => __awaiter(this, void 0, void 0, function* () {
+                    return { success: true, message: this.generateJWTToken({ user_id }) };
+                })
+            }
+        ];
     }
 }
-exports.default = HttpSecurity;
+exports.HttpSecurity = HttpSecurity;
 //# sourceMappingURL=index.js.map

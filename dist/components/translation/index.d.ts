@@ -6,7 +6,6 @@ export default class Translation {
         translations: any;
     });
     error(error: any, lang: any): any;
-    string(key: any, argumentss: any, lang: any): any;
     run({ http }: {
         http?: any;
     }): void;

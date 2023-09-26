@@ -36,6 +36,7 @@ export class Etherial implements IEtherial {
             return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
         }).forEach((element) => {
             if (this[element].run) {
+
                 let rtn = this[element].run(this);
             
                 if (rtn instanceof Promise) {
@@ -57,7 +58,35 @@ export class Etherial implements IEtherial {
 
     }
 
-    commands() {}
+    commands() {
+
+        return new Promise((resolve) => {
+
+            let promises = [];
+
+            Object.keys(this).sort((a, b) => {
+                return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
+            }).forEach((element) => {
+
+                if (this[element].commands) {
+
+                    let rtn = this[element].commands(this);
+                    
+                    promises.push(rtn.map((single) => {
+                        return {
+                            ...single,
+                            command: `${element}:${single.command}`
+                        }
+                    }))
+                
+                }
+            });
+
+            resolve(promises)
+
+        })
+
+    }
 
 }
 

@@ -11,7 +11,7 @@ export declare class Etherial implements IEtherial {
     initInProgress: boolean;
     init(config: any): void;
     run(): Promise<unknown>;
-    commands(): void;
+    commands(): Promise<unknown>;
 }
 declare const _default: Etherial;
 export default _default;

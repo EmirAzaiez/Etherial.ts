@@ -1,75 +1,76 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const string_format_1 = __importDefault(require("string-format"));
-// import { Interceptor, InterceptorInterface, Action } from '../http/provider' 
+function format(str, data) {
+    return str.replace(/\{([^}]+)\}/g, (match, key) => {
+        const keys = key.split('[').map(part => part.replace(']', ''));
+        let value = data;
+        for (const k of keys) {
+            value = value[k];
+            if (value === undefined) {
+                break; // Stop if any key is undefined
+            }
+        }
+        return value !== undefined ? value : match;
+    });
+}
 class Translation {
     constructor({ defaultLanguage, translations }) {
         this.defaultLanguage = defaultLanguage;
-        this.internalizations = Object.assign({}, require('../../../resources/components/translation/translation.json'));
+        this.internalizations = {
+            "EN": require('../../../resources/components/translation/translation.json')
+        };
         translations.forEach((translation) => {
-            this.internalizations = Object.assign(Object.assign({}, this.internalizations), translation);
+            this.internalizations = Object.assign(Object.assign({}, this.internalizations), { [translation.lang]: Object.assign(Object.assign({}, this.internalizations[translation.lang]), translation.internalization) });
         });
         return this;
     }
     error(error, lang) {
-        let key = this.internalizations["FR"][error.msg];
-        let keyp = this.internalizations["FR"][error.param];
+        let key = this.internalizations[lang][error.msg];
         if (key) {
-            let obj = {};
-            if (keyp) {
-                obj = {
-                    code: 0,
-                    location: error.location,
-                    msg: (0, string_format_1.default)(key, { param: keyp, value: error.value }),
-                    param_translated: keyp,
-                    param: error.param
-                };
+            if (error.params) {
+                let keyp = error.params.map((param) => this.internalizations[lang][param]);
+                if (keyp.every((element) => element !== undefined)) {
+                    return format(key, { params: keyp, value: error.value });
+                }
             }
-            else {
-                obj = {
-                    code: 0,
-                    location: error.location,
-                    msg: (0, string_format_1.default)(key, { param: error.param, value: error.value }),
-                    param_translated: error.param,
-                    param: error.param
-                };
-            }
-            if ('code' in error) {
-                //@ts-ignore
-                obj.code = error.code;
-            }
-            return obj;
+            return format(key, { params: error.params, value: error.value });
         }
         else {
             return error;
         }
     }
-    string(key, argumentss, lang) {
-        let message = this.internalizations["FR"][key];
-        if (message) {
-            return (0, string_format_1.default)(message, argumentss);
-        }
-        else {
-            return key;
-        }
-    }
+    // string(key, argumentss, lang) {
+    //     let message = this.internalizations["FR"][key]
+    //     if (message) {
+    //         return format(message, argumentss)
+    //     } else {
+    //         return key
+    //     }
+    // }
     run({ http = undefined }) {
         if (http) {
             http.app.use((req, res, next) => {
-                res.error = ({ status = 400, error, errors }) => {
-                    res.status(status);
-                    var nerrors = [];
-                    if (error != undefined && typeof error == 'string') {
-                        nerrors = [{ location: 'api', param: '0', value: '0', msg: error }];
+                let userLang = this.defaultLanguage || 'EN';
+                if (req.headers['accept-language']) {
+                    try {
+                        userLang = req.headers['accept-language'].split(',')[0].toUpperCase();
                     }
+                    catch (e) { }
+                }
+                // @ts-ignore
+                if (this.internalizations[userLang] == undefined) {
+                    userLang = 'EN';
+                }
+                res.error = ({ status = 400, error, errors }) => {
+                    var nerrors = [];
+                    // if (error != undefined && typeof error == 'string') {
+                    //     nerrors = [{location: 'api', param: '0', value: '0', msg: error}]
+                    // }
                     if (errors != undefined && errors instanceof Array) {
                         for (let index = 0; index < errors.length; index++) {
                             const error = errors[index];
                             if (typeof error == 'string') {
-                                nerrors.push({ location: 'api', param: '0', value: '0', msg: error });
+                                nerrors.push({ msg: error });
                             }
                             else {
                                 nerrors.push(error);
@@ -77,9 +78,9 @@ class Translation {
                         }
                     }
                     for (let index2 = 0; index2 < nerrors.length; index2++) {
-                        nerrors[index2] = this.error(nerrors[index2], req.headers['accept-language']);
+                        nerrors[index2] = this.error(nerrors[index2], userLang);
                     }
-                    res.json({ status: status, errors: nerrors });
+                    res.status(status).json({ status: status, errors: nerrors });
                 };
                 next();
             });

@@ -26,17 +26,16 @@ export interface Response extends express.Response {
     error?: (json: {status: number, errors: [any]}) => void
     render?: (file: string, data: {}) => void
 }
-
 let MethodHandler = (method, path) => {
 
-    return (target, propertyKey: string): void => {
+    return (target, propertyKey: string, descriptor: TypedPropertyDescriptor<any>): void => {
 
         if (! Reflect.hasMetadata('routes', target.constructor)) {
             Reflect.defineMetadata('routes', [], target.constructor);
         }
   
         const routes = Reflect.getMetadata('routes', target.constructor) as Array<RouteDefinition>;
-  
+
         routes.push({
             requestMethod: method,
             path,
@@ -69,6 +68,20 @@ export const Put = (path: string) => {
 export const All = (path: string) => {
     return MethodHandler("all", path)
 };
+
+export const ShouldCreateFromModel = (model: any) => {
+    
+    return Middleware((req, res, next) => {
+        
+        model.create(req.form).then((el) => {
+            res.success({status: 201, data: el})
+        }).catch((err) => {
+            res.error({status: 400, errors: err.errors})
+        })
+        
+    })
+
+}
 
 export const Middleware = (cb: any) => {
 

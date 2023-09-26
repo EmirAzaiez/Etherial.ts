@@ -30,11 +30,12 @@ export interface Response extends express.Response {
     }) => void;
     render?: (file: string, data: {}) => void;
 }
-export declare const Get: (path: string) => (target: any, propertyKey: string) => void;
-export declare const Post: (path: string) => (target: any, propertyKey: string) => void;
-export declare const Delete: (path: string) => (target: any, propertyKey: string) => void;
-export declare const Put: (path: string) => (target: any, propertyKey: string) => void;
-export declare const All: (path: string) => (target: any, propertyKey: string) => void;
+export declare const Get: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => void;
+export declare const Post: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => void;
+export declare const Delete: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => void;
+export declare const Put: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => void;
+export declare const All: (path: string) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => void;
+export declare const ShouldCreateFromModel: (model: any) => (target: any, propertyKey: string) => void;
 export declare const Middleware: (cb: any) => (target: any, propertyKey: string) => void;
 export declare const Controller: (prefix?: string) => ClassDecorator;
 export declare const ShouldUseRoute: (cb: any) => (target: any, propertyKey: string) => void;

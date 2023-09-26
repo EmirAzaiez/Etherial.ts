@@ -16,4 +16,13 @@ export declare class Http {
     addRoutes(routes: any): this;
     notFoundRoute(middleware: any): this;
     run(): Promise<this>;
+    commands(): {
+        command: string;
+        description: string;
+        warn: boolean;
+        action: (etherial: any) => Promise<{
+            success: boolean;
+            message: string;
+        }>;
+    }[];
 }

@@ -1,30 +1,14 @@
 {
-    "FR": {
-        "0": "0",
-        "email": "e-mail",
-        "firstname": "prénom",
-        "lastname": "nom",
-        "birthdate": "date de naissance",
-        "phone_number": "numéro de téléphone",
-        "trip": "trajet",
-        "route": "route",
-        "user": "Utilisateur",
-        "password_reset_token": "token",
-        
-        "api.errors.token.invalid": "Le token n'est pas valide.",
-        "api.errors.unauthorized": "Vous n'êtes pas autorisé.",
-        "api.errors.not_found": "{param} introuvable.",
-        "api.errors.user.banned": "Vous n'êtes pas autorisé dû à votre ban.",
-
-        "api.form.errors.invalid": "Le champ {param} est invalide.",
-        "api.form.errors.already_exist_in_database": "Votre {param} existe déjà dans notre base de données.",
-        "api.form.errors.not_match": "Le champ {param} n'est pas valide.",
-
-        "api.query.errors.invalid": "Le paramètre {param} est invalide.",
-
-        "api.query.errors.is_empty": "Le paramètre {param} ne doit pas être vide."
-
-
-    }
-
+    "api.form.errors.is_required": "{params[0]} is required",
+    "api.form.errors.is_empty": "{params[0]} should not be empty",
+    "api.form.errors.is_not_email": "{params[0]} should be a valid email",
+    "api.form.errors.is_not_array": "{params[0]} should be an array",
+    "api.form.errors.not_valid_date": "{params[0]} should be a valid date",
+    "api.form.errors.min_max_length_not_valid": "{params[0]} should be between {params[1]} and {params[2]} characters",
+    "api.form.errors.min_length_not_valid": "{params[0]} should be at least {params[1]} characters",
+    "api.form.errors.max_length_not_valid": "{params[0]} should be at most {params[1]} characters",
+    "api.form.errors.not_equal": "{params[0]} should be equal to {params[1]}",
+    "api.form.errors.already_exist_in_database": "{params[0]} already exists in database",
+    "api.form.errors.not_found_in_database": "{params[0]} does not exist in database",
+    "api.form.errors.not_boolean": "{params[0]} should be a boolean"
 }

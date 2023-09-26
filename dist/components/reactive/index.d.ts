@@ -1,7 +1,13 @@
 import { Server } from "socket.io";
+interface ReactiveListener {
+    event: string;
+    callback: (data: any) => void;
+}
 export declare class Reactive {
     io: Server;
-    userJoinCustomRoom: (user: any) => Promise<string>;
     constructor();
-    listen(): Promise<unknown>;
+    listen(listeners?: ReactiveListener[]): Promise<unknown>;
+    userJoinRoom(userId: string, room: string): Promise<void>;
+    userLeaveRoom(userId: string, room: string): Promise<void>;
 }
+export {};

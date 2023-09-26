@@ -1,65 +1,61 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReactiveTable = exports.ReactiveTableForwardType = exports.ReactiveTableHookType = void 0;
+exports.ReactiveTable = void 0;
 const sequelize_typescript_1 = require("sequelize-typescript");
 const index_1 = __importDefault(require("../../index"));
-var ReactiveTableHookType;
-(function (ReactiveTableHookType) {
-    ReactiveTableHookType["CREATE"] = "create";
-    ReactiveTableHookType["UPDATE"] = "update";
-    ReactiveTableHookType["DELETE"] = "delete";
-})(ReactiveTableHookType = exports.ReactiveTableHookType || (exports.ReactiveTableHookType = {}));
-var ReactiveTableForwardType;
-(function (ReactiveTableForwardType) {
-    ReactiveTableForwardType["ROOMS"] = "rooms";
-    ReactiveTableForwardType["USERS"] = "users";
-})(ReactiveTableForwardType = exports.ReactiveTableForwardType || (exports.ReactiveTableForwardType = {}));
 const ReactiveTable = (options) => {
-    return function (target, propertyKey) {
+    const generateHook = (cb, type) => {
+        return (instance) => __awaiter(void 0, void 0, void 0, function* () {
+            let rtnOptions = yield cb(instance);
+            let rooms = [];
+            if (rtnOptions.instance) {
+                instance = rtnOptions.instance;
+            }
+            if (rtnOptions.users) {
+                rooms = [...rooms, rtnOptions.users.map((id) => `user_${id}`)];
+            }
+            if (rtnOptions.rooms) {
+                rooms = [...rooms, ...rtnOptions.rooms];
+            }
+            rooms.forEach((room) => {
+                index_1.default["reactive"].io.to(room).emit("reactive", {
+                    action: type,
+                    model: instance.constructor.name,
+                    data: JSON.parse(JSON.stringify(instance))
+                });
+            });
+        });
+    };
+    return function (target) {
         if (!options.hook) {
             options.hooks = {};
         }
         if (options.reactive) {
-            const createHook = (func, type) => {
-                return (instance) => {
-                    func({
-                        instance: instance,
-                        forwardToUsers: (ids, newInstance = instance) => {
-                            ids.map((id) => {
-                                index_1.default["reactive"].io.to(`user_${id}`).emit("reactive", {
-                                    action: type,
-                                    model: newInstance.constructor.name,
-                                    data: JSON.parse(JSON.stringify(instance))
-                                });
-                            });
-                        },
-                        forwardToRooms: (rooms, newInstance = instance) => {
-                            rooms.forEach((room) => {
-                                index_1.default["reactive"].io.to(room).emit("reactive", {
-                                    action: type,
-                                    model: newInstance.constructor.name,
-                                    data: JSON.parse(JSON.stringify(instance))
-                                });
-                            });
-                        }
-                    });
-                };
-            };
-            if (options.reactive[ReactiveTableHookType.CREATE]) {
-                options.hooks.afterCreate = createHook(options.reactive[ReactiveTableHookType.CREATE], ReactiveTableHookType.CREATE);
-            }
-            if (options.reactive[ReactiveTableHookType.UPDATE]) {
-                options.hooks.afterUpdate = createHook(options.reactive[ReactiveTableHookType.UPDATE], ReactiveTableHookType.UPDATE);
-            }
-            if (options.reactive[ReactiveTableHookType.DELETE]) {
-                options.hooks.afterDestroy = createHook(options.reactive[ReactiveTableHookType.DELETE], ReactiveTableHookType.DELETE);
-            }
+            options.reactive({
+                onCreate: (cb) => options.hooks.afterCreate = generateHook(cb, "create"),
+                onUpdate: (cb) => options.hooks.afterUpdate = generateHook(cb, "update"),
+                onDelete: (cb) => options.hooks.afterDestroy = generateHook(cb, "delete"),
+                onAll: (cb) => {
+                    options.hooks.afterCreate = generateHook(cb, "create");
+                    options.hooks.afterUpdate = generateHook(cb, "update");
+                    options.hooks.afterDestroy = generateHook(cb, "delete");
+                }
+            });
+            delete options.reactive;
         }
-        delete options.reactive;
-        return (0, sequelize_typescript_1.Table)(options)(target, propertyKey);
+        return (0, sequelize_typescript_1.Table)(options)(target);
     };
 };
 exports.ReactiveTable = ReactiveTable;

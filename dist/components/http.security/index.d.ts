@@ -1,21 +1,29 @@
-export default class HttpSecurity {
-    type?: String;
-    secret?: String;
+export declare class HttpSecurity {
+    protected type?: "JWT" | "BasicAuth" | "Session";
+    private secret?;
+    generateJWTToken?: (data: any) => String;
+    decodeJWTToken?: (token: string) => any;
     generateToken?: (data: any) => String;
     decodeToken?: (token: string) => any;
-    authentificatorMiddleware: any;
+    authentificatorMiddlewareJWT: any;
+    authentificatorMiddlewareBA: any;
     authentificatorRoleCheckerMiddleware: any;
-    roles: any;
-    column: string;
-    role_column: string;
-    customAuthentificationChecker: (any: any) => Promise<void>;
-    customAuthentificationRoleChecker: (any: any) => void;
-    constructor({ secret, type, roles, role_column }: {
+    customAuthentificationJWTChecker: (any: any) => Promise<any>;
+    customAuthentificationBAChecker: (any: any) => Promise<any>;
+    customAuthentificationChecker: (cb: (any: any) => Promise<any>, type?: "JWT" | "BasicAuth" | "Session") => Promise<void>;
+    customAuthentificationRoleChecker: (user: any, askedRole: any) => Promise<void>;
+    constructor({ secret, type }: {
         secret: any;
         type: any;
-        roles: any;
-        role_column: any;
     });
-    setCustomAuthentificationChecker(customFunction: (any: any) => Promise<void>): void;
-    setCustomAuthentificationRoleChecker(customFunction: () => void): void;
+    setCustomAuthentificationChecker(cb: (args: any) => Promise<any>, type?: "JWT" | "BasicAuth" | "Session"): void;
+    setCustomAuthentificationRoleChecker(cb: (user: any, askedRole: any) => Promise<any>): void;
+    commands(): {
+        command: string;
+        description: string;
+        action: (etherial: any, user_id: any) => Promise<{
+            success: boolean;
+            message: String;
+        }>;
+    }[];
 }
