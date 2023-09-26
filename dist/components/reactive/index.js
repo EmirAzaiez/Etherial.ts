@@ -35,7 +35,7 @@ class Reactive {
                     socket.on('auth', (token) => {
                         let decoded = index_1.default["http_security"].decodeToken(token);
                         if (decoded) {
-                            index_1.default["http_security"].customAuthentificationChecker(decoded.user_id).then((user) => {
+                            index_1.default["http_security"].customAuthentificationJWTChecker(decoded).then((user) => {
                                 socket.join(`user_${user.id}`);
                                 socket.join(`users`);
                                 socket.leave(`guests`);

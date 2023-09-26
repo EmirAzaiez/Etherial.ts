@@ -39,7 +39,7 @@ export class Reactive {
 
                         if (decoded) {
 
-                            etherial["http_security"].customAuthentificationChecker(decoded.user_id).then((user) => {
+                            etherial["http_security"].customAuthentificationJWTChecker(decoded).then((user) => {
                                 socket.join(`user_${user.id}`)
                                 socket.join(`users`)
                                 socket.leave(`guests`)
@@ -77,7 +77,7 @@ export class Reactive {
     async userJoinRoom(userId: string, room: string) {
 
         if (this.io) {
-            
+
             const userRoom = `user_${userId}`;
             const clients = this.io.sockets.adapter.rooms.get(userRoom);
             
