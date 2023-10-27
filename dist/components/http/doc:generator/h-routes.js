@@ -29,6 +29,8 @@ const ts = __importStar(require("typescript"));
 function extractRoutes(filePath) {
     const sourceFile = ts.createSourceFile(filePath, fs.readFileSync(filePath).toString(), ts.ScriptTarget.Latest);
     const classes = [];
+    const program = ts.createProgram([filePath], { target: ts.ScriptTarget.ES5, module: ts.ModuleKind.CommonJS });
+    const checker = program.getTypeChecker();
     function visit(node) {
         if (ts.isClassDeclaration(node) && node.decorators && node.decorators.length > 0) {
             const classInfo = {
@@ -59,10 +61,18 @@ function extractRoutes(filePath) {
             }
             for (const member of node.members) {
                 if (ts.isMethodDeclaration(member) && member.decorators && member.decorators.length > 0) {
+                    if (member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))) {
+                        if (member.name.text === "getUser") {
+                            if (ts.isMethodDeclaration(member)) {
+                                console.log(program.getTypeChecker().getTypeAtLocation(node));
+                            }
+                        }
+                    }
                     const methodInfo = {
                         name: '',
                         decorators: [],
-                        arguments: []
+                        arguments: [],
+                        return: null
                     };
                     if (member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))) {
                         methodInfo.name = member.name.text;

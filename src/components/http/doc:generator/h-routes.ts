@@ -10,6 +10,8 @@ interface MethodDecoratorInfo {
     name: string;
     arguments: string[];
     decorators: ClassDecoratorInfo[];
+    return?: any
+
 }
 
 interface ClassInfo {
@@ -25,6 +27,9 @@ interface ClassInfo {
 export function extractRoutes(filePath: string): ClassInfo[] {
     const sourceFile = ts.createSourceFile(filePath, fs.readFileSync(filePath).toString(), ts.ScriptTarget.Latest);
     const classes: ClassInfo[] = [];
+
+    const program = ts.createProgram([ filePath ], { target: ts.ScriptTarget.ES5, module: ts.ModuleKind.CommonJS })
+    const checker = program.getTypeChecker()
 
     function visit(node: ts.Node) {
         if (ts.isClassDeclaration(node) && node.decorators && node.decorators.length > 0) {
@@ -58,16 +63,32 @@ export function extractRoutes(filePath: string): ClassInfo[] {
             }
 
             for (const member of node.members) {
+
                 if (ts.isMethodDeclaration(member) && member.decorators && member.decorators.length > 0) {
+
+                    if (member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) ) {
+
+                        if (member.name.text === "getUser") {
+                            if (ts.isMethodDeclaration(member)) {
+                                console.log(program.getTypeChecker().getTypeAtLocation(node))
+                            }
+                        }
+
+                    }
+                    
                     const methodInfo: MethodDecoratorInfo = {
                         name: '',
                         decorators: [],
-                        arguments: []
+                        arguments: [],
+                        return: null
                     };
+                    
                     if (member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))) {
                         methodInfo.name = member.name.text;
                     }
+
                     if (member.decorators) {
+
                         methodInfo.decorators = member.decorators.map((d) => {
                             let obj = {
                                 name: "",
@@ -92,7 +113,10 @@ export function extractRoutes(filePath: string): ClassInfo[] {
                             }
                             return obj
                         })
+
                     }
+
+                    
                     classInfo.properties.push(methodInfo);
                 }
             }

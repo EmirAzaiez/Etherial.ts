@@ -4,6 +4,8 @@ import http from "http"
 
 import docGenerator from "./doc:generator"
 
+const sjs = require('sequelize-json-schema');
+
 const fs = require('fs').promises
 
 export class Http {
@@ -189,6 +191,22 @@ export class Http {
 
         return [{
             command: 'generate:documentation',
+            description: 'Generate a full Swagger documentation.',
+            warn: false,
+            action: async (etherial) => {
+
+                // @ts-ignore
+                // console.log(sjs.getSequelizeSchema(etherial.database.sequelize))
+
+                let rtn = docGenerator(etherial)
+
+                fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => { })
+
+                return { success: true, message: 'Http server destroyed successfully.' }
+
+            }
+        }, {
+            command: 'generate:rtk-query',
             description: 'Generate a full Swagger documentation.',
             warn: false,
             action: async (etherial) => {

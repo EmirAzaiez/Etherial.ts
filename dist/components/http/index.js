@@ -39,6 +39,7 @@ exports.Http = void 0;
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
 const doc_generator_1 = __importDefault(require("./doc:generator"));
+const sjs = require('sequelize-json-schema');
 const fs = require('fs').promises;
 class Http {
     constructor({ port, routes, middlewares }) {
@@ -162,6 +163,17 @@ class Http {
     commands() {
         return [{
                 command: 'generate:documentation',
+                description: 'Generate a full Swagger documentation.',
+                warn: false,
+                action: (etherial) => __awaiter(this, void 0, void 0, function* () {
+                    // @ts-ignore
+                    // console.log(sjs.getSequelizeSchema(etherial.database.sequelize))
+                    let rtn = (0, doc_generator_1.default)(etherial);
+                    fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => { });
+                    return { success: true, message: 'Http server destroyed successfully.' };
+                })
+            }, {
+                command: 'generate:rtk-query',
                 description: 'Generate a full Swagger documentation.',
                 warn: false,
                 action: (etherial) => __awaiter(this, void 0, void 0, function* () {

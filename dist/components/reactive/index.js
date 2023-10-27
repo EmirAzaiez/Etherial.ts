@@ -43,7 +43,7 @@ class Reactive {
                         }
                     });
                     socket.on('deauth', () => {
-                        Object.keys(socket.rooms).forEach((room) => __awaiter(this, void 0, void 0, function* () {
+                        Array.from(socket.rooms).forEach((room) => __awaiter(this, void 0, void 0, function* () {
                             if (room !== socket.id && room !== 'all') {
                                 yield socket.leave(room);
                             }

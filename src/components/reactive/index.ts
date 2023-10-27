@@ -51,7 +51,7 @@ export class Reactive {
 
                     socket.on('deauth', () => {
                         
-                        Object.keys(socket.rooms).forEach(async (room) => {
+                        Array.from(socket.rooms).forEach(async (room) => {
                             if (room !== socket.id && room !== 'all') {
                                 await socket.leave(room);
                             }

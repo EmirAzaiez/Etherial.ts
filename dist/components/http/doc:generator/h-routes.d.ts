@@ -6,6 +6,7 @@ interface MethodDecoratorInfo {
     name: string;
     arguments: string[];
     decorators: ClassDecoratorInfo[];
+    return?: any;
 }
 interface ClassInfo {
     name: string;

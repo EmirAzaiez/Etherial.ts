@@ -12,14 +12,9 @@ declare const _default: (etherial: any) => {
     servers: {
         url: string;
     }[];
-    components: {
-        securitySchemes: {
-            BearerAuth: {
-                type: string;
-                scheme: string;
-            };
-        };
-    };
     paths: {};
+    components: {
+        schemas: {};
+    };
 };
 export default _default;
