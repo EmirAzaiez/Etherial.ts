@@ -1,6 +1,8 @@
-export declare class HttpSecurity {
-    protected type?: "JWT" | "BasicAuth" | "Session";
+import { IEtherialModule } from "../../index";
+export declare class HttpSecurity implements IEtherialModule {
+    etherial_module_name: string;
     private secret?;
+    type?: "JWT" | "BasicAuth" | "Session";
     generateJWTToken?: (data: any) => String;
     decodeJWTToken?: (token: string) => any;
     generateToken?: (data: any) => String;

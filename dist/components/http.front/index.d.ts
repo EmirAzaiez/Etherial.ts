@@ -1,4 +1,6 @@
-export default class HttpFront {
+import { IEtherialModule } from "../../index";
+export default class HttpFront implements IEtherialModule {
+    etherial_module_name: string;
     viewsFolder: string;
     defaultLayout: string;
     viewEngine: string;

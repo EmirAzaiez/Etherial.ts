@@ -6,7 +6,11 @@ interface ReactiveListener {
     callback: (data: any) => void
 }
 
-export class Reactive {
+import { IEtherialModule } from "../../index"
+
+export class Reactive implements IEtherialModule {
+
+    etherial_module_name: string = 'reactive'
 
     io: Server;
 

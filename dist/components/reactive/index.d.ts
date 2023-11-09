@@ -3,7 +3,9 @@ interface ReactiveListener {
     event: string;
     callback: (data: any) => void;
 }
-export declare class Reactive {
+import { IEtherialModule } from "../../index";
+export declare class Reactive implements IEtherialModule {
+    etherial_module_name: string;
     io: Server;
     constructor();
     listen(listeners?: ReactiveListener[]): Promise<unknown>;

@@ -15,6 +15,7 @@ function format(str, data) {
 }
 class Translation {
     constructor({ defaultLanguage, translations }) {
+        this.etherial_module_name = 'translation';
         this.defaultLanguage = defaultLanguage;
         this.internalizations = {
             "EN": require('../../../resources/components/translation/translation.json')

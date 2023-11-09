@@ -37,6 +37,7 @@ exports.HttpSecurity = void 0;
 const jwt = __importStar(require("jsonwebtoken"));
 class HttpSecurity {
     constructor({ secret, type }) {
+        this.etherial_module_name = 'http_security';
         if (!secret) {
             throw new Error('etherial:http.security ERROR - No secret defined in your app/Config.js .');
         }

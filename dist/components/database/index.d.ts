@@ -1,5 +1,7 @@
 import { Sequelize } from "sequelize-typescript";
-export declare class Database {
+import { IEtherialModule } from "../../index";
+export declare class Database implements IEtherialModule {
+    etherial_module_name: string;
     sequelize: Sequelize;
     constructor({ server, port, name, username, password, dialect, models }: {
         server: any;

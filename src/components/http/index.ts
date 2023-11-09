@@ -2,13 +2,15 @@ import express from "express";
 import { RouteDefinition, Response, Request, NextFunction } from './provider'
 import http from "http"
 
-import docGenerator from "./doc:generator"
+import { IEtherialModule } from "../../index"
 
-const sjs = require('sequelize-json-schema');
+import docGenerator from "./doc:generator"
 
 const fs = require('fs').promises
 
-export class Http {
+export class Http implements IEtherialModule {
+
+    etherial_module_name: string = 'http'
 
     app: express.Application;
     server: http.Server;
@@ -47,6 +49,24 @@ export class Http {
             next()
     
         })
+
+    }
+
+    async initAdminJS(config, rootPath = "/admin") {
+
+        let { AdminJS } = await import("adminjs");
+        let AdminJSExpress = await import("@adminjs/express");
+        let AdminJSSequelize = await import("@adminjs/sequelize");
+
+        AdminJS.registerAdapter({
+            Resource: AdminJSSequelize.Resource,
+            Database: AdminJSSequelize.Database,
+        })
+
+        const admin = new AdminJS(config)
+
+        const adminRouter = AdminJSExpress.buildRouter(admin)
+        this.app.use(rootPath, adminRouter)
 
     }
 
@@ -105,9 +125,12 @@ export class Http {
 
                 try {
 
+                    controller = controller.default
+
                     const instance = new controller();
 
                     const prefix = Reflect.getMetadata('prefix', controller);
+
                     const routes: Array<RouteDefinition> = Reflect.getMetadata('routes', controller);
                     
                     routes.forEach((route) => {

@@ -38,6 +38,7 @@ const sequelizeFixtures = __importStar(require("sequelize-fixtures"));
 class Database {
     // add ignore sync
     constructor({ server, port, name, username, password, dialect, models }) {
+        this.etherial_module_name = 'database';
         this.sequelize = new sequelize_typescript_1.Sequelize({
             host: server,
             port: port,

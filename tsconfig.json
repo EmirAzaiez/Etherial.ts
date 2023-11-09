@@ -3,7 +3,7 @@
         "lib": ["es5", "es6", "esnext", "dom"],
         "target": "es6",
         "module": "commonjs",
-        "moduleResolution": "node",
+        "moduleResolution": "NodeNext",
         "outDir": "./dist",
         "emitDecoratorMetadata": true,
         "experimentalDecorators": true,
@@ -13,5 +13,8 @@
         "rootDir": "./src",
         "esModuleInterop": true,
         "skipLibCheck": true 
-    }
+    },
+    "ts-node": {
+        "esm": true, // «———— enabling ESM for ts-node   
+      }
   }

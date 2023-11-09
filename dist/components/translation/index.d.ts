@@ -1,4 +1,6 @@
-export default class Translation {
+import { IEtherialModule } from "../../index";
+export default class Translation implements IEtherialModule {
+    etherial_module_name: string;
     defaultLanguage?: String;
     internalizations?: {};
     constructor({ defaultLanguage, translations }: {

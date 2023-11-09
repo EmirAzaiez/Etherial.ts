@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var expressLayouts = require('express-ejs-layouts');
 class HttpFront {
     constructor({ viewsFolder = "", defaultLayout = "" }) {
+        this.etherial_module_name = 'http_front';
         this.viewsFolder = viewsFolder;
         this.defaultLayout = defaultLayout;
     }

@@ -1,7 +1,10 @@
 import { Sequelize } from "sequelize-typescript";
 import * as sequelizeFixtures from 'sequelize-fixtures';
+import { IEtherialModule } from "../../index"
 
-export class Database {
+export class Database implements IEtherialModule {
+
+    etherial_module_name: string = 'database'
 
     sequelize: Sequelize
     // add ignore sync

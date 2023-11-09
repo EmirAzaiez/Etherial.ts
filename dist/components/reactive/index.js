@@ -17,6 +17,7 @@ const socket_io_1 = require("socket.io");
 const index_1 = __importDefault(require("../../index"));
 class Reactive {
     constructor() {
+        this.etherial_module_name = 'reactive';
         return this;
     }
     listen(listeners = []) {

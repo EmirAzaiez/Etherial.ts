@@ -9,10 +9,22 @@ class Etherial {
     }
     init(config) {
         this.initInProgress = true;
-        Object.keys(config).forEach((element) => {
-            if (!this[element]) {
-                let component = config[element];
-                this[element] = new component['module'](component.config);
+        Object.keys(config).forEach((name) => {
+            if (!this[name]) {
+                let component = config[name];
+                if (component.module && component.module) {
+                    //@ts-ignore
+                    let moduleInstance = new component.module(component.config);
+                    if (moduleInstance.etherial_module_name === name) {
+                        this[name] = moduleInstance;
+                    }
+                    else {
+                        throw new Error(`Module ${name} defined in config should has this name: ${moduleInstance.etherial_module_name}.`);
+                    }
+                }
+                else {
+                    throw new Error(`Module ${name} is not a valid Etherial module.`);
+                }
             }
         });
     }

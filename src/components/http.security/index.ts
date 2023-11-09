@@ -5,10 +5,14 @@ import * as jwt from 'jsonwebtoken'
 
 import { Middleware } from '../http/provider'
 
-export class HttpSecurity {
+import { IEtherialModule } from "../../index"
 
-    protected type?: "JWT" | "BasicAuth" | "Session";
+export class HttpSecurity implements IEtherialModule {
+
+    etherial_module_name: string = 'http_security'
+
     private secret?: String;
+    public type?: "JWT" | "BasicAuth" | "Session";
 
     public generateJWTToken?: (data: any) => String
     public decodeJWTToken?: (token: string) => any

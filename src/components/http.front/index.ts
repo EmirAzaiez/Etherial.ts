@@ -1,6 +1,10 @@
+import { IEtherialModule } from "../../index"
+
 var expressLayouts = require('express-ejs-layouts');
 
-export default class HttpFront {
+export default class HttpFront implements IEtherialModule {
+
+    etherial_module_name: string = 'http_front'
 
     viewsFolder: string;
     defaultLayout: string;

@@ -19,6 +19,7 @@ export function extractForm(filePath: string): ClassInfo[] {
     const classes: ClassInfo[] = [];
 
     function visit(node: ts.Node) {
+        //@ts-ignore
         if (ts.isClassDeclaration(node) && node.decorators && node.decorators.length > 0) {
             const classInfo: ClassInfo = {
                 name: '',
@@ -29,6 +30,8 @@ export function extractForm(filePath: string): ClassInfo[] {
             }
 
             for (const member of node.members) {
+                //@ts-ignore
+
                 if (ts.isPropertyDeclaration(member) && member.decorators && member.decorators.length > 0) {
                     const propertyInfo: PropertyInfo = {
                         name: '',
@@ -38,7 +41,11 @@ export function extractForm(filePath: string): ClassInfo[] {
                     if (member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))) {
                         propertyInfo.name = member.name.text;
                     }
+        //@ts-ignore
+
                     if (member.decorators) {
+        //@ts-ignore
+                        
                         propertyInfo.decorators = member.decorators.map((d) => {
 
                             let obj = {

@@ -1,7 +1,9 @@
 /// <reference types="node" />
 import express from "express";
 import http from "http";
-export declare class Http {
+import { IEtherialModule } from "../../index";
+export declare class Http implements IEtherialModule {
+    etherial_module_name: string;
     app: express.Application;
     server: http.Server;
     port: number;
@@ -12,6 +14,7 @@ export declare class Http {
         routes: any;
         middlewares: any;
     });
+    initAdminJS(config: any, rootPath?: string): Promise<void>;
     listen(): Promise<unknown>;
     addRoutes(routes: any): this;
     notFoundRoute(middleware: any): this;

@@ -32,6 +32,8 @@ export function extractRoutes(filePath: string): ClassInfo[] {
     const checker = program.getTypeChecker()
 
     function visit(node: ts.Node) {
+        //@ts-ignore
+
         if (ts.isClassDeclaration(node) && node.decorators && node.decorators.length > 0) {
             const classInfo: ClassInfo = {
                 name: '',
@@ -42,8 +44,11 @@ export function extractRoutes(filePath: string): ClassInfo[] {
             if (node.name && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name))) {
                 classInfo.name = node.name.text;
             }
+        //@ts-ignore
 
             if (node.decorators) {
+        //@ts-ignore
+
                 classInfo.decorators = node.decorators.map((d) => {
                     let obj = {
                         name: "",
@@ -64,6 +69,7 @@ export function extractRoutes(filePath: string): ClassInfo[] {
 
             for (const member of node.members) {
 
+        //@ts-ignore
                 if (ts.isMethodDeclaration(member) && member.decorators && member.decorators.length > 0) {
 
                     if (member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) ) {
@@ -86,8 +92,10 @@ export function extractRoutes(filePath: string): ClassInfo[] {
                     if (member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))) {
                         methodInfo.name = member.name.text;
                     }
+        //@ts-ignore
 
                     if (member.decorators) {
+        //@ts-ignore
 
                         methodInfo.decorators = member.decorators.map((d) => {
                             let obj = {
