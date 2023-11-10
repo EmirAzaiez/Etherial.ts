@@ -54,7 +54,7 @@ export class Http implements IEtherialModule {
 
     async initAdminJS(config, rootPath = "/admin") {
 
-        let { AdminJS } = await import("adminjs");
+        let { AdminJS, ComponentLoader } = await import("adminjs");
         let AdminJSExpress = await import("@adminjs/express");
         let AdminJSSequelize = await import("@adminjs/sequelize");
 
@@ -62,8 +62,8 @@ export class Http implements IEtherialModule {
             Resource: AdminJSSequelize.Resource,
             Database: AdminJSSequelize.Database,
         })
-
-        const admin = new AdminJS(config)
+        
+        const admin = new AdminJS(await config(AdminJS, ComponentLoader))
 
         const adminRouter = AdminJSExpress.buildRouter(admin)
         this.app.use(rootPath, adminRouter)

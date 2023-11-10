@@ -18,7 +18,7 @@ export interface IEtherial {
     http_security?: HttpSecurity;
     reactive?: Reactive;
     translation?: Translation;
-    s3_leaf?: EthLeafS3;
+    leaf_s3?: EthLeafS3;
 }
 export interface IEtherialModule {
     etherial_module_name: string;
@@ -37,7 +37,7 @@ export declare class Etherial implements IEtherial {
     http_security?: HttpSecurity;
     reactive?: Reactive;
     translation?: Translation;
-    s3_leaf?: EthLeafS3;
+    leaf_s3?: EthLeafS3;
     initDone: boolean;
     initInProgress: boolean;
     init(config: EtherialModuleMap<IEtherialModule>): void;

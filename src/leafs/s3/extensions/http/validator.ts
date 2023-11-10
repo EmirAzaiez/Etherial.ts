@@ -12,7 +12,7 @@ export const ShouldBeS3File = (folder: string) : PropertyDecorator => {
             
             return new Promise((resolve, reject) => {
 
-                const eal = etherial.s3_leaf
+                const eal = etherial.leaf_s3
 
                 eal.s3.send(new GetObjectCommand({
                     Bucket: eal.bucket,

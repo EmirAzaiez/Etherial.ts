@@ -13,7 +13,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const FileRequestRoute = () => {
 
-    const eal = etherial.s3_leaf
+    const eal = etherial.leaf_s3
 
     return async (req : {form: FileRequestForm.Create}, res, next) => {
 

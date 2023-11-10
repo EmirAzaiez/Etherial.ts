@@ -11,7 +11,7 @@ const ShouldBeS3File = (folder) => {
         let validations = Reflect.getMetadata('validations', target.constructor);
         validations[propertyKey] = validations[propertyKey].custom((value) => {
             return new Promise((resolve, reject) => {
-                const eal = index_1.default.s3_leaf;
+                const eal = index_1.default.leaf_s3;
                 eal.s3.send(new client_s3_1.GetObjectCommand({
                     Bucket: eal.bucket,
                     Key: folder + '/' + value

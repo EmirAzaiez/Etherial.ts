@@ -44,14 +44,14 @@ class Http {
     }
     initAdminJS(config, rootPath = "/admin") {
         return __awaiter(this, void 0, void 0, function* () {
-            let { AdminJS } = yield import("adminjs");
+            let { AdminJS, ComponentLoader } = yield import("adminjs");
             let AdminJSExpress = yield import("@adminjs/express");
             let AdminJSSequelize = yield import("@adminjs/sequelize");
             AdminJS.registerAdapter({
                 Resource: AdminJSSequelize.Resource,
                 Database: AdminJSSequelize.Database,
             });
-            const admin = new AdminJS(config);
+            const admin = new AdminJS(yield config(AdminJS, ComponentLoader));
             const adminRouter = AdminJSExpress.buildRouter(admin);
             this.app.use(rootPath, adminRouter);
         });

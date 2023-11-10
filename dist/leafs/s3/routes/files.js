@@ -44,7 +44,7 @@ const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const client_s3_1 = require("@aws-sdk/client-s3");
 // PutObjectCommandInput
 const FileRequestRoute = () => {
-    const eal = index_1.default.s3_leaf;
+    const eal = index_1.default.leaf_s3;
     return (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         let filename = `${(0, uniqid_1.time)()}${(0, uniqid_1.default)()}${(0, uniqid_1.process)()}`;
         let extension = mime.extension(req.form.content_type);

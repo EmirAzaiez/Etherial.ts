@@ -26,7 +26,7 @@ export interface IEtherial {
     translation?: Translation;
     
     //leafs
-    s3_leaf?: EthLeafS3;
+    leaf_s3?: EthLeafS3;
 }
 
 export interface IEtherialModule {
@@ -54,7 +54,7 @@ export class Etherial implements IEtherial {
     translation?: Translation;
     
     //leafs
-    s3_leaf?: EthLeafS3;
+    leaf_s3?: EthLeafS3;
 
     initDone = false;
     initInProgress = false;
