@@ -6,6 +6,7 @@ import { IEtherialModule } from "../../index"
 
 import docGenerator from "./doc:generator"
 
+
 const fs = require('fs').promises
 
 export class Http implements IEtherialModule {
@@ -52,23 +53,7 @@ export class Http implements IEtherialModule {
 
     }
 
-    async initAdminJS(config, rootPath = "/admin") {
-
-        let { AdminJS, ComponentLoader } = await import("adminjs");
-        let AdminJSExpress = await import("@adminjs/express");
-        let AdminJSSequelize = await import("@adminjs/sequelize");
-
-        AdminJS.registerAdapter({
-            Resource: AdminJSSequelize.Resource,
-            Database: AdminJSSequelize.Database,
-        })
-        
-        const admin = new AdminJS(await config(AdminJS, ComponentLoader))
-
-        const adminRouter = AdminJSExpress.buildRouter(admin)
-        this.app.use(rootPath, adminRouter)
-
-    }
+    
 
     listen() {
 

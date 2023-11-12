@@ -14,7 +14,6 @@ export declare class Http implements IEtherialModule {
         routes: any;
         middlewares: any;
     });
-    initAdminJS(config: any, rootPath?: string): Promise<void>;
     listen(): Promise<unknown>;
     addRoutes(routes: any): this;
     notFoundRoute(middleware: any): this;

@@ -6,6 +6,7 @@ import { Database } from './components/database';
 import Translation from './components/translation';
 import HttpFront from './components/http.front';
 import { EthLeafS3 } from './leafs/s3';
+import { AdminJS } from './components/adminjs';
 export interface IEtherial {
     init(config: any): void;
     run(): Promise<any>;
@@ -19,6 +20,7 @@ export interface IEtherial {
     reactive?: Reactive;
     translation?: Translation;
     leaf_s3?: EthLeafS3;
+    adminjs?: AdminJS;
 }
 export interface IEtherialModule {
     etherial_module_name: string;
@@ -38,6 +40,7 @@ export declare class Etherial implements IEtherial {
     reactive?: Reactive;
     translation?: Translation;
     leaf_s3?: EthLeafS3;
+    adminjs?: AdminJS;
     initDone: boolean;
     initInProgress: boolean;
     init(config: EtherialModuleMap<IEtherialModule>): void;
