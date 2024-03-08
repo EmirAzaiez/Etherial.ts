@@ -25,6 +25,9 @@ interface ClassInfo {
 }
 
 export function extractRoutes(filePath: string): ClassInfo[] {
+
+    console.log(filePath)
+
     const sourceFile = ts.createSourceFile(filePath, fs.readFileSync(filePath).toString(), ts.ScriptTarget.Latest);
     const classes: ClassInfo[] = [];
 
@@ -32,9 +35,10 @@ export function extractRoutes(filePath: string): ClassInfo[] {
     const checker = program.getTypeChecker()
 
     function visit(node: ts.Node) {
-        //@ts-ignore
 
+        //@ts-ignore
         if (ts.isClassDeclaration(node) && node.decorators && node.decorators.length > 0) {
+            console.log("yooo ??")
             const classInfo: ClassInfo = {
                 name: '',
                 decorators: [],
@@ -137,5 +141,6 @@ export function extractRoutes(filePath: string): ClassInfo[] {
     }
 
     visit(sourceFile);
+
     return classes;
 }

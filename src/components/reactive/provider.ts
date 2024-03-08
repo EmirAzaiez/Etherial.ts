@@ -41,11 +41,17 @@ export const ReactiveTable = (options: ReactiveTableOptions) => {
             }
     
             rooms.forEach((room) => {
-                etherial["reactive"].io.to(room).emit("reactive", {
-                    action: type,
-                    model: instance.constructor.name,
-                    data: JSON.parse(JSON.stringify(instance))
-                })
+
+                if (etherial["reactive"] && etherial["reactive"].io) {
+
+                    etherial["reactive"].io.to(room).emit("reactive", {
+                        action: type,
+                        model: instance.constructor.name,
+                        data: JSON.parse(JSON.stringify(instance))
+                    })
+
+                }
+                
             })
         }
 

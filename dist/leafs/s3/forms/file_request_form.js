@@ -13,6 +13,7 @@ exports.Create = void 0;
 const validator_1 = require("../../../components/http/validator");
 let Create = class Create {
 };
+exports.Create = Create;
 __decorate([
     (0, validator_1.ShouldBeNotEmpty)(),
     (0, validator_1.ShouldExist)(),
@@ -30,8 +31,7 @@ __decorate([
     (0, validator_1.Body)(),
     __metadata("design:type", Boolean)
 ], Create.prototype, "private", void 0);
-Create = __decorate([
+exports.Create = Create = __decorate([
     (0, validator_1.Form)()
 ], Create);
-exports.Create = Create;
 //# sourceMappingURL=file_request_form.js.map

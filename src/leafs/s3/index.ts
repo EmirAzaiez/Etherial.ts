@@ -1,13 +1,8 @@
 import 'reflect-metadata'
 
-// import * as AWS from "aws-sdk";
-
 import { IEtherialModule } from "../../index.js"
 
-// const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-
-import { S3Client } from "@aws-sdk/client-s3";
-
+import { PutBucketCorsCommand, S3Client } from "@aws-sdk/client-s3";
 
 export class EthLeafS3 implements IEtherialModule {
 
@@ -31,6 +26,43 @@ export class EthLeafS3 implements IEtherialModule {
                 secretAccessKey: secret_access_key,
             },
         });
+    }
+
+    commands() {
+
+        return [
+            {
+                command: 'cors',
+                description: 'Configure cors for *.',
+                warn: true,
+                action: async () => {
+                    try {
+
+                        const pbcc = new PutBucketCorsCommand({
+                            Bucket: this.bucket,
+                            CORSConfiguration: {
+                                CORSRules: [
+                                    {
+                                        AllowedHeaders: ["*"],
+                                        AllowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                                        AllowedOrigins: ["*"],
+                                        ExposeHeaders: ["ETag"],
+                                        MaxAgeSeconds: 3000
+                                    }
+                                ]
+                            }
+                        })
+
+                        return await this.s3.send(pbcc)
+
+                    } catch (error) {
+                        return { success: false, message: error.message }
+                    }
+                }
+            },
+
+        ]
+
     }
 
 }

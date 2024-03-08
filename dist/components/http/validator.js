@@ -57,7 +57,7 @@ const ModelInstance = (property) => {
     return (target, propertyKey) => {
         let instances_of_model = Reflect.getMetadata('instances_of_model', target.constructor) || {};
         instances_of_model[property] = {
-            rproperty: propertyKey,
+            rproperty: propertyKey, //user
             instance: null
         };
         Reflect.defineMetadata('instances_of_model', instances_of_model, target.constructor);

@@ -27,6 +27,7 @@ exports.extractRoutes = void 0;
 const fs = __importStar(require("fs"));
 const ts = __importStar(require("typescript"));
 function extractRoutes(filePath) {
+    console.log(filePath);
     const sourceFile = ts.createSourceFile(filePath, fs.readFileSync(filePath).toString(), ts.ScriptTarget.Latest);
     const classes = [];
     const program = ts.createProgram([filePath], { target: ts.ScriptTarget.ES5, module: ts.ModuleKind.CommonJS });
@@ -34,6 +35,7 @@ function extractRoutes(filePath) {
     function visit(node) {
         //@ts-ignore
         if (ts.isClassDeclaration(node) && node.decorators && node.decorators.length > 0) {
+            console.log("yooo ??");
             const classInfo = {
                 name: '',
                 decorators: [],

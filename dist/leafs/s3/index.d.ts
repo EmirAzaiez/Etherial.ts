@@ -15,4 +15,13 @@ export declare class EthLeafS3 implements IEtherialModule {
         tenant_id: any;
         bucket: any;
     });
+    commands(): {
+        command: string;
+        description: string;
+        warn: boolean;
+        action: () => Promise<import("@aws-sdk/client-s3").PutBucketCorsCommandOutput | {
+            success: boolean;
+            message: any;
+        }>;
+    }[];
 }

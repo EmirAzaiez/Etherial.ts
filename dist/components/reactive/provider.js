@@ -30,11 +30,13 @@ const ReactiveTable = (options) => {
                 rooms = [...rooms, ...rtnOptions.rooms];
             }
             rooms.forEach((room) => {
-                index_1.default["reactive"].io.to(room).emit("reactive", {
-                    action: type,
-                    model: instance.constructor.name,
-                    data: JSON.parse(JSON.stringify(instance))
-                });
+                if (index_1.default["reactive"] && index_1.default["reactive"].io) {
+                    index_1.default["reactive"].io.to(room).emit("reactive", {
+                        action: type,
+                        model: instance.constructor.name,
+                        data: JSON.parse(JSON.stringify(instance))
+                    });
+                }
             });
         });
     };
