@@ -1,23 +1,21 @@
-import {
-    Form,
-    Body,
-    ShouldExist,
-    ShouldBeNotEmpty,
-} from "../../../components/http/validator";
+import { Form, Body, ShouldExist, ShouldBeNotEmpty } from '../../../components/http/validator'
 
 @Form()
 export class Create {
     @ShouldBeNotEmpty()
     @ShouldExist()
     @Body()
-    folder: string;
+    folder: string
 
     @ShouldBeNotEmpty()
     @ShouldExist()
     @Body()
-    content_type: string;
+    content_type: string
 
     @ShouldExist()
     @Body()
-    private: boolean;
+    private: boolean
+
+    @Body()
+    filename: string
 }

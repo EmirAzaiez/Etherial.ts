@@ -31,6 +31,10 @@ __decorate([
     (0, validator_1.Body)(),
     __metadata("design:type", Boolean)
 ], Create.prototype, "private", void 0);
+__decorate([
+    (0, validator_1.Body)(),
+    __metadata("design:type", String)
+], Create.prototype, "filename", void 0);
 exports.Create = Create = __decorate([
     (0, validator_1.Form)()
 ], Create);
