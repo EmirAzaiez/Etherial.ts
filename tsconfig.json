@@ -3,7 +3,7 @@
         "jsx": "react",
         "lib": ["es5", "es6", "esnext", "dom"],
         "target": "es6",
-        "module": "commonjs",
+        "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "outDir": "./dist",
         "emitDecoratorMetadata": true,
@@ -13,9 +13,9 @@
         "declaration": true,
         "rootDir": "./src",
         "esModuleInterop": true,
-        "skipLibCheck": true 
+        "skipLibCheck": true
     },
     "ts-node": {
-        "esm": true, // «———— enabling ESM for ts-node   
-      }
-  }
+        "esm": true // «———— enabling ESM for ts-node
+    }
+}

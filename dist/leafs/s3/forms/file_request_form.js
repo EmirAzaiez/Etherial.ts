@@ -27,11 +27,6 @@ __decorate([
     __metadata("design:type", String)
 ], Create.prototype, "content_type", void 0);
 __decorate([
-    (0, validator_1.ShouldExist)(),
-    (0, validator_1.Body)(),
-    __metadata("design:type", Boolean)
-], Create.prototype, "private", void 0);
-__decorate([
     (0, validator_1.Body)(),
     __metadata("design:type", String)
 ], Create.prototype, "filename", void 0);

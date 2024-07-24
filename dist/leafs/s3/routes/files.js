@@ -42,20 +42,25 @@ const uniqid_1 = __importStar(require("uniqid"));
 // const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const client_s3_1 = require("@aws-sdk/client-s3");
-// PutObjectCommandInput
-const FileRequestRoute = () => {
+const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false, authorizedFolders = [] } = {}) => {
     const eal = index_1.default.leaf_s3;
     return (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         let filename = `${(0, uniqid_1.time)()}${(0, uniqid_1.default)()}${(0, uniqid_1.process)()}`;
-        if (req.form.filename) {
+        if (allowCustomFilename && req.form.filename) {
             filename = req.form.filename;
+        }
+        if (authorizedFolders.length > 0 && !authorizedFolders.includes(req.form.folder)) {
+            return res.error({
+                status: 400,
+                errors: ['Invalid folder'],
+            });
         }
         let extension = mime.extension(req.form.content_type);
         let path = `${req.form.folder}/${filename}.${extension}`;
         const command = new client_s3_1.PutObjectCommand({
             Bucket: eal.bucket,
             Key: path,
-            ACL: req.form.private === true ? 'private' : 'public-read',
+            ACL: shouldBePrivate === true ? 'private' : 'public-read',
             ContentType: req.form.content_type,
         });
         const url = yield (0, s3_request_presigner_1.getSignedUrl)(eal.s3, command, { expiresIn: 60 * 15 });

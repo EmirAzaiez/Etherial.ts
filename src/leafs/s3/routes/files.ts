@@ -11,14 +11,27 @@ import { PutObjectCommand } from '@aws-sdk/client-s3'
 
 // PutObjectCommandInput
 
-export const FileRequestRoute = () => {
+interface FileRequestRouteParams {
+    allowCustomFilename?: boolean
+    shouldBePrivate?: boolean
+    authorizedFolders?: string[]
+}
+
+export const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false, authorizedFolders = [] }: FileRequestRouteParams = {}) => {
     const eal = etherial.leaf_s3
 
     return async (req: { form: FileRequestForm.Create }, res, next) => {
         let filename = `${time()}${uniqid()}${process()}`
 
-        if (req.form.filename) {
+        if (allowCustomFilename && req.form.filename) {
             filename = req.form.filename
+        }
+
+        if (authorizedFolders.length > 0 && !authorizedFolders.includes(req.form.folder)) {
+            return res.error({
+                status: 400,
+                errors: ['Invalid folder'],
+            })
         }
 
         let extension = mime.extension(req.form.content_type)
@@ -27,7 +40,7 @@ export const FileRequestRoute = () => {
         const command = new PutObjectCommand({
             Bucket: eal.bucket,
             Key: path,
-            ACL: req.form.private === true ? 'private' : 'public-read',
+            ACL: shouldBePrivate === true ? 'private' : 'public-read',
             ContentType: req.form.content_type,
         })
 

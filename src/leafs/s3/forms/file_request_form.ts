@@ -12,10 +12,6 @@ export class Create {
     @Body()
     content_type: string
 
-    @ShouldExist()
-    @Body()
-    private: boolean
-
     @Body()
     filename: string
 }
