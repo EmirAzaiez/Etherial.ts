@@ -55,7 +55,6 @@ const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false
         let extension = mime.extension(req.form.content_type);
         if (allowCustomFilename && req.form.filename) {
             filename = req.form.filename;
-            extension = '';
         }
         let path = `${req.form.folder}/${filename}.${extension}`;
         const command = new client_s3_1.PutObjectCommand({

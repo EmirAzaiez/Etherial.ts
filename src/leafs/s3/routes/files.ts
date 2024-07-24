@@ -34,7 +34,6 @@ export const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate 
 
         if (allowCustomFilename && req.form.filename) {
             filename = req.form.filename
-            extension = ''
         }
 
         let path = `${req.form.folder}/${filename}.${extension}`
