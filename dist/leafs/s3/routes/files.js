@@ -46,9 +46,6 @@ const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false
     const eal = index_1.default.leaf_s3;
     return (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         let filename = `${(0, uniqid_1.time)()}${(0, uniqid_1.default)()}${(0, uniqid_1.process)()}`;
-        if (allowCustomFilename && req.form.filename) {
-            filename = req.form.filename;
-        }
         if (authorizedFolders.length > 0 && !authorizedFolders.includes(req.form.folder)) {
             return res.error({
                 status: 400,
@@ -56,6 +53,10 @@ const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false
             });
         }
         let extension = mime.extension(req.form.content_type);
+        if (allowCustomFilename && req.form.filename) {
+            filename = req.form.filename;
+            extension = '';
+        }
         let path = `${req.form.folder}/${filename}.${extension}`;
         const command = new client_s3_1.PutObjectCommand({
             Bucket: eal.bucket,

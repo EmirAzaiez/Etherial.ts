@@ -23,10 +23,6 @@ export const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate 
     return async (req: { form: FileRequestForm.Create }, res, next) => {
         let filename = `${time()}${uniqid()}${process()}`
 
-        if (allowCustomFilename && req.form.filename) {
-            filename = req.form.filename
-        }
-
         if (authorizedFolders.length > 0 && !authorizedFolders.includes(req.form.folder)) {
             return res.error({
                 status: 400,
@@ -35,6 +31,12 @@ export const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate 
         }
 
         let extension = mime.extension(req.form.content_type)
+
+        if (allowCustomFilename && req.form.filename) {
+            filename = req.form.filename
+            extension = ''
+        }
+
         let path = `${req.form.folder}/${filename}.${extension}`
 
         const command = new PutObjectCommand({
