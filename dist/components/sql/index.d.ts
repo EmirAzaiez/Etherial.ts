@@ -1,6 +1,6 @@
 import { IEtherialModule } from '../../index';
 import { Knex } from 'knex';
-export declare class Database implements IEtherialModule {
+export declare class SQL implements IEtherialModule {
     etherial_module_name: string;
     knex: Knex;
     constructor({ server, port, name, username, password, dialect }: {
@@ -11,6 +11,5 @@ export declare class Database implements IEtherialModule {
         password: any;
         dialect: any;
     });
-    run(): Promise<void>;
     commands(): any[];
 }

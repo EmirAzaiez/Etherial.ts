@@ -30,9 +30,11 @@ class Etherial {
     }
     run() {
         let promises = [];
-        Object.keys(this).sort((a, b) => {
+        Object.keys(this)
+            .sort((a, b) => {
             return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
-        }).forEach((element) => {
+        })
+            .forEach((element) => {
             if (this[element].run) {
                 let rtn = this[element].run(this);
                 if (rtn instanceof Promise) {
@@ -51,9 +53,11 @@ class Etherial {
     commands() {
         return new Promise((resolve) => {
             let promises = [];
-            Object.keys(this).sort((a, b) => {
+            Object.keys(this)
+                .sort((a, b) => {
                 return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
-            }).forEach((element) => {
+            })
+                .forEach((element) => {
                 if (this[element].commands) {
                     let rtn = this[element].commands(this);
                     promises.push(rtn.map((single) => {

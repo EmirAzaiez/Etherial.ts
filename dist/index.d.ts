@@ -3,6 +3,7 @@ import { Http } from './components/http';
 import { HttpSecurity } from './components/http.security';
 import { Reactive } from './components/reactive';
 import { Database } from './components/database';
+import { SQL } from './components/sql';
 import Translation from './components/translation';
 import HttpFront from './components/http.front';
 import { EthLeafS3 } from './leafs/s3';
@@ -39,6 +40,7 @@ export declare class Etherial implements IEtherial {
     http_security?: HttpSecurity;
     reactive?: Reactive;
     translation?: Translation;
+    sql?: SQL;
     leaf_s3?: EthLeafS3;
     adminjs?: AdminJS;
     initDone: boolean;

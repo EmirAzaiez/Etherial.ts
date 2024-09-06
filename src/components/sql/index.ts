@@ -4,7 +4,7 @@ import { IEtherialModule } from '../../index'
 
 import knex, { Knex } from 'knex'
 
-export class Database implements IEtherialModule {
+export class SQL implements IEtherialModule {
     etherial_module_name: string = 'sql'
 
     knex: Knex
@@ -22,10 +22,6 @@ export class Database implements IEtherialModule {
         })
 
         return this
-    }
-
-    async run() {
-        // await this.sequelize.sync()
     }
 
     commands() {
