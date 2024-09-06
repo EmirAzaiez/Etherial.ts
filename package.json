@@ -76,6 +76,10 @@
     "./leafs/s3/provider": {
       "default": "./dist/leafs/s3/provider.js",
       "types": "./dist/leafs/s3/provider.d.ts"
+    },
+    "./components/sql": {
+      "default": "./dist/components/sql/index.js",
+      "types": "./dist/components/sql/index.d.ts"
     }
   },
   "scripts": {
