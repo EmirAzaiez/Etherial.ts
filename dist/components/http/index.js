@@ -15,7 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Http = void 0;
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
-const doc_generator_1 = __importDefault(require("./doc:generator"));
 const fs = require('fs').promises;
 class Http {
     constructor({ port, routes, middlewares }) {
@@ -50,26 +49,32 @@ class Http {
                 const stat = yield fs.lstat(route);
                 if (stat.isFile()) {
                     var controller = require(route).default;
-                    controllers.push((controller));
-                    controllers = [...controllers, {
+                    controllers.push(controller);
+                    controllers = [
+                        ...controllers,
+                        {
                             route: `route`,
-                            controller: require(route).default
-                        }];
+                            controller: require(route).default,
+                        },
+                    ];
                 }
                 else if (stat.isDirectory()) {
                     let routes = yield fs.readdir(route);
                     let promises = [];
                     for (let index = 0; index < routes.length; index++) {
                         const filePath = `${route}/${routes[index]}`;
-                        controllers = [...controllers, {
+                        controllers = [
+                            ...controllers,
+                            {
                                 route: filePath,
                                 // controller: (await import(filePath)).default
-                            }];
+                            },
+                        ];
                         promises.push(import(filePath));
                     }
                     const begin = Date.now();
                     yield Promise.all(promises).then((pro) => {
-                        console.log(`Runing http module in ${(Date.now() - begin) / 1000 + "s"}`);
+                        console.log(`Runing http module in ${(Date.now() - begin) / 1000 + 's'}`);
                         pro.map((a, i) => {
                             controllers[i].controller = a.default;
                         });
@@ -139,27 +144,30 @@ class Http {
         });
     }
     commands() {
-        return [{
-                command: 'generate:documentation',
-                description: 'Generate a full Swagger documentation.',
-                warn: false,
-                action: (etherial) => __awaiter(this, void 0, void 0, function* () {
-                    // @ts-ignore
-                    // console.log(sjs.getSequelizeSchema(etherial.database.sequelize))
-                    let rtn = (0, doc_generator_1.default)(etherial);
-                    fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => { });
-                    return { success: true, message: 'Http server destroyed successfully.' };
-                })
-            }, {
-                command: 'generate:rtk-query',
-                description: 'Generate a full Swagger documentation.',
-                warn: false,
-                action: (etherial) => __awaiter(this, void 0, void 0, function* () {
-                    let rtn = (0, doc_generator_1.default)(etherial);
-                    fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => { });
-                    return { success: true, message: 'Http server destroyed successfully.' };
-                })
-            }];
+        return [
+        // {
+        //     command: 'generate:documentation',
+        //     description: 'Generate a full Swagger documentation.',
+        //     warn: false,
+        //     action: async (etherial) => {
+        //         // @ts-ignore
+        //         // console.log(sjs.getSequelizeSchema(etherial.database.sequelize))
+        //         let rtn = docGenerator(etherial)
+        //         fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => {})
+        //         return { success: true, message: 'Http server destroyed successfully.' }
+        //     },
+        // },
+        // {
+        //     command: 'generate:rtk-query',
+        //     description: 'Generate a full Swagger documentation.',
+        //     warn: false,
+        //     action: async (etherial) => {
+        //         let rtn = docGenerator(etherial)
+        //         fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => {})
+        //         return { success: true, message: 'Http server destroyed successfully.' }
+        //     },
+        // },
+        ];
     }
 }
 exports.Http = Http;
