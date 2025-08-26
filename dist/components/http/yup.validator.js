@@ -124,7 +124,7 @@ exports.object = yup.object, exports.string = yup.string, exports.number = yup.n
 const ShouldValidateYupForm = (schema) => {
     return (0, provider_1.Middleware)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         try {
-            const validatedData = yield schema.validate(req.body, { abortEarly: false });
+            const validatedData = yield schema.validate(req.body, { abortEarly: false, strict: true, stripUnknown: true });
             req.form = validatedData;
             next();
         }

@@ -105,7 +105,7 @@ export const { object, string, number, boolean, date, array, mixed } = yup
 export const ShouldValidateYupForm = (schema: any) => {
     return Middleware(async (req, res, next) => {
         try {
-            const validatedData = await schema.validate(req.body, { abortEarly: false })
+            const validatedData = await schema.validate(req.body, { abortEarly: false, strict: true, stripUnknown: true })
             req.form = validatedData
             next()
         } catch (error) {
