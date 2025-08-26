@@ -11,36 +11,39 @@ let MethodHandler = (method, path) => {
             requestMethod: method,
             path,
             methodName: propertyKey,
-            middlewares: Reflect.getMetadata('middlewares', target, propertyKey) || []
+            middlewares: Reflect.getMetadata('middlewares', target, propertyKey) || [],
         });
         Reflect.defineMetadata('routes', routes, target.constructor);
     };
 };
 const Get = (path) => {
-    return MethodHandler("get", path);
+    return MethodHandler('get', path);
 };
 exports.Get = Get;
 const Post = (path) => {
-    return MethodHandler("post", path);
+    return MethodHandler('post', path);
 };
 exports.Post = Post;
 const Delete = (path) => {
-    return MethodHandler("delete", path);
+    return MethodHandler('delete', path);
 };
 exports.Delete = Delete;
 const Put = (path) => {
-    return MethodHandler("put", path);
+    return MethodHandler('put', path);
 };
 exports.Put = Put;
 const All = (path) => {
-    return MethodHandler("all", path);
+    return MethodHandler('all', path);
 };
 exports.All = All;
 const ShouldCreateFromModel = (model) => {
     return (0, exports.Middleware)((req, res, next) => {
-        model.create(req.form).then((el) => {
+        model
+            .create(req.form)
+            .then((el) => {
             res.success({ status: 201, data: el });
-        }).catch((err) => {
+        })
+            .catch((err) => {
             res.error({ status: 400, errors: err.errors });
         });
     });

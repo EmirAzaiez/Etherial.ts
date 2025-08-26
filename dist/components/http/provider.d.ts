@@ -1,4 +1,4 @@
-import express from "express";
+import express from 'express';
 export interface RouteDefinition {
     path: string;
     requestMethod: 'get' | 'post' | 'delete' | 'options' | 'put' | 'all';
@@ -10,6 +10,7 @@ export interface NextFunction extends express.NextFunction {
 export interface Request extends express.Request {
     params: {};
     body: {};
+    form?: {};
     query: {
         sort?: number;
         limit?: number;

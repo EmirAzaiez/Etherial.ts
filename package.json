@@ -29,6 +29,10 @@
       "default": "./dist/components/http/validator.js",
       "types": "./dist/components/http/validator.d.ts"
     },
+    "./components/http/yup.validator": {
+      "default": "./dist/components/http/yup.validator.js",
+      "types": "./dist/components/http/yup.validator.d.ts"
+    },
     "./components/http.security": {
       "default": "./dist/components/http.security/index.js",
       "types": "./dist/components/http.security/index.d.ts"
@@ -135,7 +139,8 @@
     "ts-node": "^10.9.1",
     "ts-simple-type": "^1.0.7",
     "tsc": "^2.0.4",
-    "uniqid": "^5.4.0"
+    "uniqid": "^5.4.0",
+    "yup": "^1.7.0"
   },
   "resolutions": {
     "@typescript-eslint/typescript-estree": "^5.59.2"
