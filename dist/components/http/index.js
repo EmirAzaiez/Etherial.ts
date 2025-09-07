@@ -119,12 +119,11 @@ class Http {
             });
             this.routes_leafs.forEach(({ route, methods }) => {
                 var controller = require(route).default;
-                controller = controller.default;
                 const instance = new controller();
                 const prefix = Reflect.getMetadata('prefix', controller);
                 const routes = Reflect.getMetadata('routes', controller);
                 routes.forEach((route) => {
-                    if (methods.includes(route.requestMethod)) {
+                    if (methods.includes(route.methodName)) {
                         this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
                             let ret = instance[route.methodName](req, res, next);
                             if (ret != null && ret instanceof Array) {
