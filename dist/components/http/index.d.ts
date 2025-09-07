@@ -8,10 +8,15 @@ export declare class Http implements IEtherialModule {
     server: http.Server;
     port: number;
     routes: any;
+    routes_leafs: {
+        route: string;
+        methods: string[];
+    }[];
     notFoundRouteMiddleware: any;
-    constructor({ port, routes, middlewares }: {
+    constructor({ port, routes, routes_leafs, middlewares }: {
         port: any;
         routes: any;
+        routes_leafs: any;
         middlewares: any;
     });
     listen(): Promise<unknown>;

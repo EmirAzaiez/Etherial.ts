@@ -13,15 +13,17 @@ export class Http implements IEtherialModule {
     server: http.Server
     port: number
     routes: any
+    routes_leafs: { route: string; methods: string[] }[]
     notFoundRouteMiddleware: any
 
-    constructor({ port, routes, middlewares }) {
+    constructor({ port, routes, routes_leafs, middlewares }) {
         this.app = express()
 
         this.server = http.createServer(this.app)
 
         this.port = port
         this.routes = routes
+        this.routes_leafs = routes_leafs
         this.notFoundRouteMiddleware = null
 
         if (middlewares && middlewares instanceof Array && middlewares.length > 0) {
@@ -76,7 +78,6 @@ export class Http implements IEtherialModule {
                             ...controllers,
                             {
                                 route: filePath,
-                                // controller: (await import(filePath)).default
                             },
                         ]
 
@@ -131,6 +132,44 @@ export class Http implements IEtherialModule {
                 } catch (e) {
                     throw new Error(`Error when loading ${route}. Please be sure your controller respect the Etherial Http Norm.`)
                 }
+            })
+
+            this.routes_leafs.forEach(({ route, methods }) => {
+                var controller = require(route).default
+
+                controller = controller.default
+
+                const instance = new controller()
+
+                const prefix = Reflect.getMetadata('prefix', controller)
+
+                const routes: Array<RouteDefinition> = Reflect.getMetadata('routes', controller)
+
+                routes.forEach((route) => {
+                    if (methods.includes(route.requestMethod)) {
+                        this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req: Request, res: Response, next: NextFunction) => {
+                            let ret = instance[route.methodName](req, res, next)
+
+                            if (ret != null && ret instanceof Array) {
+                                res.success({ status: 200, data: ret })
+                            } else if (ret != null && ret.then && typeof ret.then === 'function') {
+                                ret.then((el) => {
+                                    if (el) {
+                                        if (el instanceof Array) {
+                                            res.success({ status: 200, data: el })
+                                        } else {
+                                            if (el._options && el._options.isNewRecord) {
+                                                res.success({ status: 201, data: el })
+                                            } else {
+                                                res.success({ status: 200, data: el })
+                                            }
+                                        }
+                                    }
+                                })
+                            }
+                        })
+                    }
+                })
             })
 
             if (this.notFoundRouteMiddleware) {
