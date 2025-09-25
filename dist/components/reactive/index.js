@@ -22,21 +22,21 @@ class Reactive {
     }
     listen(listeners = []) {
         return new Promise((resolve) => {
-            this.io = new socket_io_1.Server(index_1.default["http"].server, {
+            this.io = new socket_io_1.Server(index_1.default['http'].server, {
                 cors: {
-                    origin: "*",
-                    methods: ["PUT", "GET", "POST", "DELETE", "OPTIONS"],
-                    credentials: false
-                }
+                    origin: '*',
+                    methods: ['PUT', 'GET', 'POST', 'DELETE', 'OPTIONS'],
+                    credentials: false,
+                },
             });
-            this.io.on("connection", (socket) => {
+            this.io.on('connection', (socket) => {
                 socket.join('all');
                 socket.join('guests');
-                if (index_1.default["http_security"]) {
+                if (index_1.default['http_security']) {
                     socket.on('auth', (token) => {
-                        let decoded = index_1.default["http_security"].decodeToken(token);
+                        let decoded = index_1.default['http_security'].decodeToken(token);
                         if (decoded) {
-                            index_1.default["http_security"].customAuthentificationJWTChecker(decoded).then((user) => {
+                            index_1.default['http_security'].customAuthentificationJWTChecker(decoded).then((user) => {
                                 socket.join(`user_${user.id}`);
                                 socket.join(`users`);
                                 socket.leave(`guests`);
