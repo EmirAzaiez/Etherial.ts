@@ -4,8 +4,8 @@ import { HttpSecurity } from './components/http.security';
 import { Reactive } from './components/reactive';
 import { Database } from './components/database';
 import { SQL } from './components/sql';
-import Translation from './components/translation';
-import HttpFront from './components/http.front';
+import { Translation } from './components/translation';
+import { HttpFront } from './components/http.front';
 import { EthLeafS3 } from './leafs/s3';
 export interface IEtherial {
     init(config: any): void;

@@ -10,6 +10,10 @@ export class SQL implements IEtherialModule {
     knex: Knex
     // add ignore sync
     constructor({ server, port, name, username, password, dialect }) {
+        if (!server || !port || !name || !username || !password || !dialect) {
+            throw new Error('SQL config is not valid.')
+        }
+
         this.knex = knex({
             client: dialect,
             connection: {
@@ -27,4 +31,13 @@ export class SQL implements IEtherialModule {
     commands() {
         return []
     }
+}
+
+export interface SQLConfig {
+    server: string
+    port: number
+    name: string
+    username: string
+    password: string
+    dialect: string
 }

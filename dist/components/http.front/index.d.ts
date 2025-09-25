@@ -1,5 +1,5 @@
-import { IEtherialModule } from "../../index";
-export default class HttpFront implements IEtherialModule {
+import { IEtherialModule } from '../../index';
+export declare class HttpFront implements IEtherialModule {
     etherial_module_name: string;
     viewsFolder: string;
     defaultLayout: string;
@@ -11,4 +11,8 @@ export default class HttpFront implements IEtherialModule {
     run({ http }: {
         http: any;
     }): void;
+}
+export interface HttpFrontConfig {
+    viewsFolder: string;
+    defaultLayout: string;
 }

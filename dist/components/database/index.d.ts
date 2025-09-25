@@ -1,5 +1,5 @@
-import { Sequelize } from "sequelize-typescript";
-import { IEtherialModule } from "../../index";
+import { Sequelize } from 'sequelize-typescript';
+import { IEtherialModule } from '../../index';
 export declare class Database implements IEtherialModule {
     etherial_module_name: string;
     sequelize: Sequelize;
@@ -24,4 +24,13 @@ export declare class Database implements IEtherialModule {
             message: any;
         }>;
     }[];
+}
+export interface DatabaseConfig {
+    server: string;
+    port: number;
+    name: string;
+    username: string;
+    password: string;
+    dialect: string;
+    models: any[];
 }

@@ -13,17 +13,20 @@ export class Http implements IEtherialModule {
     server: http.Server
     port: number
     routes: any
-    routes_leafs: { route: string; methods: string[] }[]
+    routes_leafs: { route: string; methods: string[] }[] = []
     notFoundRouteMiddleware: any
 
-    constructor({ port, routes, routes_leafs, middlewares }) {
+    constructor({ port, routes, middlewares }: HttpConfig) {
+        if (!port || !routes) {
+            throw new Error('Http config is not valid.')
+        }
+
         this.app = express()
 
         this.server = http.createServer(this.app)
 
         this.port = port
         this.routes = routes
-        this.routes_leafs = routes_leafs
         this.notFoundRouteMiddleware = null
 
         if (middlewares && middlewares instanceof Array && middlewares.length > 0) {
@@ -225,4 +228,10 @@ export class Http implements IEtherialModule {
             // },
         ]
     }
+}
+
+export interface HttpConfig {
+    port: number
+    routes: string[]
+    middlewares?: any[]
 }

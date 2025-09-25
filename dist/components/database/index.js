@@ -39,6 +39,9 @@ class Database {
     // add ignore sync
     constructor({ server, port, name, username, password, dialect, models }) {
         this.etherial_module_name = 'database';
+        if (!server || !port || !name || !username || !password || !dialect) {
+            throw new Error('Database config is not valid.');
+        }
         this.sequelize = new sequelize_typescript_1.Sequelize({
             host: server,
             port: port,
@@ -49,8 +52,8 @@ class Database {
             storage: ':memory:',
             logging: false,
             define: {
-                underscored: true
-            }
+                underscored: true,
+            },
         });
         if (models) {
             this.addModels(models);
@@ -83,7 +86,7 @@ class Database {
                     catch (error) {
                         return { success: false, message: error.message };
                     }
-                })
+                }),
             },
             {
                 command: 'load:fixtures <env>',
@@ -98,8 +101,8 @@ class Database {
                     catch (error) {
                         return { success: false, message: error.message };
                     }
-                })
-            }
+                }),
+            },
         ];
     }
 }

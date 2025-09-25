@@ -1,8 +1,8 @@
-import { IEtherialModule } from "../../index";
+import { IEtherialModule } from '../../index';
 export declare class HttpSecurity implements IEtherialModule {
     etherial_module_name: string;
     private secret?;
-    type?: "JWT" | "BasicAuth" | "Session";
+    type?: 'JWT' | 'BasicAuth' | 'Session';
     generateJWTToken?: (data: any) => String;
     decodeJWTToken?: (token: string) => any;
     generateToken?: (data: any) => String;
@@ -12,13 +12,13 @@ export declare class HttpSecurity implements IEtherialModule {
     authentificatorRoleCheckerMiddleware: any;
     customAuthentificationJWTChecker: (any: any) => Promise<any>;
     customAuthentificationBAChecker: (any: any) => Promise<any>;
-    customAuthentificationChecker: (cb: (any: any) => Promise<any>, type?: "JWT" | "BasicAuth" | "Session") => Promise<void>;
+    customAuthentificationChecker: (cb: (any: any) => Promise<any>, type?: 'JWT' | 'BasicAuth' | 'Session') => Promise<void>;
     customAuthentificationRoleChecker: (user: any, askedRole: any) => Promise<void>;
     constructor({ secret, type }: {
         secret: any;
         type: any;
     });
-    setCustomAuthentificationChecker(cb: (args: any) => Promise<any>, type?: "JWT" | "BasicAuth" | "Session"): void;
+    setCustomAuthentificationChecker(cb: (args: any) => Promise<any>, type?: 'JWT' | 'BasicAuth' | 'Session'): void;
     setCustomAuthentificationRoleChecker(cb: (user: any, askedRole: any) => Promise<any>): void;
     commands(): {
         command: string;
@@ -28,4 +28,8 @@ export declare class HttpSecurity implements IEtherialModule {
             message: String;
         }>;
     }[];
+}
+export interface HttpSecurityConfig {
+    secret: string;
+    type: 'JWT' | 'BasicAuth' | 'Session';
 }

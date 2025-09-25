@@ -44,7 +44,7 @@ class HttpSecurity {
         if (!type) {
             throw new Error('etherial:http.security ERROR - No type defined in your app/Config.js .');
         }
-        if (type !== "JWT" && type !== "BasicAuth" && type !== "Session") {
+        if (type !== 'JWT' && type !== 'BasicAuth' && type !== 'Session') {
             throw new Error('etherial:http.security ERROR - Type should be JWT, BasicAuth or Session.');
         }
         this.secret = secret;
@@ -52,9 +52,11 @@ class HttpSecurity {
         this.authentificatorRoleCheckerMiddleware = (role) => {
             return (req, res, next) => {
                 if (req.user) {
-                    this.customAuthentificationRoleChecker(req.user, role).then((result) => {
+                    this.customAuthentificationRoleChecker(req.user, role)
+                        .then((result) => {
                         next(null);
-                    }).catch(() => {
+                    })
+                        .catch(() => {
                         res.error({ status: 401, errors: ['forbidden'] });
                     });
                 }
@@ -68,12 +70,13 @@ class HttpSecurity {
             if (req.user) {
                 return next();
             }
-            let token = req.headers["authorization"];
-            if (token && token.startsWith("Basic ")) {
+            let token = req.headers['authorization'];
+            if (token && token.startsWith('Basic ')) {
                 let decoded = Buffer.from(token.substring(6, token.length), 'base64').toString('ascii').split(':');
                 if (decoded) {
                     if (this.customAuthentificationBAChecker) {
-                        this.customAuthentificationBAChecker({ username: decoded[0], password: decoded[1] }).then((user) => {
+                        this.customAuthentificationBAChecker({ username: decoded[0], password: decoded[1] })
+                            .then((user) => {
                             if (user) {
                                 req.user = user;
                                 next();
@@ -81,7 +84,8 @@ class HttpSecurity {
                             else {
                                 res.error({ status: 401, errors: ['forbidden'] });
                             }
-                        }).catch(() => {
+                        })
+                            .catch(() => {
                             res.error({ status: 401, errors: ['forbidden'] });
                         });
                     }
@@ -121,11 +125,12 @@ class HttpSecurity {
             if (req.user) {
                 return next();
             }
-            let token = req.headers["authorization"];
-            if (token && token.startsWith("Bearer ")) {
+            let token = req.headers['authorization'];
+            if (token && token.startsWith('Bearer ')) {
                 let decoded = this.decodeJWTToken(token.substring(7, token.length));
                 if (decoded) {
-                    this.customAuthentificationJWTChecker(decoded).then((user) => {
+                    this.customAuthentificationJWTChecker(decoded)
+                        .then((user) => {
                         if (user) {
                             req.user = user;
                             next();
@@ -133,7 +138,8 @@ class HttpSecurity {
                         else {
                             res.error({ status: 401, errors: ['forbidden'] });
                         }
-                    }).catch(() => {
+                    })
+                        .catch(() => {
                         res.error({ status: 401, errors: ['forbidden'] });
                     });
                 }
@@ -148,14 +154,14 @@ class HttpSecurity {
     }
     //JWT PART END
     setCustomAuthentificationChecker(cb, type = this.type) {
-        if (type === "JWT") {
+        if (type === 'JWT') {
             this.customAuthentificationChecker = cb;
             this.customAuthentificationJWTChecker = cb;
         }
-        else if (type === "BasicAuth") {
+        else if (type === 'BasicAuth') {
             this.customAuthentificationBAChecker = cb;
         }
-        else if (type === "Session") {
+        else if (type === 'Session') {
             // return Middleware(etherial['http_security'].authentificatorMiddlewareSESSION)
         }
     }
@@ -169,8 +175,8 @@ class HttpSecurity {
                 description: 'Generate a JWT token based on a user_id.',
                 action: (etherial, user_id) => __awaiter(this, void 0, void 0, function* () {
                     return { success: true, message: this.generateJWTToken({ user_id }) };
-                })
-            }
+                }),
+            },
         ];
     }
 }

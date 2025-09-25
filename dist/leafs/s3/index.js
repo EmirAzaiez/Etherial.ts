@@ -15,6 +15,9 @@ const client_s3_1 = require("@aws-sdk/client-s3");
 class EthLeafS3 {
     constructor({ access_key_id, secret_access_key, region, server, tenant_id, bucket }) {
         this.etherial_module_name = 'leaf_s3';
+        if (!access_key_id || !secret_access_key || !region || !server || !bucket) {
+            throw new Error('EthLeafS3 config is not valid.');
+        }
         this.server = server;
         this.tenant_id = tenant_id;
         this.bucket = bucket;
@@ -40,21 +43,21 @@ class EthLeafS3 {
                             CORSConfiguration: {
                                 CORSRules: [
                                     {
-                                        AllowedHeaders: ["*"],
-                                        AllowedMethods: ["GET", "PUT", "POST", "DELETE", "HEAD"],
-                                        AllowedOrigins: ["*"],
-                                        ExposeHeaders: ["ETag"],
-                                        MaxAgeSeconds: 3000
-                                    }
-                                ]
-                            }
+                                        AllowedHeaders: ['*'],
+                                        AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+                                        AllowedOrigins: ['*'],
+                                        ExposeHeaders: ['ETag'],
+                                        MaxAgeSeconds: 3000,
+                                    },
+                                ],
+                            },
                         });
                         return yield this.s3.send(pbcc);
                     }
                     catch (error) {
                         return { success: false, message: error.message };
                     }
-                })
+                }),
             },
         ];
     }

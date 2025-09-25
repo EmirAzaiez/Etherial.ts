@@ -13,15 +13,15 @@ export declare class Http implements IEtherialModule {
         methods: string[];
     }[];
     notFoundRouteMiddleware: any;
-    constructor({ port, routes, routes_leafs, middlewares }: {
-        port: any;
-        routes: any;
-        routes_leafs: any;
-        middlewares: any;
-    });
+    constructor({ port, routes, middlewares }: HttpConfig);
     listen(): Promise<unknown>;
     addRoutes(routes: any): this;
     notFoundRoute(middleware: any): this;
     run(): Promise<this>;
     commands(): any[];
+}
+export interface HttpConfig {
+    port: number;
+    routes: string[];
+    middlewares?: any[];
 }

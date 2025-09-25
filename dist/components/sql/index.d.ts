@@ -13,3 +13,11 @@ export declare class SQL implements IEtherialModule {
     });
     commands(): any[];
 }
+export interface SQLConfig {
+    server: string;
+    port: number;
+    name: string;
+    username: string;
+    password: string;
+    dialect: string;
+}

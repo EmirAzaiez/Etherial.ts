@@ -17,13 +17,16 @@ const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
 const fs = require('fs').promises;
 class Http {
-    constructor({ port, routes, routes_leafs, middlewares }) {
+    constructor({ port, routes, middlewares }) {
         this.etherial_module_name = 'http';
+        this.routes_leafs = [];
+        if (!port || !routes) {
+            throw new Error('Http config is not valid.');
+        }
         this.app = (0, express_1.default)();
         this.server = http_1.default.createServer(this.app);
         this.port = port;
         this.routes = routes;
-        this.routes_leafs = routes_leafs;
         this.notFoundRouteMiddleware = null;
         if (middlewares && middlewares instanceof Array && middlewares.length > 0) {
             for (let middleware of middlewares) {

@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Translation = void 0;
 function format(str, data) {
     return str.replace(/\{([^}]+)\}/g, (match, key) => {
-        const keys = key.split('[').map(part => part.replace(']', ''));
+        const keys = key.split('[').map((part) => part.replace(']', ''));
         let value = data;
         for (const k of keys) {
             value = value[k];
@@ -18,7 +19,7 @@ class Translation {
         this.etherial_module_name = 'translation';
         this.defaultLanguage = defaultLanguage;
         this.internalizations = {
-            "EN": require('../../../resources/components/translation/translation.json')
+            EN: require('../../../resources/components/translation/translation.json'),
         };
         translations.forEach((translation) => {
             this.internalizations = Object.assign(Object.assign({}, this.internalizations), { [translation.lang]: Object.assign(Object.assign({}, this.internalizations[translation.lang]), translation.internalization) });
@@ -88,5 +89,5 @@ class Translation {
         }
     }
 }
-exports.default = Translation;
+exports.Translation = Translation;
 //# sourceMappingURL=index.js.map

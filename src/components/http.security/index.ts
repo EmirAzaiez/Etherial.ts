@@ -1,18 +1,17 @@
-import { Http } from '../http';
+import { Http } from '../http'
 
 // import * as expressJWT from 'express-jwt'
 import * as jwt from 'jsonwebtoken'
 
 import { Middleware } from '../http/provider'
 
-import { IEtherialModule } from "../../index"
+import { IEtherialModule } from '../../index'
 
 export class HttpSecurity implements IEtherialModule {
-
     etherial_module_name: string = 'http_security'
 
-    private secret?: String;
-    public type?: "JWT" | "BasicAuth" | "Session";
+    private secret?: String
+    public type?: 'JWT' | 'BasicAuth' | 'Session'
 
     public generateJWTToken?: (data: any) => String
     public decodeJWTToken?: (token: string) => any
@@ -22,18 +21,17 @@ export class HttpSecurity implements IEtherialModule {
 
     authentificatorMiddlewareJWT: any
     authentificatorMiddlewareBA: any
-    
-    authentificatorRoleCheckerMiddleware: any
-    
-    customAuthentificationJWTChecker: (any) => Promise<any>;
-    customAuthentificationBAChecker: (any) => Promise<any>;
 
-    customAuthentificationChecker: (cb: (any) => Promise<any>, type?: "JWT" | "BasicAuth" | "Session") => Promise<void>;
-   
-    customAuthentificationRoleChecker: (user: any, askedRole: any) => Promise<void>;
+    authentificatorRoleCheckerMiddleware: any
+
+    customAuthentificationJWTChecker: (any) => Promise<any>
+    customAuthentificationBAChecker: (any) => Promise<any>
+
+    customAuthentificationChecker: (cb: (any) => Promise<any>, type?: 'JWT' | 'BasicAuth' | 'Session') => Promise<void>
+
+    customAuthentificationRoleChecker: (user: any, askedRole: any) => Promise<void>
 
     constructor({ secret, type }) {
-
         if (!secret) {
             throw new Error('etherial:http.security ERROR - No secret defined in your app/Config.js .')
         }
@@ -42,7 +40,7 @@ export class HttpSecurity implements IEtherialModule {
             throw new Error('etherial:http.security ERROR - No type defined in your app/Config.js .')
         }
 
-        if (type !== "JWT" && type !== "BasicAuth" && type !== "Session") {
+        if (type !== 'JWT' && type !== 'BasicAuth' && type !== 'Session') {
             throw new Error('etherial:http.security ERROR - Type should be JWT, BasicAuth or Session.')
         }
 
@@ -50,66 +48,56 @@ export class HttpSecurity implements IEtherialModule {
         this.type = type
 
         this.authentificatorRoleCheckerMiddleware = (role: any) => {
-
             return (req, res, next) => {
-
                 if (req.user) {
-
-                    this.customAuthentificationRoleChecker(req.user, role).then((result) => {
-                        next(null)
-                    }).catch(() => {
-                        res.error({status: 401, errors: ['forbidden']})
-                    })
-
+                    this.customAuthentificationRoleChecker(req.user, role)
+                        .then((result) => {
+                            next(null)
+                        })
+                        .catch(() => {
+                            res.error({ status: 401, errors: ['forbidden'] })
+                        })
                 } else {
-                    res.error({status: 401, errors: ['forbidden']})
+                    res.error({ status: 401, errors: ['forbidden'] })
                 }
-
             }
-
         }
 
         //BEGIN Basic Authentification
 
         this.authentificatorMiddlewareBA = async (req, res, next) => {
-
             if (req.user) {
                 return next()
             }
 
-            let token = req.headers["authorization"];
-    
-            if (token && token.startsWith("Basic ")) {
+            let token = req.headers['authorization']
+
+            if (token && token.startsWith('Basic ')) {
                 let decoded = Buffer.from(token.substring(6, token.length), 'base64').toString('ascii').split(':')
-    
+
                 if (decoded) {
-
                     if (this.customAuthentificationBAChecker) {
-                        
-                        this.customAuthentificationBAChecker({username: decoded[0], password: decoded[1]}).then((user) => {
-                            if (user) {
-                                req.user = user
-                                next()
-                            } else {
-                                res.error({status: 401, errors: ['forbidden']})
-                            }
-                        }).catch(() => {
-                            res.error({status: 401, errors: ['forbidden']})
-                        })
-
+                        this.customAuthentificationBAChecker({ username: decoded[0], password: decoded[1] })
+                            .then((user) => {
+                                if (user) {
+                                    req.user = user
+                                    next()
+                                } else {
+                                    res.error({ status: 401, errors: ['forbidden'] })
+                                }
+                            })
+                            .catch(() => {
+                                res.error({ status: 401, errors: ['forbidden'] })
+                            })
                     } else {
                         throw new Error('No customAuthentificationChecker for JWT defined in your app.ts .')
                     }
-                    
-    
                 } else {
-                    res.error({status: 401, errors: ['forbidden']})
+                    res.error({ status: 401, errors: ['forbidden'] })
                 }
-    
             } else {
-                res.error({status: 401, errors: ['forbidden']})
+                res.error({ status: 401, errors: ['forbidden'] })
             }
-
         }
 
         //END Basic Authentification
@@ -141,56 +129,48 @@ export class HttpSecurity implements IEtherialModule {
         }
 
         this.authentificatorMiddlewareJWT = async (req, res, next) => {
-
             if (req.user) {
                 return next()
             }
 
-            let token = req.headers["authorization"];
-    
-            if (token && token.startsWith("Bearer ")) {
+            let token = req.headers['authorization']
+
+            if (token && token.startsWith('Bearer ')) {
                 let decoded = this.decodeJWTToken(token.substring(7, token.length))
-    
+
                 if (decoded) {
-
-                    this.customAuthentificationJWTChecker(decoded).then((user) => {
-                        
-                        if (user) {
-                            req.user = user
-                            next()
-                        } else {
-                            res.error({status: 401, errors: ['forbidden']})
-                        }
-                        
-                    }).catch(() => {
-                        res.error({status: 401, errors: ['forbidden']})
-                    })
-    
+                    this.customAuthentificationJWTChecker(decoded)
+                        .then((user) => {
+                            if (user) {
+                                req.user = user
+                                next()
+                            } else {
+                                res.error({ status: 401, errors: ['forbidden'] })
+                            }
+                        })
+                        .catch(() => {
+                            res.error({ status: 401, errors: ['forbidden'] })
+                        })
                 } else {
-                    res.error({status: 401, errors: ['forbidden']})
+                    res.error({ status: 401, errors: ['forbidden'] })
                 }
-    
             } else {
-                res.error({status: 401, errors: ['forbidden']})
+                res.error({ status: 401, errors: ['forbidden'] })
             }
-        
         }
-
     }
 
     //JWT PART END
 
-    setCustomAuthentificationChecker(cb: (args) => Promise<any>, type: "JWT" | "BasicAuth" | "Session" = this.type) {
-
-        if (type === "JWT") {
+    setCustomAuthentificationChecker(cb: (args) => Promise<any>, type: 'JWT' | 'BasicAuth' | 'Session' = this.type) {
+        if (type === 'JWT') {
             this.customAuthentificationChecker = cb
             this.customAuthentificationJWTChecker = cb
-        } else if (type === "BasicAuth") {
+        } else if (type === 'BasicAuth') {
             this.customAuthentificationBAChecker = cb
-        } else if (type === "Session") {
+        } else if (type === 'Session') {
             // return Middleware(etherial['http_security'].authentificatorMiddlewareSESSION)
         }
-
     }
 
     setCustomAuthentificationRoleChecker(cb: (user: any, askedRole: any) => Promise<any>) {
@@ -203,10 +183,14 @@ export class HttpSecurity implements IEtherialModule {
                 command: 'generate:token:jwt <user_id>',
                 description: 'Generate a JWT token based on a user_id.',
                 action: async (etherial, user_id) => {
-                    return {success: true, message: this.generateJWTToken({user_id})}
-                }
-            }
+                    return { success: true, message: this.generateJWTToken({ user_id }) }
+                },
+            },
         ]
     }
+}
 
+export interface HttpSecurityConfig {
+    secret: string
+    type: 'JWT' | 'BasicAuth' | 'Session'
 }

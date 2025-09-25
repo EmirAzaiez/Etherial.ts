@@ -1,5 +1,5 @@
-import { IEtherialModule } from "../../index";
-export default class Translation implements IEtherialModule {
+import { IEtherialModule } from '../../index';
+export declare class Translation implements IEtherialModule {
     etherial_module_name: string;
     defaultLanguage?: String;
     internalizations?: {};
@@ -11,4 +11,8 @@ export default class Translation implements IEtherialModule {
     run({ http }: {
         http?: any;
     }): void;
+}
+export interface TranslationConfig {
+    defaultLanguage: string;
+    translations: string[];
 }

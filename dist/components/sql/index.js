@@ -9,6 +9,9 @@ class SQL {
     // add ignore sync
     constructor({ server, port, name, username, password, dialect }) {
         this.etherial_module_name = 'sql';
+        if (!server || !port || !name || !username || !password || !dialect) {
+            throw new Error('SQL config is not valid.');
+        }
         this.knex = (0, knex_1.default)({
             client: dialect,
             connection: {
