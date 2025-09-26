@@ -12,7 +12,9 @@ import { EthLeafS3 } from './leafs/s3'
 
 export interface IEtherial {
     init(config: any): void
+    beforeRun?(): Promise<any>
     run(): Promise<any>
+    afterRun?(): Promise<any>
     commands(): Promise<any[]>
     initDone: boolean
     initInProgress: boolean
@@ -90,8 +92,36 @@ export class Etherial implements IEtherial {
                 return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b)
             })
             .forEach((element) => {
+                if (this[element].beforeRun) {
+                    let rtn = this[element].beforeRun(this)
+
+                    if (rtn instanceof Promise) {
+                        promises.push(rtn)
+                    }
+                }
+            })
+
+        Object.keys(this)
+            .sort((a, b) => {
+                return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b)
+            })
+            .forEach((element) => {
                 if (this[element].run) {
                     let rtn = this[element].run(this)
+
+                    if (rtn instanceof Promise) {
+                        promises.push(rtn)
+                    }
+                }
+            })
+
+        Object.keys(this)
+            .sort((a, b) => {
+                return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b)
+            })
+            .forEach((element) => {
+                if (this[element].afterRun) {
+                    let rtn = this[element].afterRun(this)
 
                     if (rtn instanceof Promise) {
                         promises.push(rtn)

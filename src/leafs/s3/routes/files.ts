@@ -4,12 +4,9 @@ import * as mime from 'mime-types'
 import uniqid, { time, process } from 'uniqid'
 
 import * as FileRequestForm from '../forms/file_request_form'
-// const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
-
-// PutObjectCommandInput
 
 interface FileRequestRouteParams {
     allowCustomFilename?: boolean

@@ -4,7 +4,7 @@ import { IEtherialModule } from '../../index'
 
 export class Database implements IEtherialModule {
     etherial_module_name: string = 'database'
-
+    models: any[] = []
     sequelize: Sequelize
     // add ignore sync
     constructor({ server, port, name, username, password, dialect, models }) {
@@ -27,19 +27,21 @@ export class Database implements IEtherialModule {
         })
 
         if (models) {
-            this.addModels(models)
+            this.models = models
         }
 
         return this
     }
 
     async run() {
+        if (this.models.length > 0) {
+            this.sequelize.addModels(this.models)
+        }
         await this.sequelize.sync()
     }
 
-    addModels(models) {
-        this.sequelize.addModels(models)
-        return this
+    addModels(models: any[]) {
+        this.models = [...this.models, ...models]
     }
 
     sync() {

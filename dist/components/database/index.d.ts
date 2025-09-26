@@ -2,6 +2,7 @@ import { Sequelize } from 'sequelize-typescript';
 import { IEtherialModule } from '../../index';
 export declare class Database implements IEtherialModule {
     etherial_module_name: string;
+    models: any[];
     sequelize: Sequelize;
     constructor({ server, port, name, username, password, dialect, models }: {
         server: any;
@@ -13,7 +14,7 @@ export declare class Database implements IEtherialModule {
         models: any;
     });
     run(): Promise<void>;
-    addModels(models: any): this;
+    addModels(models: any[]): void;
     sync(): void;
     commands(): {
         command: string;

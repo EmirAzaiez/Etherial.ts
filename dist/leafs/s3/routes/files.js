@@ -39,7 +39,6 @@ exports.FileRequestRoute = void 0;
 const index_1 = __importDefault(require("../../../index"));
 const mime = __importStar(require("mime-types"));
 const uniqid_1 = __importStar(require("uniqid"));
-// const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const client_s3_1 = require("@aws-sdk/client-s3");
 const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false, authorizedFolders = [] } = {}) => {

@@ -39,6 +39,7 @@ class Database {
     // add ignore sync
     constructor({ server, port, name, username, password, dialect, models }) {
         this.etherial_module_name = 'database';
+        this.models = [];
         if (!server || !port || !name || !username || !password || !dialect) {
             throw new Error('Database config is not valid.');
         }
@@ -56,18 +57,20 @@ class Database {
             },
         });
         if (models) {
-            this.addModels(models);
+            this.models = models;
         }
         return this;
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
+            if (this.models.length > 0) {
+                this.sequelize.addModels(this.models);
+            }
             yield this.sequelize.sync();
         });
     }
     addModels(models) {
-        this.sequelize.addModels(models);
-        return this;
+        this.models = [...this.models, ...models];
     }
     sync() {
         this.sequelize.sync();

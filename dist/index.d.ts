@@ -9,7 +9,9 @@ import { HttpFront } from './components/http.front';
 import { EthLeafS3 } from './leafs/s3';
 export interface IEtherial {
     init(config: any): void;
+    beforeRun?(): Promise<any>;
     run(): Promise<any>;
+    afterRun?(): Promise<any>;
     commands(): Promise<any[]>;
     initDone: boolean;
     initInProgress: boolean;
