@@ -1,18 +1,11 @@
 import { Sequelize } from 'sequelize-typescript';
 import { IEtherialModule } from '../../index';
+import { Dialect } from 'sequelize';
 export declare class Database implements IEtherialModule {
     etherial_module_name: string;
     models: any[];
     sequelize: Sequelize;
-    constructor({ server, port, name, username, password, dialect, models }: {
-        server: any;
-        port: any;
-        name: any;
-        username: any;
-        password: any;
-        dialect: any;
-        models: any;
-    });
+    constructor({ server, port, name, username, password, dialect, models }: DatabaseConfig);
     run(): Promise<void>;
     addModels(models: any[]): void;
     sync(): void;
@@ -32,6 +25,6 @@ export interface DatabaseConfig {
     name: string;
     username: string;
     password: string;
-    dialect: string;
+    dialect: Dialect;
     models: any[];
 }

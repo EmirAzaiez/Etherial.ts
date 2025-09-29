@@ -2,12 +2,14 @@ import { Sequelize } from 'sequelize-typescript'
 import * as sequelizeFixtures from 'sequelize-fixtures'
 import { IEtherialModule } from '../../index'
 
+import { Dialect } from 'sequelize'
+
 export class Database implements IEtherialModule {
     etherial_module_name: string = 'database'
     models: any[] = []
     sequelize: Sequelize
     // add ignore sync
-    constructor({ server, port, name, username, password, dialect, models }) {
+    constructor({ server, port, name, username, password, dialect, models }: DatabaseConfig) {
         if (!server || !port || !name || !username || !password || !dialect) {
             throw new Error('Database config is not valid.')
         }
@@ -87,6 +89,6 @@ export interface DatabaseConfig {
     name: string
     username: string
     password: string
-    dialect: string
+    dialect: Dialect
     models: any[]
 }
