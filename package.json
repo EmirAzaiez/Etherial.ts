@@ -73,6 +73,10 @@
       "default": "./dist/leafs/s3/extensions/http/validator.js",
       "types": "./dist/leafs/s3/extensions/http/validator.d.ts"
     },
+    "./leafs/s3/extensions/http/yup.validator": {
+      "default": "./dist/leafs/s3/extensions/http/yup.validator.js",
+      "types": "./dist/leafs/s3/extensions/http/yup.validator.d.ts"
+    },
     "./leafs/s3/provider": {
       "default": "./dist/leafs/s3/provider.js",
       "types": "./dist/leafs/s3/provider.d.ts"
