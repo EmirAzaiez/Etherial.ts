@@ -30,6 +30,12 @@ class EthLeafS3 {
             },
         });
     }
+    deleteFile(folder, file) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const cmd = new client_s3_1.DeleteObjectCommand({ Bucket: this.bucket, Key: `${folder}/${file}` });
+            return yield this.s3.send(cmd);
+        });
+    }
     commands() {
         return [
             {

@@ -2,7 +2,7 @@ import 'reflect-metadata'
 
 import { IEtherialModule } from '../../index.js'
 
-import { PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, DeleteObjectCommandOutput, PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3'
 
 export class EthLeafS3 implements IEtherialModule {
     etherial_module_name: string = 'leaf_s3'
@@ -11,6 +11,7 @@ export class EthLeafS3 implements IEtherialModule {
     bucket: string
     server: string
     tenant_id?: string
+    deleteUnusedFiles: () => void
 
     constructor({ access_key_id, secret_access_key, region, server, tenant_id, bucket }: EthLeafS3Config) {
         if (!access_key_id || !secret_access_key || !region || !server || !bucket) {
@@ -29,6 +30,12 @@ export class EthLeafS3 implements IEtherialModule {
                 secretAccessKey: secret_access_key,
             },
         })
+    }
+
+    async deleteFile(folder: string, file: string): Promise<DeleteObjectCommandOutput> {
+        const cmd = new DeleteObjectCommand({ Bucket: this.bucket, Key: `${folder}/${file}` })
+
+        return await this.s3.send(cmd)
     }
 
     commands() {
