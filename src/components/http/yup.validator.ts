@@ -20,6 +20,27 @@ declare module 'yup' {
     }
 }
 
+yup.addMethod(yup.mixed, 'shouldNotExistInModel', function (model: any, column: string, message: string = 'api.form.errors.already_exist_in_database') {
+    return this.test('shouldNotExistInModel', message, async function (value) {
+        if (value === undefined || value === null) return true
+
+        try {
+            const existingRecord = await model.findOne({ where: { [column]: value } })
+            return !existingRecord
+        } catch (error) {
+            return this.createError({ message: 'Database error during validation' })
+        }
+    })
+})
+
+const deriveInstanceKeyFromPath = (path: string): string => {
+    if (!path) return '_instance'
+    if (path.endsWith('_id')) return path.slice(0, -3)
+    if (path.endsWith('Id')) return path.slice(0, -2)
+    if (path.endsWith('ID')) return path.slice(0, -2)
+    return `${path}_instance`
+}
+
 yup.addMethod(yup.number, 'shouldNotExistInModel', function (model: any, column: string, message: string = 'api.form.errors.already_exist_in_database') {
     return this.test('shouldNotExistInModel', message, async function (value) {
         if (value === undefined || value === null) return true
@@ -40,8 +61,18 @@ yup.addMethod(yup.number, 'shouldExistInModel', function (model: any, column: st
         try {
             const existingRecord = await model.findOne({ where: { [column]: value } })
             if (existingRecord) {
+                const aliasKey = deriveInstanceKeyFromPath(this.path)
+
                 this.parent._modelInstances = this.parent._modelInstances || {}
                 this.parent._modelInstances[this.path] = existingRecord
+                this.parent._modelInstances[aliasKey] = existingRecord
+
+                const ctx: any = (this as any).options?.context
+                if (ctx) {
+                    ctx._modelInstances = ctx._modelInstances || {}
+                    ctx._modelInstances[this.path] = existingRecord
+                    ctx._modelInstances[aliasKey] = existingRecord
+                }
                 return true
             }
             return false
@@ -71,8 +102,18 @@ yup.addMethod(yup.string, 'shouldExistInModel', function (model: any, column: st
         try {
             const existingRecord = await model.findOne({ where: { [column]: value } })
             if (existingRecord) {
+                const aliasKey = deriveInstanceKeyFromPath(this.path)
+
                 this.parent._modelInstances = this.parent._modelInstances || {}
                 this.parent._modelInstances[this.path] = existingRecord
+                this.parent._modelInstances[aliasKey] = existingRecord
+
+                const ctx: any = (this as any).options?.context
+                if (ctx) {
+                    ctx._modelInstances = ctx._modelInstances || {}
+                    ctx._modelInstances[this.path] = existingRecord
+                    ctx._modelInstances[aliasKey] = existingRecord
+                }
                 return true
             }
             return false
@@ -110,8 +151,17 @@ export const ShouldValidateYupForm = (schema: any, location: 'body' | 'query' | 
 
     return Middleware(async (req, res, next) => {
         try {
-            const validatedData = await schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true })
+            const yupContext: any = { _modelInstances: {} }
+            const validatedData = await schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true, context: yupContext })
+
             req.form = { ...req.form, ...validatedData }
+
+            const instances = yupContext?._modelInstances || {}
+            for (const key in instances) {
+                if (!(key in validatedData)) {
+                    req.form[key] = instances[key]
+                }
+            }
             next()
         } catch (error) {
             res.error({ status: 400, errors: error.errors })

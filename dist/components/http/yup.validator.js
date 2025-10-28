@@ -35,6 +35,32 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UseYupForm = exports.ShouldValidateYupForm = exports.mixed = exports.array = exports.date = exports.boolean = exports.number = exports.string = exports.object = exports.EtherialYup = void 0;
 const yup = __importStar(require("yup"));
 const provider_1 = require("./provider");
+yup.addMethod(yup.mixed, 'shouldNotExistInModel', function (model, column, message = 'api.form.errors.already_exist_in_database') {
+    return this.test('shouldNotExistInModel', message, function (value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (value === undefined || value === null)
+                return true;
+            try {
+                const existingRecord = yield model.findOne({ where: { [column]: value } });
+                return !existingRecord;
+            }
+            catch (error) {
+                return this.createError({ message: 'Database error during validation' });
+            }
+        });
+    });
+});
+const deriveInstanceKeyFromPath = (path) => {
+    if (!path)
+        return '_instance';
+    if (path.endsWith('_id'))
+        return path.slice(0, -3);
+    if (path.endsWith('Id'))
+        return path.slice(0, -2);
+    if (path.endsWith('ID'))
+        return path.slice(0, -2);
+    return `${path}_instance`;
+};
 yup.addMethod(yup.number, 'shouldNotExistInModel', function (model, column, message = 'api.form.errors.already_exist_in_database') {
     return this.test('shouldNotExistInModel', message, function (value) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -53,13 +79,22 @@ yup.addMethod(yup.number, 'shouldNotExistInModel', function (model, column, mess
 yup.addMethod(yup.number, 'shouldExistInModel', function (model, column, message = 'api.form.errors.not_found_in_database') {
     return this.test('shouldExistInModel', message, function (value) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             if (value === undefined || value === null)
                 return true;
             try {
                 const existingRecord = yield model.findOne({ where: { [column]: value } });
                 if (existingRecord) {
+                    const aliasKey = deriveInstanceKeyFromPath(this.path);
                     this.parent._modelInstances = this.parent._modelInstances || {};
                     this.parent._modelInstances[this.path] = existingRecord;
+                    this.parent._modelInstances[aliasKey] = existingRecord;
+                    const ctx = (_a = this.options) === null || _a === void 0 ? void 0 : _a.context;
+                    if (ctx) {
+                        ctx._modelInstances = ctx._modelInstances || {};
+                        ctx._modelInstances[this.path] = existingRecord;
+                        ctx._modelInstances[aliasKey] = existingRecord;
+                    }
                     return true;
                 }
                 return false;
@@ -88,13 +123,22 @@ yup.addMethod(yup.string, 'shouldNotExistInModel', function (model, column, mess
 yup.addMethod(yup.string, 'shouldExistInModel', function (model, column, message = 'api.form.errors.not_found_in_database') {
     return this.test('shouldExistInModel', message, function (value) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a;
             if (value === undefined || value === null)
                 return true;
             try {
                 const existingRecord = yield model.findOne({ where: { [column]: value } });
                 if (existingRecord) {
+                    const aliasKey = deriveInstanceKeyFromPath(this.path);
                     this.parent._modelInstances = this.parent._modelInstances || {};
                     this.parent._modelInstances[this.path] = existingRecord;
+                    this.parent._modelInstances[aliasKey] = existingRecord;
+                    const ctx = (_a = this.options) === null || _a === void 0 ? void 0 : _a.context;
+                    if (ctx) {
+                        ctx._modelInstances = ctx._modelInstances || {};
+                        ctx._modelInstances[this.path] = existingRecord;
+                        ctx._modelInstances[aliasKey] = existingRecord;
+                    }
                     return true;
                 }
                 return false;
@@ -127,8 +171,15 @@ const ShouldValidateYupForm = (schema, location = 'body') => {
     }
     return (0, provider_1.Middleware)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         try {
-            const validatedData = yield schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true });
+            const yupContext = { _modelInstances: {} };
+            const validatedData = yield schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true, context: yupContext });
             req.form = Object.assign(Object.assign({}, req.form), validatedData);
+            const instances = (yupContext === null || yupContext === void 0 ? void 0 : yupContext._modelInstances) || {};
+            for (const key in instances) {
+                if (!(key in validatedData)) {
+                    req.form[key] = instances[key];
+                }
+            }
             next();
         }
         catch (error) {
