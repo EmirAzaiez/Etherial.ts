@@ -86,6 +86,7 @@ export class Etherial implements IEtherial {
 
     run() {
         let promises = []
+        let promises2 = []
 
         Object.keys(this)
             .sort((a, b) => {
@@ -124,15 +125,18 @@ export class Etherial implements IEtherial {
                     let rtn = this[element].afterRun(this)
 
                     if (rtn instanceof Promise) {
-                        promises.push(rtn)
+                        promises2.push(rtn)
                     }
                 }
             })
+
+
 
         return new Promise((resolve) => {
             Promise.all(promises).then(() => {
                 this.initDone = true
                 this.initInProgress = false
+                Promise.all(promises2)
                 resolve(this)
             })
         })

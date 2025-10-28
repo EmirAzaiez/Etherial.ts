@@ -102,11 +102,16 @@ export const EtherialYup = yup
 
 export const { object, string, number, boolean, date, array, mixed } = yup
 
-export const ShouldValidateYupForm = (schema: any) => {
+export const ShouldValidateYupForm = (schema: any, location: 'body' | 'query' | 'params' = 'body') => {
+
+    if (location != 'body' && location != 'query' && location != 'params') {
+        throw new Error('ShouldValidateYupForm: Invalid location')
+    }
+
     return Middleware(async (req, res, next) => {
         try {
-            const validatedData = await schema.validate(req.body, { abortEarly: false, strict: true, stripUnknown: true })
-            req.form = validatedData
+            const validatedData = await schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true })
+            req.form = [...req.form, ...validatedData]
             next()
         } catch (error) {
             res.error({ status: 400, errors: error.errors })

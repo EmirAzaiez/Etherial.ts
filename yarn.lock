@@ -7,63 +7,6 @@
   resolved "https://registry.yarnpkg.com/@aashutoshrathi/word-wrap/-/word-wrap-1.2.6.tgz#bd9154aec9983f77b3a034ecaa015c2e4201f6cf"
   integrity sha512-1Yjs2SvM8TflER/OD3cOjhWWOZb58A2t7wpE2S9XfBYTiIl+XFhQG2bjy4Pu1I+EAlCNUzRDYDdFwFYUKvXcIA==
 
-"@adminjs/design-system@^4.0.0":
-  version "4.0.3"
-  resolved "https://registry.yarnpkg.com/@adminjs/design-system/-/design-system-4.0.3.tgz#cb603aee3c564b6b36c67351e83619b072604916"
-  integrity sha512-isxz2ObGj4QTiS6yLuUz7oS0n+QEdCkEjtI5LThZo7Pq0je4Wtkwt/NJbsQgFU5da8X4zXTQauRgTC3odHjdgA==
-  dependencies:
-    "@hypnosphi/create-react-context" "^0.3.1"
-    "@tiptap/core" "2.0.1"
-    "@tiptap/extension-bubble-menu" "2.0.1"
-    "@tiptap/extension-character-count" "2.0.1"
-    "@tiptap/extension-code" "2.0.1"
-    "@tiptap/extension-document" "2.0.1"
-    "@tiptap/extension-floating-menu" "2.0.1"
-    "@tiptap/extension-heading" "2.0.1"
-    "@tiptap/extension-image" "2.0.1"
-    "@tiptap/extension-link" "2.0.1"
-    "@tiptap/extension-table" "2.0.1"
-    "@tiptap/extension-table-cell" "2.0.1"
-    "@tiptap/extension-table-header" "2.0.1"
-    "@tiptap/extension-table-row" "2.0.1"
-    "@tiptap/extension-text" "2.0.1"
-    "@tiptap/extension-text-align" "2.0.1"
-    "@tiptap/extension-typography" "2.0.1"
-    "@tiptap/pm" "2.0.1"
-    "@tiptap/react" "2.0.1"
-    "@tiptap/starter-kit" "2.0.1"
-    date-fns "^2.29.3"
-    flat "^5.0.2"
-    jw-paginate "^1.0.4"
-    lodash "^4.17.21"
-    polished "^4.2.2"
-    react-currency-input-field "^3.6.10"
-    react-datepicker "^4.10.0"
-    react-feather "^2.0.10"
-    react-phone-input-2 "^2.15.1"
-    react-select "^5.7.2"
-    react-text-mask "^5.5.0"
-    styled-components "5.3.9"
-    styled-system "^5.1.5"
-    text-mask-addons "^3.8.0"
-
-"@adminjs/express@^6.0.1":
-  version "6.0.1"
-  resolved "https://registry.yarnpkg.com/@adminjs/express/-/express-6.0.1.tgz#0f2b7dba0f36954fbc9a612764a09171251fdb7a"
-  integrity sha512-mz5vb+VH9Lz1aD2K4PHwqQ8Rt6e4ztzz7fRsbDWb7HUH9xKDrElmehvhe/1DtHG3/f7P0XUUqcBXRXzsZbC/BQ==
-
-"@adminjs/passwords@^4.0.0":
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/@adminjs/passwords/-/passwords-4.0.0.tgz#e20e7246ff2c249342081ae52b77f2297a756515"
-  integrity sha512-lkN3r7zMKAcSUg1TGSbvywoNDZmwuPsmcVufIlNJm4ZGHWImVyFAG2vEspmzCyYPR6seFKx3BuLxsW93x+CRwg==
-
-"@adminjs/sequelize@^4.0.0":
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/@adminjs/sequelize/-/sequelize-4.0.0.tgz#e5380b9b3068500d76a416165c8298bdd9bb1dfb"
-  integrity sha512-koBcKsq5HGHqYuy1hAAqAJHN+6OrUCWq4HXVadZp2gnIVcRiZn0ef4ou683cXWDThfSWN933djVjrUPyKYrWNw==
-  dependencies:
-    escape-regexp "0.0.1"
-
 "@ampproject/remapping@^2.2.0":
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/@ampproject/remapping/-/remapping-2.2.1.tgz#99e8e11851128b8702cd57c33684f1d0f260b630"

@@ -30,6 +30,7 @@ class Etherial {
     }
     run() {
         let promises = [];
+        let promises2 = [];
         Object.keys(this)
             .sort((a, b) => {
             return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
@@ -62,7 +63,7 @@ class Etherial {
             if (this[element].afterRun) {
                 let rtn = this[element].afterRun(this);
                 if (rtn instanceof Promise) {
-                    promises.push(rtn);
+                    promises2.push(rtn);
                 }
             }
         });
@@ -70,6 +71,7 @@ class Etherial {
             Promise.all(promises).then(() => {
                 this.initDone = true;
                 this.initInProgress = false;
+                Promise.all(promises2);
                 resolve(this);
             });
         });

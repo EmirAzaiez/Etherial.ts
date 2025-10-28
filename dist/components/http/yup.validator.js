@@ -121,11 +121,14 @@ yup.addMethod(yup.string, 'shouldBeStrongPassword', function (message = 'Passwor
 });
 exports.EtherialYup = yup;
 exports.object = yup.object, exports.string = yup.string, exports.number = yup.number, exports.boolean = yup.boolean, exports.date = yup.date, exports.array = yup.array, exports.mixed = yup.mixed;
-const ShouldValidateYupForm = (schema) => {
+const ShouldValidateYupForm = (schema, location = 'body') => {
+    if (location != 'body' && location != 'query' && location != 'params') {
+        throw new Error('ShouldValidateYupForm: Invalid location');
+    }
     return (0, provider_1.Middleware)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         try {
-            const validatedData = yield schema.validate(req.body, { abortEarly: false, strict: true, stripUnknown: true });
-            req.form = validatedData;
+            const validatedData = yield schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true });
+            req.form = [...req.form, ...validatedData];
             next();
         }
         catch (error) {
