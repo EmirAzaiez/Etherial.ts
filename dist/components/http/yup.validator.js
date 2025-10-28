@@ -128,7 +128,7 @@ const ShouldValidateYupForm = (schema, location = 'body') => {
     return (0, provider_1.Middleware)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const validatedData = yield schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true });
-            req.form = [...req.form, ...validatedData];
+            req.form = Object.assign(Object.assign({}, req.form), validatedData);
             next();
         }
         catch (error) {
