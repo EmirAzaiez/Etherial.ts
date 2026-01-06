@@ -1,27 +1,3 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -31,35 +7,58 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Database = void 0;
-const sequelize_typescript_1 = require("sequelize-typescript");
-const sequelizeFixtures = __importStar(require("sequelize-fixtures"));
-class Database {
-    // add ignore sync
-    constructor({ server, port, name, username, password, dialect, models }) {
-        this.etherial_module_name = 'database';
+import { Sequelize } from 'sequelize-typescript';
+import * as sequelizeFixtures from 'sequelize-fixtures';
+export class Database {
+    constructor(config) {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
         this.models = [];
-        if (!server || !port || !name || !username || !password || !dialect) {
-            throw new Error('Database config is not valid.');
-        }
-        this.sequelize = new sequelize_typescript_1.Sequelize({
-            host: server,
-            port: port,
-            database: name,
-            dialect: dialect,
-            username: username,
-            password: password,
-            storage: ':memory:',
-            logging: false,
+        this.validateConfig(config);
+        this.config = config;
+        const sequelizeOptions = {
+            host: config.server,
+            port: config.port,
+            database: config.name,
+            dialect: config.dialect,
+            username: config.username,
+            password: config.password,
+            logging: (_a = config.logging) !== null && _a !== void 0 ? _a : false,
             define: {
-                underscored: true,
+                underscored: (_c = (_b = config.define) === null || _b === void 0 ? void 0 : _b.underscored) !== null && _c !== void 0 ? _c : true,
+                timestamps: (_e = (_d = config.define) === null || _d === void 0 ? void 0 : _d.timestamps) !== null && _e !== void 0 ? _e : true,
+                paranoid: (_g = (_f = config.define) === null || _f === void 0 ? void 0 : _f.paranoid) !== null && _g !== void 0 ? _g : false,
+                freezeTableName: (_j = (_h = config.define) === null || _h === void 0 ? void 0 : _h.freezeTableName) !== null && _j !== void 0 ? _j : false,
             },
-        });
-        if (models) {
-            this.models = models;
+            timezone: (_k = config.timezone) !== null && _k !== void 0 ? _k : '+00:00',
+        };
+        if (config.dialect === 'sqlite') {
+            sequelizeOptions.storage = (_l = config.storage) !== null && _l !== void 0 ? _l : ':memory:';
         }
-        return this;
+        if (config.ssl) {
+            sequelizeOptions.dialectOptions = {
+                ssl: typeof config.ssl === 'boolean'
+                    ? { rejectUnauthorized: false }
+                    : config.ssl,
+            };
+        }
+        this.sequelize = new Sequelize(sequelizeOptions);
+        if (config.models) {
+            this.models = config.models;
+        }
+    }
+    validateConfig(config) {
+        const required = ['server', 'port', 'name', 'username', 'password', 'dialect'];
+        const missing = required.filter((key) => config[key] === undefined || config[key] === null);
+        if (missing.length > 0) {
+            throw new Error(`Database config missing required fields: ${missing.join(', ')}`);
+        }
+        const validDialects = ['mysql', 'postgres', 'sqlite', 'mariadb', 'mssql'];
+        if (!validDialects.includes(config.dialect)) {
+            throw new Error(`Invalid dialect "${config.dialect}". Must be one of: ${validDialects.join(', ')}`);
+        }
+    }
+    beforeRun() {
+        return __awaiter(this, void 0, void 0, function* () { });
     }
     run() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -72,19 +71,42 @@ class Database {
     addModels(models) {
         this.models = [...this.models, ...models];
     }
-    sync() {
-        this.sequelize.sync();
+    sync(options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.sequelize.sync(options);
+        });
+    }
+    transaction(callback) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this.sequelize.transaction(callback);
+        });
     }
     commands() {
         return [
             {
                 command: 'destroy',
-                description: 'Destroy database for recreate it properly.',
+                description: 'Destroy database and recreate it (⚠️ DESTRUCTIVE)',
                 warn: true,
                 action: () => __awaiter(this, void 0, void 0, function* () {
                     try {
+                        yield this.run();
                         yield this.sequelize.sync({ force: true });
-                        return { success: true, message: 'Database destroyed successfully.' };
+                        return { success: true, message: 'Database destroyed and recreated successfully.' };
+                    }
+                    catch (error) {
+                        return { success: false, message: error.message };
+                    }
+                }),
+            },
+            {
+                command: 'migrate',
+                description: 'Run pending migrations (alter mode)',
+                warn: true,
+                action: () => __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        yield this.run();
+                        yield this.sequelize.sync({ alter: true });
+                        return { success: true, message: 'Migrations applied successfully.' };
                     }
                     catch (error) {
                         return { success: false, message: error.message };
@@ -93,21 +115,22 @@ class Database {
             },
             {
                 command: 'load:fixtures <env>',
-                description: 'Load fixtures in database (This will destroy the database also).',
-                warn: false,
-                action: (etherial, env) => __awaiter(this, void 0, void 0, function* () {
+                description: 'Load fixtures (⚠️ destroys existing data)',
+                warn: true,
+                action: (_etherial, env) => __awaiter(this, void 0, void 0, function* () {
                     try {
+                        yield this.run();
                         yield this.sequelize.sync({ force: true });
-                        yield sequelizeFixtures.loadFile(`${process.cwd()}/fixtures/${env}.json`, this.sequelize.models);
-                        return { success: true, message: 'Fixtures loaded successfully.' };
+                        const fixturePath = `${process.cwd()}/fixtures/${env}.json`;
+                        yield sequelizeFixtures.loadFile(fixturePath, this.sequelize.models);
+                        return { success: true, message: `Fixtures from ${env}.json loaded successfully.` };
                     }
                     catch (error) {
                         return { success: false, message: error.message };
                     }
                 }),
-            },
+            }
         ];
     }
 }
-exports.Database = Database;
 //# sourceMappingURL=index.js.map

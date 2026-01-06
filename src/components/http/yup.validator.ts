@@ -1,6 +1,6 @@
 import * as yup from 'yup'
 
-import { Middleware } from './provider'
+import { Middleware, Request, Response, NextFunction } from './provider'
 
 declare module 'yup' {
     interface StringSchema {
@@ -149,7 +149,7 @@ export const ShouldValidateYupForm = (schema: any, location: 'body' | 'query' | 
         throw new Error('ShouldValidateYupForm: Invalid location')
     }
 
-    return Middleware(async (req, res, next) => {
+    return Middleware(async (req: Request, res: Response, next: NextFunction) => {
         try {
             const yupContext: any = { _modelInstances: {} }
             const validatedData = await schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true, context: yupContext })

@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,28 +7,34 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Http = void 0;
-const express_1 = __importDefault(require("express"));
-const http_1 = __importDefault(require("http"));
-const fs = require('fs').promises;
-class Http {
-    constructor({ port, routes, middlewares }) {
-        this.etherial_module_name = 'http';
+import express from 'express';
+import http from 'http';
+import { promises as fs } from 'fs';
+import cors from 'cors';
+import { createTranslationMiddleware } from '../translation';
+export class Http {
+    constructor(config) {
         this.routes_leafs = [];
-        if (!port || !routes) {
-            throw new Error('Http config is not valid.');
-        }
-        this.app = (0, express_1.default)();
-        this.server = http_1.default.createServer(this.app);
-        this.port = port;
-        this.routes = routes;
         this.notFoundRouteMiddleware = null;
-        if (middlewares && middlewares instanceof Array && middlewares.length > 0) {
-            for (let middleware of middlewares) {
+        this.errorHandler = null;
+        this.registeredRoutes = [];
+        this.validateConfig(config);
+        this.config = config;
+        this.app = express();
+        this.port = config.port;
+        this.log = this.setupLogging(config.logging);
+        this.server = http.createServer(this.app);
+        this.routes = config.routes;
+        if (config.trustProxy) {
+            this.app.set('trust proxy', config.trustProxy);
+        }
+        if (config.cors) {
+            const corsOptions = typeof config.cors === 'boolean' ? {} : config.cors;
+            this.app.use(cors(corsOptions));
+        }
+        this.setupBodyParsers(config.bodyParser);
+        if (config.middlewares && config.middlewares.length > 0) {
+            for (const middleware of config.middlewares) {
                 this.app.use(middleware);
             }
         }
@@ -45,124 +50,226 @@ class Http {
             next();
         });
     }
-    listen() {
-        return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-            let controllers = [];
-            for (let index = 0; index < this.routes.length; index++) {
-                const route = this.routes[index];
-                const stat = yield fs.lstat(route);
-                if (stat.isFile()) {
-                    var controller = require(route).default;
-                    controllers.push(controller);
-                    controllers = [
-                        ...controllers,
-                        {
-                            route: `route`,
-                            controller: require(route).default,
-                        },
-                    ];
-                }
-                else if (stat.isDirectory()) {
-                    let routes = yield fs.readdir(route);
-                    let promises = [];
-                    for (let index = 0; index < routes.length; index++) {
-                        const filePath = `${route}/${routes[index]}`;
-                        controllers = [
-                            ...controllers,
-                            {
-                                route: filePath,
-                            },
-                        ];
-                        promises.push(import(filePath));
-                    }
-                    const begin = Date.now();
-                    yield Promise.all(promises).then((pro) => {
-                        console.log(`Runing http module in ${(Date.now() - begin) / 1000 + 's'}`);
-                        pro.map((a, i) => {
-                            controllers[i].controller = a.default;
+    validateConfig(config) {
+        if (!config.port) {
+            throw new Error('Http config missing required field: port');
+        }
+        if (!config.routes || !Array.isArray(config.routes)) {
+            throw new Error('Http config missing required field: routes (must be an array)');
+        }
+        if (config.port < 0 || config.port > 65535) {
+            throw new Error(`Invalid port number: ${config.port}. Must be between 0 and 65535`);
+        }
+        if (config.https) {
+            if (!config.https.key || !config.https.cert) {
+                throw new Error('HTTPS config requires both key and cert');
+            }
+        }
+    }
+    setupLogging(logging) {
+        if (logging === false) {
+            return () => { };
+        }
+        if (typeof logging === 'function') {
+            return logging;
+        }
+        return (message) => console.log(`[Http] ${message}`);
+    }
+    setupBodyParsers(config) {
+        const options = config !== null && config !== void 0 ? config : { json: true, urlencoded: true };
+        if (options.json) {
+            const jsonOptions = typeof options.json === 'object' ? options.json : {};
+            this.app.use(express.json(jsonOptions));
+        }
+        if (options.urlencoded) {
+            const urlencodedOptions = typeof options.urlencoded === 'object' ? options.urlencoded : { extended: true };
+            this.app.use(express.urlencoded(urlencodedOptions));
+        }
+        if ('raw' in options && options.raw) {
+            const rawOptions = typeof options.raw === 'object' ? options.raw : {};
+            this.app.use(express.raw(rawOptions));
+        }
+    }
+    loadControllers() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const controllers = [];
+            for (const routePath of this.routes) {
+                try {
+                    const stat = yield fs.lstat(routePath);
+                    if (stat.isFile()) {
+                        const module = yield import(routePath);
+                        controllers.push({
+                            route: routePath,
+                            controller: module.default,
                         });
-                    });
+                    }
+                    else if (stat.isDirectory()) {
+                        const files = yield fs.readdir(routePath);
+                        const imports = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
+                            const filePath = `${routePath}/${file}`;
+                            const module = yield import(filePath);
+                            return { route: filePath, controller: module.default };
+                        })));
+                        controllers.push(...imports);
+                    }
+                }
+                catch (error) {
+                    this.log(`Warning: Could not load route ${routePath}: ${error.message}`);
                 }
             }
-            controllers.forEach(({ controller, route }) => {
-                try {
-                    controller = controller.default;
-                    const instance = new controller();
-                    const prefix = Reflect.getMetadata('prefix', controller);
-                    const routes = Reflect.getMetadata('routes', controller);
-                    routes.forEach((route) => {
-                        this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
-                            let ret = instance[route.methodName](req, res, next);
-                            if (ret != null && ret instanceof Array) {
-                                res.success({ status: 200, data: ret });
-                            }
-                            else if (ret != null && ret.then && typeof ret.then === 'function') {
-                                ret.then((el) => {
-                                    if (el) {
-                                        if (el instanceof Array) {
-                                            res.success({ status: 200, data: el });
-                                        }
-                                        else {
-                                            if (el._options && el._options.isNewRecord) {
-                                                res.success({ status: 201, data: el });
-                                            }
-                                            else {
-                                                res.success({ status: 200, data: el });
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-                        });
-                    });
-                }
-                catch (e) {
-                    throw new Error(`Error when loading ${route}. Please be sure your controller respect the Etherial Http Norm.`);
-                }
-            });
-            this.routes_leafs.forEach(({ route, methods }) => {
-                var controller = require(route).default;
-                const instance = new controller();
-                const prefix = Reflect.getMetadata('prefix', controller);
-                const routes = Reflect.getMetadata('routes', controller);
-                routes.forEach((route) => {
-                    if (methods.includes(route.methodName)) {
-                        this.app[route.requestMethod](prefix + route.path, route.middlewares || [], (req, res, next) => {
-                            let ret = instance[route.methodName](req, res, next);
-                            if (ret != null && ret instanceof Array) {
-                                res.success({ status: 200, data: ret });
-                            }
-                            else if (ret != null && ret.then && typeof ret.then === 'function') {
-                                ret.then((el) => {
-                                    if (el) {
-                                        if (el instanceof Array) {
-                                            res.success({ status: 200, data: el });
-                                        }
-                                        else {
-                                            if (el._options && el._options.isNewRecord) {
-                                                res.success({ status: 201, data: el });
-                                            }
-                                            else {
-                                                res.success({ status: 200, data: el });
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-                        });
+            return controllers;
+        });
+    }
+    registerRoute(controller, route, instance, prefix) {
+        const fullPath = prefix + route.path;
+        this.app[route.requestMethod](fullPath, route.middlewares || [], (req, res, next) => __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            try {
+                const result = instance[route.methodName](req, res, next);
+                if (result != null) {
+                    if (result instanceof Array) {
+                        res.success({ status: 200, data: result });
                     }
-                });
+                    else if (result && typeof result.then === 'function') {
+                        const resolved = yield result;
+                        if (resolved !== undefined && resolved !== null) {
+                            if (resolved instanceof Array) {
+                                res.success({ status: 200, data: resolved });
+                            }
+                            else if ((_a = resolved._options) === null || _a === void 0 ? void 0 : _a.isNewRecord) {
+                                res.success({ status: 201, data: resolved });
+                            }
+                            else {
+                                res.success({ status: 200, data: resolved });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                next(error);
+            }
+        }));
+        this.registeredRoutes.push({
+            method: route.requestMethod,
+            path: fullPath,
+            handler: `${controller.name}.${route.methodName}`,
+        });
+    }
+    setupHealthcheckRoute() {
+        var _a;
+        const healthcheckConfig = this.config.healthcheck;
+        if (healthcheckConfig === false) {
+            return;
+        }
+        const path = typeof healthcheckConfig === 'object' ? (_a = healthcheckConfig.path) !== null && _a !== void 0 ? _a : '/healthcheck' : '/healthcheck';
+        this.app.get(path, (_req, res) => {
+            var _a;
+            (_a = res.success) === null || _a === void 0 ? void 0 : _a.call(res, {
+                status: 200,
+                data: {
+                    uptime: process.uptime(),
+                    message: 'OK',
+                    timestamp: Date.now(),
+                },
             });
+        });
+        this.registeredRoutes.push({
+            method: 'get',
+            path,
+            handler: 'Etherial.healthcheck',
+        });
+        this.log(`Healthcheck route registered: GET ${path}`);
+    }
+    listen() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const startTime = Date.now();
+            // Load and register controllers
+            const controllers = yield this.loadControllers();
+            for (const { controller, route } of controllers) {
+                try {
+                    const ctrl = controller.default || controller;
+                    const instance = new ctrl();
+                    const prefix = Reflect.getMetadata('prefix', ctrl) || '';
+                    const routes = Reflect.getMetadata('routes', ctrl) || [];
+                    for (const routeDef of routes) {
+                        this.registerRoute(ctrl, routeDef, instance, prefix);
+                    }
+                }
+                catch (error) {
+                    throw new Error(`Error loading ${route}. Ensure your controller follows Etherial Http conventions: ${error.message}`);
+                }
+            }
+            this.setupHealthcheckRoute();
+            for (const { route, methods } of this.routes_leafs) {
+                try {
+                    const module = yield import(route);
+                    const controller = module.default;
+                    const instance = new controller();
+                    const prefix = Reflect.getMetadata('prefix', controller) || '';
+                    const routes = Reflect.getMetadata('routes', controller) || [];
+                    for (const routeDef of routes) {
+                        if (methods.includes(routeDef.methodName)) {
+                            this.registerRoute(controller, routeDef, instance, prefix);
+                        }
+                    }
+                }
+                catch (error) {
+                    this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
+                }
+            }
+            // 404 handler
             if (this.notFoundRouteMiddleware) {
                 this.app.use(this.notFoundRouteMiddleware);
             }
-            this.server.listen(this.port, () => {
-                resolve(this);
+            else {
+                this.app.use((req, res) => {
+                    res.status(404).json({
+                        status: 404,
+                        error: 'Not Found',
+                        message: `Route ${req.method} ${req.path} not found`,
+                    });
+                });
+            }
+            // Error handler
+            if (this.errorHandler) {
+                this.app.use(this.errorHandler);
+            }
+            else {
+                this.app.use(((err, req, res, _next) => {
+                    this.log(`Error: ${err.message}`);
+                    res.status(500).json({
+                        status: 500,
+                        error: 'Internal Server Error',
+                        message: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message,
+                    });
+                }));
+            }
+            // Start server
+            return new Promise((resolve, reject) => {
+                var _a;
+                const host = (_a = this.config.host) !== null && _a !== void 0 ? _a : '0.0.0.0';
+                this.server.listen(this.port, host, () => {
+                    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                    const protocol = this.config.https ? 'https' : 'http';
+                    this.log(`Server started in ${duration}s`);
+                    this.log(`Listening on ${protocol}://${host}:${this.port}`);
+                    this.log(`${this.registeredRoutes.length} routes registered`);
+                    resolve(this);
+                });
+                this.server.on('error', (error) => {
+                    if (error.code === 'EADDRINUSE') {
+                        reject(new Error(`Port ${this.port} is already in use`));
+                    }
+                    else {
+                        reject(error);
+                    }
+                });
             });
-        }));
+        });
     }
     addRoutes(routes) {
-        if (routes instanceof Array) {
+        if (Array.isArray(routes)) {
             this.routes = [...this.routes, ...routes];
         }
         else {
@@ -174,37 +281,61 @@ class Http {
         this.notFoundRouteMiddleware = middleware;
         return this;
     }
-    run() {
+    onError(handler) {
+        this.errorHandler = handler;
+        return this;
+    }
+    use(middleware) {
+        this.app.use(middleware);
+        return this;
+    }
+    beforeRun() {
         return __awaiter(this, void 0, void 0, function* () {
-            return this;
+            for (const route of this.routes) {
+                try {
+                    yield fs.access(route);
+                }
+                catch (_a) {
+                    this.log(`Warning: Route path does not exist: ${route}`);
+                }
+            }
         });
+    }
+    run(etherial) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (etherial === null || etherial === void 0 ? void 0 : etherial.translation) {
+                this.app.use(createTranslationMiddleware(etherial.translation));
+                this.log('Translation middleware integrated');
+            }
+            // return this
+        });
+    }
+    afterRun() {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.listen();
+        });
+    }
+    getRegisteredRoutes() {
+        return [...this.registeredRoutes];
     }
     commands() {
         return [
-        // {
-        //     command: 'generate:documentation',
-        //     description: 'Generate a full Swagger documentation.',
-        //     warn: false,
-        //     action: async (etherial) => {
-        //         // @ts-ignore
-        //         // console.log(sjs.getSequelizeSchema(etherial.database.sequelize))
-        //         let rtn = docGenerator(etherial)
-        //         fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => {})
-        //         return { success: true, message: 'Http server destroyed successfully.' }
-        //     },
-        // },
-        // {
-        //     command: 'generate:rtk-query',
-        //     description: 'Generate a full Swagger documentation.',
-        //     warn: false,
-        //     action: async (etherial) => {
-        //         let rtn = docGenerator(etherial)
-        //         fs.writeFile(`${process.cwd()}/doc.json`, JSON.stringify(rtn, null, 4), (err) => {})
-        //         return { success: true, message: 'Http server destroyed successfully.' }
-        //     },
-        // },
+            {
+                command: 'routes',
+                description: 'List all registered routes',
+                warn: false,
+                action: () => __awaiter(this, void 0, void 0, function* () {
+                    const routes = this.getRegisteredRoutes();
+                    const formatted = routes
+                        .map((r) => `${r.method.toUpperCase().padEnd(7)} ${r.path} → ${r.handler}`)
+                        .join('\n');
+                    return {
+                        success: true,
+                        message: routes.length > 0 ? `Registered routes:\n${formatted}` : 'No routes registered',
+                    };
+                }),
+            },
         ];
     }
 }
-exports.Http = Http;
 //# sourceMappingURL=index.js.map

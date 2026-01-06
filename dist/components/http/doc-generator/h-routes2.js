@@ -1,15 +1,12 @@
-"use strict";
 // const fs = require('fs')
 // const esprima = require('esprima')
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.extractRoutes = void 0;
 // export function extractRoutes(fileName: string) {
 //     let file = fs.readFileSync(fileName).toString()
 //     let ast = esprima.parseScript(file, { loc: true })
 //     console.log(ast)
 // }
-const ts_morph_1 = require("ts-morph");
-const project = new ts_morph_1.Project();
+import { Project } from "ts-morph";
+const project = new Project();
 project.addSourceFilesAtPaths("**/*.ts");
 function extractFormName(url) {
     // Split the URL by '/'
@@ -18,7 +15,7 @@ function extractFormName(url) {
     const formName = parts[parts.length - 1];
     return formName;
 }
-function extractRoutes(fileName) {
+export function extractRoutes(fileName) {
     let routes = [];
     const sourceFile = project.getSourceFileOrThrow(fileName);
     const structure = sourceFile.getStructure();
@@ -85,5 +82,4 @@ function extractRoutes(fileName) {
     }
     // console.log(routes)
 }
-exports.extractRoutes = extractRoutes;
 //# sourceMappingURL=h-routes2.js.map

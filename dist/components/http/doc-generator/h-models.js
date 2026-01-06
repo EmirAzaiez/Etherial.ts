@@ -1,6 +1,3 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSequelizeSchema = exports.getModelSchema = exports.getAttributeSchema = void 0;
 // Common types.  These should never be exposed directly but, instead, be cloned
 // before being returned.  This avoids cross-contamination if a user modifies
 // the their schema.
@@ -244,7 +241,6 @@ function getAttributeSchema(att) {
         schema = _addType(schema, 'null');
     return schema;
 }
-exports.getAttributeSchema = getAttributeSchema;
 /**
  * Generate JSON Schema for a Sequelize Model
  *
@@ -317,7 +313,6 @@ function getModelSchema(model, options = {}) {
         delete schema.required;
     return schema;
 }
-exports.getModelSchema = getModelSchema;
 function getSequelizeSchema(seq, options = {}) {
     //@ts-ignore
     const { modelOptions = {} } = options;
@@ -338,5 +333,5 @@ function getSequelizeSchema(seq, options = {}) {
     }
     return schema;
 }
-exports.getSequelizeSchema = getSequelizeSchema;
+export { getAttributeSchema, getModelSchema, getSequelizeSchema, };
 //# sourceMappingURL=h-models.js.map

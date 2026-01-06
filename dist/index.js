@@ -1,101 +1,120 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Etherial = void 0;
-require("reflect-metadata");
-class Etherial {
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import 'reflect-metadata';
+export class Etherial {
     constructor() {
         this.initDone = false;
         this.initInProgress = false;
     }
+    /**
+     * Get sorted module keys, with 'app' always last
+     */
+    getModuleKeys() {
+        return Object.keys(this)
+            .filter(key => !Etherial.RESERVED_KEYS.has(key) &&
+            typeof this[key] === 'object' &&
+            this[key] !== null)
+            .sort((a, b) => {
+            // 'app' always comes last
+            if (a === 'app')
+                return 1;
+            if (b === 'app')
+                return -1;
+            return a.localeCompare(b);
+        });
+    }
+    /**
+     * Initialize Etherial with module configurations
+     */
     init(config) {
         this.initInProgress = true;
-        Object.keys(config).forEach((name) => {
-            if (!this[name]) {
-                let component = config[name];
-                if (component.module && component.module) {
-                    //@ts-ignore
-                    let moduleInstance = new component.module(component.config);
-                    if (moduleInstance.etherial_module_name === name) {
-                        this[name] = moduleInstance;
-                    }
-                    else {
-                        throw new Error(`Module ${name} defined in config should has this name: ${moduleInstance.etherial_module_name}.`);
-                    }
-                }
-                else {
-                    throw new Error(`Module ${name} is not a valid Etherial module.`);
-                }
+        for (const name of Object.keys(config)) {
+            if (this[name]) {
+                console.warn(`Module "${name}" is already initialized, skipping.`);
+                continue;
             }
-        });
+            const component = config[name];
+            if (!component.module) {
+                throw new Error(`Module "${name}" is not a valid Etherial module. Missing 'module' property.`);
+            }
+            try {
+                const moduleInstance = new component.module(component.config || {});
+                this[name] = moduleInstance;
+            }
+            catch (error) {
+                throw new Error(`Failed to initialize module "${name}": ${error.message}`);
+            }
+        }
     }
+    /**
+     * Run lifecycle: beforeRun → run → afterRun (in sequence)
+     */
     run() {
-        let promises = [];
-        let promises2 = [];
-        Object.keys(this)
-            .sort((a, b) => {
-            return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
-        })
-            .forEach((element) => {
-            if (this[element].beforeRun) {
-                let rtn = this[element].beforeRun(this);
-                if (rtn instanceof Promise) {
-                    promises.push(rtn);
-                }
-            }
-        });
-        Object.keys(this)
-            .sort((a, b) => {
-            return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
-        })
-            .forEach((element) => {
-            if (this[element].run) {
-                let rtn = this[element].run(this);
-                if (rtn instanceof Promise) {
-                    promises.push(rtn);
-                }
-            }
-        });
-        Object.keys(this)
-            .sort((a, b) => {
-            return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
-        })
-            .forEach((element) => {
-            if (this[element].afterRun) {
-                let rtn = this[element].afterRun(this);
-                if (rtn instanceof Promise) {
-                    promises2.push(rtn);
-                }
-            }
-        });
-        return new Promise((resolve) => {
-            Promise.all(promises).then(() => {
+        return __awaiter(this, void 0, void 0, function* () {
+            const moduleKeys = this.getModuleKeys();
+            try {
+                // Phase 1: beforeRun (all modules in parallel)
+                yield Promise.all(moduleKeys.map((key) => __awaiter(this, void 0, void 0, function* () {
+                    const module = this[key];
+                    if (module === null || module === void 0 ? void 0 : module.beforeRun) {
+                        yield module.beforeRun(this);
+                    }
+                })));
+                // Phase 2: run (all modules in parallel)
+                yield Promise.all(moduleKeys.map((key) => __awaiter(this, void 0, void 0, function* () {
+                    const module = this[key];
+                    if (module === null || module === void 0 ? void 0 : module.run) {
+                        yield module.run(this);
+                    }
+                })));
+                // Mark initialization as complete
                 this.initDone = true;
                 this.initInProgress = false;
-                Promise.all(promises2);
-                resolve(this);
-            });
+                // Phase 3: afterRun (all modules in parallel)
+                yield Promise.all(moduleKeys.map((key) => __awaiter(this, void 0, void 0, function* () {
+                    const module = this[key];
+                    if (module === null || module === void 0 ? void 0 : module.afterRun) {
+                        yield module.afterRun(this);
+                    }
+                })));
+                return this;
+            }
+            catch (error) {
+                this.initInProgress = false;
+                throw new Error(`Etherial run failed: ${error.message}`);
+            }
         });
     }
+    /**
+     * Collect all commands from modules
+     */
     commands() {
-        return new Promise((resolve) => {
-            let promises = [];
-            Object.keys(this)
-                .sort((a, b) => {
-                return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b);
-            })
-                .forEach((element) => {
-                if (this[element].commands) {
-                    let rtn = this[element].commands(this);
-                    promises.push(rtn.map((single) => {
-                        return Object.assign(Object.assign({}, single), { command: `${element}:${single.command}` });
-                    }));
+        return __awaiter(this, void 0, void 0, function* () {
+            const moduleKeys = this.getModuleKeys();
+            const allCommands = [];
+            for (const key of moduleKeys) {
+                const module = this[key];
+                if (module === null || module === void 0 ? void 0 : module.commands) {
+                    const moduleCommands = module.commands(this);
+                    // Prefix each command with the module name
+                    for (const cmd of moduleCommands) {
+                        allCommands.push(Object.assign(Object.assign({}, cmd), { command: `${key}:${cmd.command}` }));
+                    }
                 }
-            });
-            resolve(promises);
+            }
+            return allCommands;
         });
     }
 }
-exports.Etherial = Etherial;
+// Reserved keys that should not be treated as modules
+Etherial.RESERVED_KEYS = new Set(['initDone', 'initInProgress']);
 Object.freeze(Etherial);
-exports.default = new Etherial();
+export default new Etherial();
 //# sourceMappingURL=index.js.map

@@ -1,0 +1,208 @@
+{
+    "name": "ETHPaymentLeaf",
+    "version": "1.0.0",
+    "description": "Unified payment wall with support for multiple providers (Stripe, PayPal, and more). Same API, any provider.",
+    "author": "Etherial Team",
+    "dependencies": [],
+    "requirements": [
+        {
+            "type": "model",
+            "name": "User",
+            "description": "User model is required for payment/subscription ownership",
+            "hint": "Install ETHUserLeaf (etherial leaf:add ETHUserLeaf) or create your own User model in src/models/User.ts"
+        }
+    ],
+    "npm_dependencies": {
+        "stripe": "^14.0.0"
+    },
+    "optional_npm_dependencies": {
+        "note": "PayPal uses native fetch, no additional dependencies needed"
+    },
+    "env": [
+        {
+            "key": "STRIPE_SECRET_KEY",
+            "description": "Stripe API Secret Key",
+            "required": false,
+            "example": "sk_test_..."
+        },
+        {
+            "key": "STRIPE_WEBHOOK_SECRET",
+            "description": "Stripe Webhook Signing Secret",
+            "required": false,
+            "example": "whsec_..."
+        },
+        {
+            "key": "PAYPAL_CLIENT_ID",
+            "description": "PayPal Client ID",
+            "required": false,
+            "example": "AaBb..."
+        },
+        {
+            "key": "PAYPAL_CLIENT_SECRET",
+            "description": "PayPal Client Secret",
+            "required": false,
+            "example": "EeFf..."
+        },
+        {
+            "key": "PAYPAL_MODE",
+            "description": "PayPal environment (sandbox or live)",
+            "required": false,
+            "example": "sandbox",
+            "default": "sandbox"
+        },
+        {
+            "key": "PAYPAL_WEBHOOK_ID",
+            "description": "PayPal Webhook ID for verification",
+            "required": false,
+            "example": "WH-..."
+        }
+    ],
+    "config": {
+        "import": "import ETHPaymentLeaf, { ETHPaymentLeafConfig } from './ETHPaymentLeaf/app'",
+        "example": {
+            "eth_payment_leaf": {
+                "module": "ETHPaymentLeaf",
+                "config": {
+                    "default_provider": "stripe",
+                    "providers": {
+                        "stripe": {
+                            "enabled": true,
+                            "config": {
+                                "secret_key": "process.env.STRIPE_SECRET_KEY!",
+                                "publishable_key": "process.env.STRIPE_PUBLISHABLE_KEY!"
+                            },
+                            "webhook_secret": "process.env.STRIPE_WEBHOOK_SECRET"
+                        },
+                        "paypal": {
+                            "enabled": true,
+                            "config": {
+                                "client_id": "process.env.PAYPAL_CLIENT_ID!",
+                                "client_secret": "process.env.PAYPAL_CLIENT_SECRET!",
+                                "mode": "process.env.PAYPAL_MODE || 'sandbox'"
+                            },
+                            "webhook_secret": "process.env.PAYPAL_WEBHOOK_ID"
+                        }
+                    },
+                    "routes": {
+                        "payments": [
+                            "createCheckout",
+                            "getPayment",
+                            "createSubscription",
+                            "getSubscription",
+                            "cancelSubscription",
+                            "resumeSubscription",
+                            "refundPayment",
+                            "setupPaymentMethod",
+                            "listPaymentMethods",
+                            "deletePaymentMethod",
+                            "webhook",
+                            "initMobilePayment",
+                            "initMobileSubscription",
+                            "confirmMobilePayment"
+                        ]
+                    },
+                    "onPaymentCompleted": "async (payment, localPayment) => { console.log('Payment completed:', payment.id) }",
+                    "onSubscriptionUpdated": "async (subscription, localSubscription) => { console.log('Subscription updated:', subscription.id) }"
+                }
+            }
+        }
+    },
+    "models": [
+        "Payment",
+        "Subscription",
+        "Customer"
+    ],
+    "routes": {
+        "payments": {
+            "description": "Unified payment API - works with any enabled provider",
+            "methods": [
+                {
+                    "name": "createCheckout",
+                    "method": "POST",
+                    "path": "/payments/checkout",
+                    "description": "Create a checkout session for one-time payment"
+                },
+                {
+                    "name": "getPayment",
+                    "method": "GET",
+                    "path": "/payments/:id",
+                    "description": "Get payment details by ID"
+                },
+                {
+                    "name": "createSubscription",
+                    "method": "POST",
+                    "path": "/payments/subscriptions",
+                    "description": "Create a new subscription"
+                },
+                {
+                    "name": "getSubscription",
+                    "method": "GET",
+                    "path": "/payments/subscriptions/:id",
+                    "description": "Get subscription details by ID"
+                },
+                {
+                    "name": "cancelSubscription",
+                    "method": "DELETE",
+                    "path": "/payments/subscriptions/:id",
+                    "description": "Cancel a subscription (immediate or at period end)"
+                },
+                {
+                    "name": "resumeSubscription",
+                    "method": "POST",
+                    "path": "/payments/subscriptions/:id/resume",
+                    "description": "Resume a cancelled subscription"
+                },
+                {
+                    "name": "refundPayment",
+                    "method": "POST",
+                    "path": "/payments/:id/refund",
+                    "description": "Refund a payment (full or partial)"
+                },
+                {
+                    "name": "setupPaymentMethod",
+                    "method": "POST",
+                    "path": "/payments/methods/setup",
+                    "description": "Setup a new payment method (card, etc.)"
+                },
+                {
+                    "name": "listPaymentMethods",
+                    "method": "GET",
+                    "path": "/payments/methods",
+                    "description": "List saved payment methods"
+                },
+                {
+                    "name": "deletePaymentMethod",
+                    "method": "DELETE",
+                    "path": "/payments/methods/:id",
+                    "description": "Delete a saved payment method"
+                },
+                {
+                    "name": "webhook",
+                    "method": "POST",
+                    "path": "/payments/webhooks/:provider",
+                    "description": "Handle provider webhooks (Stripe, PayPal, etc.)"
+                }
+            ]
+        }
+    },
+    "commands": [
+        {
+            "name": "providers",
+            "description": "List all enabled payment providers"
+        }
+    ],
+    "features": [
+        "Unified API for all payment providers",
+        "Stripe support (checkout, subscriptions, refunds)",
+        "PayPal support (orders, subscriptions, refunds)",
+        "Automatic webhook handling",
+        "Local database sync (payments, subscriptions, customers)",
+        "Payment method management",
+        "Trial period support",
+        "Partial refunds"
+    ],
+    "extensibility": {
+        "description": "Add custom providers by implementing the PaymentProvider interface",
+        "example": "import { PaymentProvider, registerProvider } from 'ETHPaymentLeaf/providers/base'\n\nclass MyProvider implements PaymentProvider {\n  // Implement all methods\n}\n\nregisterProvider('myprovider', MyProvider)"
+    }
+}

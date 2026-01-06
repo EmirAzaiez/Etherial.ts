@@ -1,32 +1,115 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SQL = void 0;
-const knex_1 = __importDefault(require("knex"));
-class SQL {
-    // add ignore sync
-    constructor({ server, port, name, username, password, dialect }) {
-        this.etherial_module_name = 'sql';
-        if (!server || !port || !name || !username || !password || !dialect) {
-            throw new Error('SQL config is not valid.');
+import knex from 'knex';
+export class RawSQL {
+    constructor(config) {
+        var _a;
+        this.validateConfig(config);
+        this.config = config;
+        const connectionConfig = {
+            host: config.server,
+            port: config.port,
+            user: config.username,
+            password: config.password,
+            database: config.name,
+        };
+        if (config.ssl) {
+            connectionConfig.ssl =
+                typeof config.ssl === 'boolean'
+                    ? { rejectUnauthorized: false }
+                    : config.ssl;
         }
-        this.knex = (0, knex_1.default)({
-            client: dialect,
-            connection: {
-                host: server,
-                port: port,
-                user: username,
-                password: password,
-                database: name,
-            },
+        this.knex = knex({
+            client: config.dialect,
+            connection: connectionConfig,
+            pool: (_a = config.pool) !== null && _a !== void 0 ? _a : { min: 0, max: 10 },
         });
-        return this;
+    }
+    validateConfig(config) {
+        const required = [
+            'server',
+            'port',
+            'name',
+            'username',
+            'password',
+            'dialect',
+        ];
+        const missing = required.filter((key) => config[key] === undefined || config[key] === null);
+        if (missing.length > 0) {
+            throw new Error(`RawSQL config missing required fields: ${missing.join(', ')}`);
+        }
+        const validDialects = [
+            'mysql',
+            'mysql2',
+            'pg',
+            'sqlite3',
+            'mssql',
+            'oracledb',
+        ];
+        if (!validDialects.includes(config.dialect)) {
+            throw new Error(`Invalid dialect "${config.dialect}". Must be one of: ${validDialects.join(', ')}`);
+        }
+    }
+    /**
+     * Execute a raw SQL query
+     */
+    raw(sql, bindings) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const result = yield this.knex.raw(sql, bindings);
+            return result;
+        });
+    }
+    /**
+     * Start a query on a specific table
+     */
+    table(tableName) {
+        return this.knex(tableName);
+    }
+    /**
+     * Execute queries within a transaction
+     */
+    transaction(callback) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this.knex.transaction(callback);
+        });
+    }
+    /**
+     * Destroy the connection pool
+     */
+    destroy() {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.knex.destroy();
+        });
+    }
+    beforeRun() {
+        return __awaiter(this, void 0, void 0, function* () { });
+    }
+    run() {
+        return __awaiter(this, void 0, void 0, function* () { });
     }
     commands() {
-        return [];
+        return [
+            {
+                command: 'ping',
+                description: 'Test database connection',
+                action: () => __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        yield this.knex.raw('SELECT 1');
+                        return { success: true, message: 'Connection successful!' };
+                    }
+                    catch (error) {
+                        return { success: false, message: error.message };
+                    }
+                }),
+            },
+        ];
     }
 }
-exports.SQL = SQL;
 //# sourceMappingURL=index.js.map

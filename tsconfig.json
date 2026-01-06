@@ -3,8 +3,8 @@
         "jsx": "react",
         "lib": ["es5", "es6", "esnext", "dom"],
         "target": "es6",
-        "module": "NodeNext",
-        "moduleResolution": "NodeNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
         "outDir": "./dist",
         "emitDecoratorMetadata": true,
         "experimentalDecorators": true,
@@ -15,7 +15,9 @@
         "esModuleInterop": true,
         "skipLibCheck": true
     },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist", "resources"],
     "ts-node": {
-        "esm": true // «———— enabling ESM for ts-node
+        "esm": true
     }
 }

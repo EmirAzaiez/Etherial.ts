@@ -1,0 +1,60 @@
+{
+    "name": "ETHDeviceLeaf",
+    "version": "1.0.0",
+    "description": "Manage user devices for push notifications (Expo) and device tracking",
+    "author": "Etherial Team",
+    "dependencies": [],
+    "requirements": [
+        {
+            "type": "model",
+            "name": "User",
+            "description": "User model is required for device-user association",
+            "hint": "Install ETHUserLeaf (etherial leaf:add ETHUserLeaf) or create your own User model in src/models/User.ts"
+        }
+    ],
+    "npm_dependencies": {
+        "expo-server-sdk": "^3.7.0"
+    },
+    "env": [
+        {
+            "key": "LAST_APP_BUILD",
+            "description": "The last app build version (e.g., '1.0.0')",
+            "required": true,
+            "example": "1.0.0"
+        }
+    ],
+    "config": {
+        "import": "import ETHDeviceLeaf, { ETHDeviceLeafConfig } from './ETHDeviceLeaf/app'",
+        "example": {
+            "eth_device_leaf": {
+                "module": "ETHDeviceLeaf",
+                "config": {
+                    "last_app_build": "process.env.LAST_APP_BUILD!",
+                    "routes": {
+                        "devices": [
+                            "registerDevice",
+                            "revokeDevice"
+                        ]
+                    }
+                }
+            }
+        }
+    },
+    "models": [
+        "Device",
+        "DeviceNotificationLog",
+        "Notification"
+    ],
+    "routes": {
+        "devices": {
+            "description": "Device registration and management",
+            "methods": [
+                "registerDevice",
+                "revokeDevice"
+            ]
+        }
+    },
+    "services": [
+        "expo.push"
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    "include": ["src/**/*"],
+    "exclude": ["node_modules"],
+
+    "compilerOptions": {
+        "types": ["node", "mocha"],
+        "typeRoots": ["./node_modules/@types", "./src/types"],
+        "skipLibCheck": true,
+        "lib": ["es5", "es6", "esnext", "dom"],
+        "target": "es6",
+        "module": "node16",
+        "moduleResolution": "NodeNext",
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "declaration": false,
+        "sourceMap": false,
+        "outDir": "./dist",
+        "baseUrl": "./",
+        "rootDir": "./src"
+    }
+}

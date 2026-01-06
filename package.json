@@ -1,29 +1,25 @@
 {
   "name": "etherial",
-  "version": "0.0.7",
-  "description": "",
+  "version": "0.1.0",
+  "description": "Modular TypeScript framework for building backend applications",
+  "type": "module",
   "main": "dist/index.js",
-  "bin": "dist/bin/index",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "etherial": "dist/bin/index.js"
+  },
   "exports": {
     ".": {
       "default": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./components/database": {
-      "default": "./dist/components/database/index.js",
-      "types": "./dist/components/database/index.d.ts"
+    "./components/*": {
+      "default": "./dist/components/*/index.js",
+      "types": "./dist/components/*/index.d.ts"
     },
-    "./components/database/provider": {
-      "default": "./dist/components/database/provider.js",
-      "types": "./dist/components/database/provider.d.ts"
-    },
-    "./components/http": {
-      "default": "./dist/components/http/index.js",
-      "types": "./dist/components/http/index.d.ts"
-    },
-    "./components/http/provider": {
-      "default": "./dist/components/http/provider.js",
-      "types": "./dist/components/http/provider.d.ts"
+    "./components/*/provider": {
+      "default": "./dist/components/*/provider.js",
+      "types": "./dist/components/*/provider.d.ts"
     },
     "./components/http/validator": {
       "default": "./dist/components/http/validator.js",
@@ -32,58 +28,6 @@
     "./components/http/yup.validator": {
       "default": "./dist/components/http/yup.validator.js",
       "types": "./dist/components/http/yup.validator.d.ts"
-    },
-    "./components/http.security": {
-      "default": "./dist/components/http.security/index.js",
-      "types": "./dist/components/http.security/index.d.ts"
-    },
-    "./components/http.front": {
-      "default": "./dist/components/http.front/index.js",
-      "types": "./dist/components/http.front/index.d.ts"
-    },
-    "./components/http.security/provider": {
-      "default": "./dist/components/http.security/provider.js",
-      "types": "./dist/components/http.security/provider.d.ts"
-    },
-    "./components/reactive": {
-      "default": "./dist/components/reactive/index.js",
-      "types": "./dist/components/reactive/index.d.ts"
-    },
-    "./components/reactive/provider": {
-      "default": "./dist/components/reactive/provider.js",
-      "types": "./dist/components/reactive/provider.d.ts"
-    },
-    "./components/translation": {
-      "default": "./dist/components/translation/index.js",
-      "types": "./dist/components/translation/index.d.ts"
-    },
-    "./leafs/s3": {
-      "default": "./dist/leafs/s3/index.js",
-      "types": "./dist/leafs/s3/index.d.ts"
-    },
-    "./leafs/s3/forms/file_request_form": {
-      "default": "./dist/leafs/s3/forms/file_request_form.js",
-      "types": "./dist/leafs/s3/forms/file_request_form.d.ts"
-    },
-    "./leafs/s3/routes/files": {
-      "default": "./dist/leafs/s3/routes/files.js",
-      "types": "./dist/leafs/s3/routes/files.d.ts"
-    },
-    "./leafs/s3/extensions/http/validator": {
-      "default": "./dist/leafs/s3/extensions/http/validator.js",
-      "types": "./dist/leafs/s3/extensions/http/validator.d.ts"
-    },
-    "./leafs/s3/extensions/http/yup.validator": {
-      "default": "./dist/leafs/s3/extensions/http/yup.validator.js",
-      "types": "./dist/leafs/s3/extensions/http/yup.validator.d.ts"
-    },
-    "./leafs/s3/provider": {
-      "default": "./dist/leafs/s3/provider.js",
-      "types": "./dist/leafs/s3/provider.d.ts"
-    },
-    "./components/sql": {
-      "default": "./dist/components/sql/index.js",
-      "types": "./dist/components/sql/index.d.ts"
     }
   },
   "scripts": {
@@ -91,59 +35,45 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.738.0",
-    "@aws-sdk/s3-request-presigner": "^3.738.0",
     "@tsed/common": "^5.36.0",
     "@tsed/core": "^5.36.0",
     "@types/bluebird": "^3.5.29",
     "@types/express": "^4.17.14",
-    "@types/node": "^12.12.14",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.0.0",
     "@types/validator": "10.11.3",
-    "@typescript-eslint/eslint-plugin": "^6.13.2",
-    "@typescript-eslint/parser": "^6.13.2",
-    "apidoc": "^0.17.7",
-    "arg": "^4.1.2",
-    "aws-sdk": "^2.1692.0",
-    "babel-preset-es2015": "^6.24.1",
+    "chalk": "^5.3.0",
     "class-transformer": "^0.4.0",
     "class-validator": "^0.13.1",
+    "commander": "^12.0.0",
     "ejs": "^3.0.1",
-    "eslint": "^8.55.0",
-    "esprima": "^4.0.1",
     "express": "^4.17.1",
-    "express-ajv-middleware": "^2.0.2",
     "express-ejs-layouts": "^2.5.0",
     "express-formidable": "^1.2.0",
-    "express-jwt": "^3.3.0",
+    "express-rate-limit": "^8.2.1",
     "express-session": "^1.17.3",
     "express-validator": "^6.2.0",
-    "http": "^0.0.1-security",
+    "inquirer": "^9.2.12",
+    "jsonwebtoken": "^9.0.3",
     "knex": "^3.1.0",
     "method-override": "^3.0.0",
     "mysql2": "^3.11.0",
+    "ora": "^8.0.1",
     "pg": "^8.7.3",
     "reflect-metadata": "^0.1.13",
     "routing-controllers": "^0.9.0",
     "sequelize": "6.33.0",
     "sequelize-fixtures": "^1.2.0",
-    "sequelize-json-schema": "^2.1.1",
     "sequelize-typescript": "^2.1.5",
     "socket.io": "^4.6.1",
-    "string-format": "^2.0.0",
-    "ts-migrate": "^0.1.35",
-    "ts-morph": "^21.0.1",
+    "ts-morph": "^27.0.2",
     "ts-node": "^10.9.1",
-    "ts-simple-type": "^1.0.7",
-    "tsc": "^2.0.4",
-    "uniqid": "^5.4.0",
     "yup": "^1.7.0"
-  },
-  "resolutions": {
-    "@typescript-eslint/typescript-estree": "^5.59.2"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "typescript": "^5.4.0-dev.20231109"
+    "@types/inquirer": "^9.0.7",
+    "typescript": "^5.4.0"
   }
 }

@@ -1,0 +1,122 @@
+{
+    "name": "ETHUserLeaf",
+    "version": "1.0.0",
+    "description": "Complete user management system with authentication (email, Google, Apple), password reset, phone validation and profile management",
+    "author": "Etherial Team",
+    "dependencies": [],
+    "npm_dependencies": {
+        "bcryptjs": "^2.4.3",
+        "jsonwebtoken": "^9.0.0",
+        "google-auth-library": "^9.0.0",
+        "apple-signin-auth": "^1.7.0"
+    },
+    "env": [
+        {
+            "key": "JWT_SECRET",
+            "description": "Secret key for JWT token generation",
+            "required": true,
+            "example": "your-super-secret-jwt-key"
+        },
+        {
+            "key": "JWT_EXPIRES_IN",
+            "description": "JWT token expiration time",
+            "required": false,
+            "example": "7d",
+            "default": "7d"
+        },
+        {
+            "key": "GOOGLE_CLIENT_ID",
+            "description": "Google OAuth Client ID (required for Google auth)",
+            "required": false,
+            "example": "123456789.apps.googleusercontent.com"
+        },
+        {
+            "key": "APPLE_CLIENT_ID",
+            "description": "Apple Sign-In Service ID (required for Apple auth)",
+            "required": false,
+            "example": "com.yourapp.service"
+        }
+    ],
+    "config": {
+        "import": "import ETHUserLeaf, { ETHUserLeafConfig } from './ETHUserLeaf/app'",
+        "example": {
+            "eth_user_leaf": {
+                "module": "ETHUserLeaf",
+                "config": {
+                    "default_avatar": "https://example.com/default-avatar.png",
+                    "routes": {
+                        "auth": [
+                            "authEmail"
+                        ],
+                        "auth_google": [
+                            "authGoogle"
+                        ],
+                        "auth_apple": [
+                            "authApple"
+                        ],
+                        "users": [
+                            "updateUserMeBio",
+                            "updateUserMeAvatar"
+                        ],
+                        "users_password": [
+                            "userUpdatePassword",
+                            "setUserPassword",
+                            "requestPasswordReset",
+                            "confirmPasswordReset"
+                        ],
+                        "users_phone": [
+                            "sendPhoneValidation",
+                            "confirmPhoneValidation"
+                        ]
+                    }
+                }
+            }
+        }
+    },
+    "models": [
+        "User"
+    ],
+    "routes": {
+        "auth": {
+            "description": "Email authentication",
+            "methods": [
+                "authEmail"
+            ]
+        },
+        "auth_google": {
+            "description": "Google OAuth authentication",
+            "methods": [
+                "authGoogle"
+            ]
+        },
+        "auth_apple": {
+            "description": "Apple Sign-In authentication",
+            "methods": [
+                "authApple"
+            ]
+        },
+        "users": {
+            "description": "User profile management",
+            "methods": [
+                "updateUserMeBio",
+                "updateUserMeAvatar"
+            ]
+        },
+        "users_password": {
+            "description": "Password management and reset",
+            "methods": [
+                "userUpdatePassword",
+                "setUserPassword",
+                "requestPasswordReset",
+                "confirmPasswordReset"
+            ]
+        },
+        "users_phone": {
+            "description": "Phone number validation",
+            "methods": [
+                "sendPhoneValidation",
+                "confirmPhoneValidation"
+            ]
+        }
+    }
+}

@@ -1,172 +1,198 @@
 import 'reflect-metadata'
 
 import { Http } from './components/http'
+import { HttpAuth } from './components/http.auth'
 import { HttpSecurity } from './components/http.security'
 
 import { Reactive } from './components/reactive'
 import { Database } from './components/database'
-import { SQL } from './components/sql'
+import { RawSQL } from './components/sql'
 import { Translation } from './components/translation'
 import { HttpFront } from './components/http.front'
-import { EthLeafS3 } from './leafs/s3'
+
+// Type for module configuration
+export interface ModuleConfig {
+    [key: string]: unknown
+}
+
+// Interface for Etherial modules with lifecycle methods
+export interface IEtherialModule {
+    beforeRun?(etherial: IEtherial): Promise<void> | void
+    run?(etherial: IEtherial): Promise<void> | void
+    afterRun?(etherial: IEtherial): Promise<void> | void
+    commands?(etherial: IEtherial): CommandDefinition[]
+}
+
+// Command definition type
+export interface CommandDefinition {
+    command: string
+    description?: string
+    action: (...args: unknown[]) => Promise<any> | any
+}
 
 export interface IEtherial {
-    init(config: any): void
-    beforeRun?(): Promise<any>
-    run(): Promise<any>
-    afterRun?(): Promise<any>
-    commands(): Promise<any[]>
+    init(config: EtherialModuleMap): void
+    run(): Promise<Etherial>
+    commands(): Promise<CommandDefinition[]>
     initDone: boolean
     initInProgress: boolean
 
-    //components
+    // Components
     database?: Database
     http?: Http
     http_front?: HttpFront
+    http_auth?: HttpAuth
     http_security?: HttpSecurity
     reactive?: Reactive
     translation?: Translation
-
-    //leafs
-    leaf_s3?: EthLeafS3
+    sql?: RawSQL
 }
 
-export interface IEtherialModule {
-    etherial_module_name: string
+type ModuleConstructor = new (config: ModuleConfig) => IEtherialModule
+
+type ModuleWithConfig = {
+    module: ModuleConstructor
+    config: ModuleConfig
 }
 
-type ModuleWithConfig<T extends IEtherialModule> = {
-    module: T
-    config: any
-    // [key: string]: unknown;
-}
-
-type EtherialModuleMap<T extends IEtherialModule> = {
-    [key: string]: ModuleWithConfig<T>
+type EtherialModuleMap = {
+    [key: string]: ModuleWithConfig
 }
 
 export class Etherial implements IEtherial {
-    //components
+    // Components
     database?: Database
     http?: Http
     http_front?: HttpFront
+    http_auth?: HttpAuth
     http_security?: HttpSecurity
     reactive?: Reactive
     translation?: Translation
-    sql?: SQL
-
-    //leafs
-    leaf_s3?: EthLeafS3
+    sql?: RawSQL
 
     initDone = false
     initInProgress = false
 
-    init(config: EtherialModuleMap<IEtherialModule>) {
+    // Reserved keys that should not be treated as modules
+    private static readonly RESERVED_KEYS = new Set(['initDone', 'initInProgress'])
+
+    /**
+     * Get sorted module keys, with 'app' always last
+     */
+    private getModuleKeys(): string[] {
+        return Object.keys(this)
+            .filter(key =>
+                !Etherial.RESERVED_KEYS.has(key) &&
+                typeof this[key] === 'object' &&
+                this[key] !== null
+            )
+            .sort((a, b) => {
+                // 'app' always comes last
+                if (a === 'app') return 1
+                if (b === 'app') return -1
+                return a.localeCompare(b)
+            })
+    }
+
+    /**
+     * Initialize Etherial with module configurations
+     */
+    init(config: EtherialModuleMap): void {
         this.initInProgress = true
 
-        Object.keys(config).forEach((name) => {
-            if (!this[name]) {
-                let component = config[name]
+        for (const name of Object.keys(config)) {
+            if (this[name]) {
+                console.warn(`Module "${name}" is already initialized, skipping.`)
+                continue
+            }
 
-                if (component.module && component.module) {
-                    //@ts-ignore
-                    let moduleInstance = new component.module(component.config)
+            const component = config[name]
 
-                    if (moduleInstance.etherial_module_name === name) {
-                        this[name] = moduleInstance
-                    } else {
-                        throw new Error(`Module ${name} defined in config should has this name: ${moduleInstance.etherial_module_name}.`)
+            if (!component.module) {
+                throw new Error(`Module "${name}" is not a valid Etherial module. Missing 'module' property.`)
+            }
+
+            try {
+                const moduleInstance = new component.module(component.config || {})
+                this[name] = moduleInstance
+            } catch (error) {
+                throw new Error(`Failed to initialize module "${name}": ${error.message}`)
+            }
+        }
+    }
+
+    /**
+     * Run lifecycle: beforeRun → run → afterRun (in sequence)
+     */
+    async run(): Promise<Etherial> {
+        const moduleKeys = this.getModuleKeys()
+
+        try {
+            // Phase 1: beforeRun (all modules in parallel)
+            await Promise.all(
+                moduleKeys.map(async (key) => {
+                    const module = this[key] as IEtherialModule
+                    if (module?.beforeRun) {
+                        await module.beforeRun(this)
                     }
-                } else {
-                    throw new Error(`Module ${name} is not a valid Etherial module.`)
+                })
+            )
+
+            // Phase 2: run (all modules in parallel)
+            await Promise.all(
+                moduleKeys.map(async (key) => {
+                    const module = this[key] as IEtherialModule
+                    if (module?.run) {
+                        await module.run(this)
+                    }
+                })
+            )
+
+            // Mark initialization as complete
+            this.initDone = true
+            this.initInProgress = false
+
+            // Phase 3: afterRun (all modules in parallel)
+            await Promise.all(
+                moduleKeys.map(async (key) => {
+                    const module = this[key] as IEtherialModule
+                    if (module?.afterRun) {
+                        await module.afterRun(this)
+                    }
+                })
+            )
+
+            return this
+        } catch (error) {
+            this.initInProgress = false
+            throw new Error(`Etherial run failed: ${error.message}`)
+        }
+    }
+
+    /**
+     * Collect all commands from modules
+     */
+    async commands(): Promise<CommandDefinition[]> {
+        const moduleKeys = this.getModuleKeys()
+        const allCommands: CommandDefinition[] = []
+
+        for (const key of moduleKeys) {
+            const module = this[key] as IEtherialModule
+
+            if (module?.commands) {
+                const moduleCommands = module.commands(this)
+
+                // Prefix each command with the module name
+                for (const cmd of moduleCommands) {
+                    allCommands.push({
+                        ...cmd,
+                        command: `${key}:${cmd.command}`,
+                    })
                 }
             }
-        })
-    }
+        }
 
-    run() {
-        let promises = []
-        let promises2 = []
-
-        Object.keys(this)
-            .sort((a, b) => {
-                return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b)
-            })
-            .forEach((element) => {
-                if (this[element].beforeRun) {
-                    let rtn = this[element].beforeRun(this)
-
-                    if (rtn instanceof Promise) {
-                        promises.push(rtn)
-                    }
-                }
-            })
-
-        Object.keys(this)
-            .sort((a, b) => {
-                return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b)
-            })
-            .forEach((element) => {
-                if (this[element].run) {
-                    let rtn = this[element].run(this)
-
-                    if (rtn instanceof Promise) {
-                        promises.push(rtn)
-                    }
-                }
-            })
-
-        Object.keys(this)
-            .sort((a, b) => {
-                return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b)
-            })
-            .forEach((element) => {
-                if (this[element].afterRun) {
-                    let rtn = this[element].afterRun(this)
-
-                    if (rtn instanceof Promise) {
-                        promises2.push(rtn)
-                    }
-                }
-            })
-
-
-
-        return new Promise((resolve) => {
-            Promise.all(promises).then(() => {
-                this.initDone = true
-                this.initInProgress = false
-                Promise.all(promises2)
-                resolve(this)
-            })
-        })
-    }
-
-    commands() {
-        return new Promise((resolve: (el: any[]) => void) => {
-            let promises = []
-
-            Object.keys(this)
-                .sort((a, b) => {
-                    return (a === 'app' ? 1 : 0) - (b === 'app' ? 1 : 0) || +(a > b) || -(a < b)
-                })
-                .forEach((element) => {
-                    if (this[element].commands) {
-                        let rtn = this[element].commands(this)
-
-                        promises.push(
-                            rtn.map((single) => {
-                                return {
-                                    ...single,
-                                    command: `${element}:${single.command}`,
-                                }
-                            })
-                        )
-                    }
-                })
-
-            resolve(promises)
-        })
+        return allCommands
     }
 }
 

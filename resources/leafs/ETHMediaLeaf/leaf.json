@@ -1,0 +1,173 @@
+{
+    "name": "ETHMediaLeaf",
+    "version": "2.0.0",
+    "description": "S3-compatible media management with upload, storage, retrieval and fine-grained access control",
+    "author": "Etherial Team",
+    "dependencies": [],
+    "requirements": [
+        {
+            "type": "model",
+            "name": "User",
+            "description": "User model is required for media ownership tracking",
+            "hint": "Install ETHUserLeaf (etherial leaf:add ETHUserLeaf) or create your own User model in src/models/User.ts"
+        }
+    ],
+    "npm_dependencies": {
+        "@aws-sdk/client-s3": "^3.400.0",
+        "@aws-sdk/s3-request-presigner": "^3.400.0",
+        "mime": "^3.0.0"
+    },
+    "env": [
+        {
+            "key": "S3_ACCESS_KEY_ID",
+            "description": "S3 Access Key ID",
+            "required": true,
+            "example": "your-access-key-id"
+        },
+        {
+            "key": "S3_SECRET_ACCESS_KEY",
+            "description": "S3 Secret Access Key",
+            "required": true,
+            "example": "your-secret-access-key"
+        },
+        {
+            "key": "S3_REGION",
+            "description": "S3 Region",
+            "required": true,
+            "example": "eu-west-1"
+        },
+        {
+            "key": "S3_ENDPOINT",
+            "description": "S3 Endpoint URL (for S3-compatible services like MinIO, DigitalOcean Spaces)",
+            "required": true,
+            "example": "https://s3.eu-west-1.amazonaws.com"
+        },
+        {
+            "key": "S3_BUCKET",
+            "description": "S3 Bucket name",
+            "required": true,
+            "example": "my-app-bucket"
+        },
+        {
+            "key": "S3_CDN_URL",
+            "description": "Optional CDN URL for public files",
+            "required": false,
+            "example": "https://cdn.example.com"
+        }
+    ],
+    "config": {
+        "import": "import ETHMediaLeaf, { ETHMediaLeafConfig, MediaRule } from './ETHMediaLeaf/app'",
+        "example": {
+            "eth_media_leaf": {
+                "module": "ETHMediaLeaf",
+                "config": {
+                    "access_key_id": "process.env.S3_ACCESS_KEY_ID!",
+                    "secret_access_key": "process.env.S3_SECRET_ACCESS_KEY!",
+                    "region": "process.env.S3_REGION!",
+                    "server": "process.env.S3_ENDPOINT!",
+                    "bucket": "process.env.S3_BUCKET!",
+                    "cdn_url": "process.env.S3_CDN_URL",
+                    "routes": {
+                        "media": [
+                            "requestUpload",
+                            "confirmUpload",
+                            "getMedia",
+                            "getMediaAccess",
+                            "getUserMedia",
+                            "deleteMedia"
+                        ]
+                    },
+                    "rules": [
+                        {
+                            "folders": [
+                                "avatars"
+                            ],
+                            "visibility": "public-read",
+                            "max_size": 5242880,
+                            "mime_types": [
+                                "image/jpeg",
+                                "image/png",
+                                "image/webp"
+                            ]
+                        },
+                        {
+                            "folders": [
+                                "documents"
+                            ],
+                            "visibility": "private",
+                            "max_size": 10485760,
+                            "signedUrlExpiration": 3600,
+                            "canAccess": "(req, media) => media.uploaded_by === req.user?.id"
+                        },
+                        {
+                            "folders": [
+                                "identity-cards",
+                                "contracts"
+                            ],
+                            "visibility": "private",
+                            "max_size": 10485760,
+                            "signedUrlExpiration": 1800,
+                            "canAccess": "(req, media) => media.uploaded_by === req.user?.id || req.user?.role === 'admin'"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "models": [
+        "Media"
+    ],
+    "routes": {
+        "media": {
+            "description": "Media upload, access control and management",
+            "methods": [
+                {
+                    "name": "requestUpload",
+                    "method": "POST",
+                    "path": "/medias/request",
+                    "description": "Request a presigned URL for uploading a file to S3"
+                },
+                {
+                    "name": "confirmUpload",
+                    "method": "POST",
+                    "path": "/medias/:id/confirm",
+                    "description": "Confirm that a file has been successfully uploaded to S3"
+                },
+                {
+                    "name": "getMedia",
+                    "method": "GET",
+                    "path": "/medias/:id",
+                    "description": "Get media details with access URL (checks canAccess for private files)"
+                },
+                {
+                    "name": "getMediaAccess",
+                    "method": "GET",
+                    "path": "/medias/:id/access",
+                    "description": "Generate a signed URL for accessing a private file"
+                },
+                {
+                    "name": "getUserMedia",
+                    "method": "GET",
+                    "path": "/medias",
+                    "description": "List all medias uploaded by the authenticated user"
+                },
+                {
+                    "name": "deleteMedia",
+                    "method": "DELETE",
+                    "path": "/medias/:id",
+                    "description": "Delete a media from S3 and database"
+                }
+            ]
+        }
+    },
+    "commands": [
+        {
+            "name": "cors",
+            "description": "Configure CORS for the S3 bucket (allows all origins)"
+        },
+        {
+            "name": "cleanup:pending",
+            "description": "Delete pending uploads older than 24 hours"
+        }
+    ]
+}

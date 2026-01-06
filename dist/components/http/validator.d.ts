@@ -40,11 +40,11 @@ type ShouldValidateFormOptions = {
     exclude_validator?: boolean;
     include_optionals?: boolean;
 };
-export declare const ShouldValidateForm: (form: any, options?: ShouldValidateFormOptions) => (target: any, propertyKey: string) => void;
+export declare const ShouldValidateForm: (form: any, options?: ShouldValidateFormOptions) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => void;
 /**
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
-export declare const UseForm: (form: any, options?: ShouldValidateFormOptions) => (target: any, propertyKey: string) => void;
+export declare const UseForm: (form: any, options?: ShouldValidateFormOptions) => (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => void;
 /**
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
