@@ -1,6 +1,6 @@
 import * as jwt from 'jsonwebtoken'
 import { Request, Response, NextFunction } from 'express'
-import { IEtherialModule } from '../../index'
+import { IEtherialModule } from '../../index.js'
 
 export interface JWTPayload {
     [key: string]: any

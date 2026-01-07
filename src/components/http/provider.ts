@@ -1,4 +1,5 @@
 import express from 'express'
+import { Op } from 'sequelize'
 
 export type HttpMethod = 'get' | 'post' | 'delete' | 'options' | 'put' | 'patch' | 'head' | 'all'
 
@@ -204,7 +205,8 @@ export const ShouldFindAllFromModel = (model: any, options: FindAllOptions): Met
             const offset = (page - 1) * limit
 
             // Build where clause from allowed filters
-            const where: Record<string, any> = {}
+            // Build where clause from allowed filters
+            const where: any = {}
             for (const filter of allowedFilters) {
                 if (req.query[filter] !== undefined) {
                     where[filter] = req.query[filter]
@@ -217,7 +219,7 @@ export const ShouldFindAllFromModel = (model: any, options: FindAllOptions): Met
                 const searchTerm = req.query[searchParamName]
 
                 if (searchTerm && typeof searchTerm === 'string' && searchTerm.trim() !== '') {
-                    const { Op } = require('sequelize')
+                    // Op is imported at top level
                     const searchConditions = search.fields.map((field) => ({
                         [field]: { [Op.iLike]: `%${searchTerm}%` },
                     }))
@@ -472,13 +474,14 @@ export const ShouldSearchInModel = (model: any, options: SearchOptions): MethodD
             const offset = (page - 1) * limit
 
             // Build OR conditions for each field
-            const { Op } = require('sequelize')
+            // Op is imported at top level
             const searchConditions = fields.map((field) => ({
                 [field]: { [Op.iLike]: `%${searchTerm}%` },
             }))
 
             // Build where with search conditions and custom whereFn
-            const where: Record<string, any> = { [Op.or]: searchConditions }
+            // Build where with search conditions and custom whereFn
+            const where: any = { [Op.or]: searchConditions }
             if (whereFn) {
                 const customWhere = await whereFn(req)
                 Object.assign(where, customWhere)

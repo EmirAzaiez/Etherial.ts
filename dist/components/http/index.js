@@ -11,7 +11,7 @@ import express from 'express';
 import http from 'http';
 import { promises as fs } from 'fs';
 import cors from 'cors';
-import { createTranslationMiddleware } from '../translation';
+import { createTranslationMiddleware } from '../translation/index.js';
 export class Http {
     constructor(config) {
         this.routes_leafs = [];

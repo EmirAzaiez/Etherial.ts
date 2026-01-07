@@ -1,6 +1,6 @@
 import { Sequelize, SequelizeOptions, ModelCtor, Model } from 'sequelize-typescript'
 import * as sequelizeFixtures from 'sequelize-fixtures'
-import { IEtherialModule } from '../../index'
+import { IEtherialModule } from '../../index.js'
 import { Dialect } from 'sequelize'
 
 export type LoggingFunction = (sql: string, timing?: number) => void
@@ -12,7 +12,7 @@ export interface DatabaseConfig {
     username: string
     password: string
     dialect: Dialect
-    models?: ModelCtor<Model>[]
+    models?: (ModelCtor<Model> | string)[]
 
     logging?: boolean | LoggingFunction
     storage?: string
@@ -27,7 +27,7 @@ export interface DatabaseConfig {
 }
 
 export class Database implements IEtherialModule {
-    models: ModelCtor<Model>[] = []
+    models: (ModelCtor<Model> | string)[] = []
     sequelize: Sequelize
     private config: DatabaseConfig
 

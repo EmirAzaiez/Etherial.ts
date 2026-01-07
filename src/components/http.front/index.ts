@@ -1,4 +1,4 @@
-import { IEtherialModule, IEtherial } from '../../index'
+import { IEtherialModule, IEtherial } from '../../index.js'
 import expressLayouts from 'express-ejs-layouts'
 
 export interface HttpFrontConfig {

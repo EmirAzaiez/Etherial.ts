@@ -1,6 +1,6 @@
-import etherial from '../../index'
-import { Middleware } from '../http/provider'
-import { RateLimitConfig, IPFilterConfig, BruteForceConfig } from './index'
+import etherial from '../../index.js'
+import { Middleware } from '../http/provider.js'
+import { RateLimitConfig, IPFilterConfig, BruteForceConfig } from './index.js'
 
 // ============================================
 // Rate Limiting Decorators

@@ -1,5 +1,5 @@
 import { Table, TableOptions, Model } from "sequelize-typescript"
-import etherial from '../../index'
+import etherial from '../../index.js'
 
 type RoomTarget = string | "all" | "guests" | "users"
 

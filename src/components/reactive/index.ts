@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io'
-import etherial from '../../index'
-import { IEtherialModule } from '../../index'
+import etherial from '../../index.js'
+import { IEtherialModule } from '../../index.js'
 
 interface ReactiveListener {
     event: string

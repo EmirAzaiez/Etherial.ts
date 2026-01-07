@@ -1,14 +1,14 @@
 import 'reflect-metadata'
 
-import { Http } from './components/http'
-import { HttpAuth } from './components/http.auth'
-import { HttpSecurity } from './components/http.security'
+import { Http } from './components/http/index.js'
+import { HttpAuth } from './components/http.auth/index.js'
+import { HttpSecurity } from './components/http.security/index.js'
 
-import { Reactive } from './components/reactive'
-import { Database } from './components/database'
-import { RawSQL } from './components/sql'
-import { Translation } from './components/translation'
-import { HttpFront } from './components/http.front'
+import { Reactive } from './components/reactive/index.js'
+import { Database } from './components/database/index.js'
+import { RawSQL } from './components/sql/index.js'
+import { Translation } from './components/translation/index.js'
+import { HttpFront } from './components/http.front/index.js'
 
 // Type for module configuration
 export interface ModuleConfig {

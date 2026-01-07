@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import * as yup from 'yup';
-import { Middleware } from './provider';
+import { Middleware } from './provider.js';
 yup.addMethod(yup.mixed, 'shouldNotExistInModel', function (model, column, message = 'api.form.errors.already_exist_in_database') {
     return this.test('shouldNotExistInModel', message, function (value) {
         return __awaiter(this, void 0, void 0, function* () {

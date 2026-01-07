@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express'
 import rateLimit, { Options as RateLimitOptions } from 'express-rate-limit'
-import { IEtherialModule } from '../../index'
+import { IEtherialModule } from '../../index.js'
 
 // ============================================
 // Types & Interfaces

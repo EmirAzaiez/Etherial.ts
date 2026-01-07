@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Table } from "sequelize-typescript";
-import etherial from '../../index';
+import etherial from '../../index.js';
 /**
  * Generate a Sequelize hook that emits reactive events via Socket.io
  */

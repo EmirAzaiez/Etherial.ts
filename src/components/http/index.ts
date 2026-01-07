@@ -1,12 +1,12 @@
 import express, { RequestHandler, ErrorRequestHandler } from 'express'
-import { RouteDefinition, Response, Request, NextFunction } from './provider'
+import { RouteDefinition, Response, Request, NextFunction } from './provider.js'
 import http from 'http'
 import https from 'https'
 import { promises as fs } from 'fs'
 import cors, { CorsOptions } from 'cors'
 
-import { IEtherialModule, IEtherial } from '../../index'
-import { Translation, createTranslationMiddleware } from '../translation'
+import { IEtherialModule, IEtherial } from '../../index.js'
+import { Translation, createTranslationMiddleware } from '../translation/index.js'
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head' | 'all'
 

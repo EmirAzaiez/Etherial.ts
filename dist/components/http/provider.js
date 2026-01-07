@@ -7,6 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import { Op } from 'sequelize';
 const createMethodHandler = (method) => {
     return (path) => {
         return (target, propertyKey) => {
@@ -82,6 +83,7 @@ export const ShouldFindAllFromModel = (model, options) => {
             const limit = Math.min(maxLimit, Math.max(1, Number(req.query.limit) || defaultLimit));
             const offset = (page - 1) * limit;
             // Build where clause from allowed filters
+            // Build where clause from allowed filters
             const where = {};
             for (const filter of allowedFilters) {
                 if (req.query[filter] !== undefined) {
@@ -93,7 +95,7 @@ export const ShouldFindAllFromModel = (model, options) => {
                 const searchParamName = (_b = search.paramName) !== null && _b !== void 0 ? _b : 'q';
                 const searchTerm = req.query[searchParamName];
                 if (searchTerm && typeof searchTerm === 'string' && searchTerm.trim() !== '') {
-                    const { Op } = require('sequelize');
+                    // Op is imported at top level
                     const searchConditions = search.fields.map((field) => ({
                         [field]: { [Op.iLike]: `%${searchTerm}%` },
                     }));
@@ -279,10 +281,11 @@ export const ShouldSearchInModel = (model, options) => {
             const limit = Math.min(maxLimit, Math.max(1, Number(req.query.limit) || defaultLimit));
             const offset = (page - 1) * limit;
             // Build OR conditions for each field
-            const { Op } = require('sequelize');
+            // Op is imported at top level
             const searchConditions = fields.map((field) => ({
                 [field]: { [Op.iLike]: `%${searchTerm}%` },
             }));
+            // Build where with search conditions and custom whereFn
             // Build where with search conditions and custom whereFn
             const where = { [Op.or]: searchConditions };
             if (whereFn) {

@@ -1,6 +1,6 @@
 import * as yup from 'yup'
 
-import { Middleware, Request, Response, NextFunction } from './provider'
+import { Middleware, Request, Response, NextFunction } from './provider.js'
 
 declare module 'yup' {
     interface StringSchema {

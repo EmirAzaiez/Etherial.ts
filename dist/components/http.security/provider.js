@@ -1,5 +1,5 @@
-import etherial from '../../index';
-import { Middleware } from '../http/provider';
+import etherial from '../../index.js';
+import { Middleware } from '../http/provider.js';
 // ============================================
 // Rate Limiting Decorators
 // ============================================

@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Server } from 'socket.io';
-import etherial from '../../index';
+import etherial from '../../index.js';
 export class Reactive {
     constructor(config = {}) {
         this.io = null;

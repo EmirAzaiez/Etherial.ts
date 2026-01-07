@@ -1,4 +1,4 @@
-import { IEtherialModule } from '../../index'
+import { IEtherialModule } from '../../index.js'
 
 // ============================================
 // Types & Interfaces
