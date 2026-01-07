@@ -397,7 +397,6 @@ export class Http implements IEtherialModule {
     }
 
     async afterRun(): Promise<void> {
-        await this.listen()
     }
 
     getRegisteredRoutes(): { method: HttpMethod; path: string; handler: string }[] {
