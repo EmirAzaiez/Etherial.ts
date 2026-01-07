@@ -42,4 +42,3 @@ export function leafListCommand() {
         console.log(chalk.gray(`Example: etherial leaf:add ETHUserLeaf\n`));
     });
 }
-//# sourceMappingURL=leaf-list.js.map

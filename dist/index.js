@@ -117,4 +117,3 @@ export class Etherial {
 Etherial.RESERVED_KEYS = new Set(['initDone', 'initInProgress']);
 Object.freeze(Etherial);
 export default new Etherial();
-//# sourceMappingURL=index.js.map

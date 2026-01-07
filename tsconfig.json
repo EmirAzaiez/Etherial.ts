@@ -1,23 +1,23 @@
 {
-    "compilerOptions": {
-        "jsx": "react",
-        "lib": ["es5", "es6", "esnext", "dom"],
-        "target": "es6",
-        "module": "ESNext",
-        "moduleResolution": "bundler",
-        "outDir": "./dist",
-        "emitDecoratorMetadata": true,
-        "experimentalDecorators": true,
-        "sourceMap": true,
-        "baseUrl": "./",
-        "declaration": true,
-        "rootDir": "./src",
-        "esModuleInterop": true,
-        "skipLibCheck": true
-    },
     "include": ["src/**/*"],
     "exclude": ["node_modules", "dist", "resources"],
-    "ts-node": {
-        "esm": true
+    
+    "compilerOptions": {
+      "types": [
+        "node",
+      ],
+      "skipLibCheck": true,
+      "lib": ["es5", "es6", "esnext", "dom"],
+      "target": "es6",
+      "module": "esnext",
+      "moduleResolution": "bundler",
+      "emitDecoratorMetadata": true,
+      "experimentalDecorators": true,
+      "declaration": false,
+      "sourceMap": false,
+      "outDir": "./dist",
+      "baseUrl": "./",
+      "rootDir": "./src"
+
     }
-}
+  }

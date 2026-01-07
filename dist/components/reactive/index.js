@@ -368,4 +368,3 @@ export class Reactive {
         });
     }
 }
-//# sourceMappingURL=index.js.map

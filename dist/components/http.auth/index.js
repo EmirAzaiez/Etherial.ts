@@ -186,4 +186,3 @@ export class HttpAuth {
         ];
     }
 }
-//# sourceMappingURL=index.js.map

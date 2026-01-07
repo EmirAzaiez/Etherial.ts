@@ -118,4 +118,3 @@ function loadConfig(configPath) {
         return config.default || config;
     });
 }
-//# sourceMappingURL=cmd.js.map

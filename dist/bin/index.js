@@ -85,4 +85,3 @@ program
     .description('Run an Etherial module command (e.g. database:migrate)')
     .action(cmdCommand);
 program.parse();
-//# sourceMappingURL=index.js.map

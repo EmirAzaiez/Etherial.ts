@@ -82,4 +82,3 @@ export function leafUpdateCommand(leafName, options) {
         console.log(chalk.green('\n✅ Update complete!\n'));
     });
 }
-//# sourceMappingURL=leaf-update.js.map

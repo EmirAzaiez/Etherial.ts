@@ -165,4 +165,3 @@ export const ShouldValidateYupForm = (schema, location = 'body') => {
  * @deprecated The method should not be used, use instead ShouldValidateYupForm
  */
 export const UseYupForm = ShouldValidateYupForm;
-//# sourceMappingURL=yup.validator.js.map

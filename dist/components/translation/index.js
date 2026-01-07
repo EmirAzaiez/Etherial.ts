@@ -305,4 +305,3 @@ export function createTranslationMiddleware(translation) {
         next();
     };
 }
-//# sourceMappingURL=index.js.map

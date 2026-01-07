@@ -28,4 +28,3 @@ function ShouldBeAuthenticatedWithApiKey(apiKey, headerKey = 'x-api-key') {
     return Middleware(etherial['http_auth'].apiKeyMiddleware(apiKey, headerKey));
 }
 export { ShouldBeAuthenticated, ShouldBeAuthenticatedWithRole, ShouldBeAuthenticatedWithBasicAuth, ShouldBeAuthenticatedWithApiKey };
-//# sourceMappingURL=provider.js.map

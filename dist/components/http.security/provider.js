@@ -237,4 +237,3 @@ ShouldProtectBruteForce, ShouldUseStrictBruteForce,
 ShouldLimitSize, ShouldLimitTo1KB, ShouldLimitTo100KB, ShouldLimitTo1MB, ShouldLimitTo10MB, 
 // Composite
 ShouldSecureAuthRoute, ShouldSecureAPIRoute };
-//# sourceMappingURL=provider.js.map

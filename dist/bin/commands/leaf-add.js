@@ -262,4 +262,3 @@ function formatConfigExample(example, indent = 5) {
     }
     return result;
 }
-//# sourceMappingURL=leaf-add.js.map

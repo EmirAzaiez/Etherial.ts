@@ -50,4 +50,3 @@ export class HttpFront {
         return [];
     }
 }
-//# sourceMappingURL=index.js.map
