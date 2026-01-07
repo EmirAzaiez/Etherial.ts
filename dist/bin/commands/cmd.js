@@ -28,7 +28,13 @@ export function cmdCommand(commandName) {
             // Load etherial
             const etherial = (yield import('etherial')).default;
             // Load project config
-            const config = yield loadConfig(configPath);
+            const config = (yield loadConfig(configPath)).default;
+            if (config.http) {
+                if (config.http.config && config.http.config.port) {
+                    config.http.config.logging = false;
+                    config.http.config.port = parseInt(config.http.config.port) + 1;
+                }
+            }
             // Initialize etherial
             etherial.init(config);
             yield etherial.run();
@@ -48,7 +54,7 @@ export function cmdCommand(commandName) {
                 });
                 console.log(chalk.yellow(`\nUsage: ${chalk.cyan('etherial cmd <command>')}`));
                 console.log(chalk.gray(`Example: etherial cmd database:migrate\n`));
-                return;
+                process.exit(0);
             }
             // Find the command
             const command = flatCommands.find((cmd) => cmd.command === commandName);

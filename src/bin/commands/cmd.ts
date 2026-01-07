@@ -24,7 +24,14 @@ export async function cmdCommand(commandName: string | undefined) {
         const etherial = (await import('etherial')).default
 
         // Load project config
-        const config = await loadConfig(configPath)
+        const config = (await loadConfig(configPath)).default
+
+        if (config.http) {
+            if (config.http.config && config.http.config.port) {
+                config.http.config.logging = false
+                config.http.config.port = parseInt(config.http.config.port) + 1
+            }
+        }
 
         // Initialize etherial
         etherial.init(config)
@@ -50,7 +57,7 @@ export async function cmdCommand(commandName: string | undefined) {
 
             console.log(chalk.yellow(`\nUsage: ${chalk.cyan('etherial cmd <command>')}`))
             console.log(chalk.gray(`Example: etherial cmd database:migrate\n`))
-            return
+            process.exit(0)
         }
 
         // Find the command

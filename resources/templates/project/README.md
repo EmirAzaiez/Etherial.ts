@@ -1,4 +1,4 @@
-# My Etherial App
+# test2
 
 Project created with [Etherial.ts](https://github.com/EtherialFramework/Etherial.ts)
 
@@ -68,7 +68,6 @@ etherial leaf:remove ETHUserLeaf
 
 ```
 ├── src/
-│   ├── controllers/
 │   ├── models/
 │   ├── routes/
 │   ├── services/

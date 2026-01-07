@@ -16,15 +16,12 @@ import path from 'path'
     http: {
         module: HttpServer,
         config: {
-            port: parseInt(process.env.PORT || '3000'),
+            port: parseInt(process.env.HTTP_PORT || '3000'),
             
             // Directory containing your controller files
             routes: [
                 path.join(__dirname, 'controllers')
             ],
-            
-            // Global Middlewares
-            middlewares: [],
             
             // Optional Settings
             cors: true, // Enable CORS with default settings
@@ -43,8 +40,7 @@ import path from 'path'
 Recommended `.env` setup:
 
 ```env
-PORT=3000
-HOST=0.0.0.0
+HTTP_PORT=3000
 NODE_ENV=development
 ```
 
@@ -57,7 +53,6 @@ interface HttpConfig {
     port: number
     routes: string[] // Array of directories or files
     middlewares?: RequestHandler[]
-
     // Advanced Options
     host?: string
     https?: {

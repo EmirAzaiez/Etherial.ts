@@ -1,25 +1,19 @@
 import { Etherial } from 'etherial'
-
 import { Request, Response } from 'etherial/components/http/provider'
-
-import bodyParser from 'body-parser'
-import cors from 'cors'
-import methodOverride from 'method-override'
+import { User } from './models/User'
 
 export default class App {
-    beforeRun({ http }: Etherial) {
-        http.app.use(cors())
-        http.app.use(methodOverride())
-        http.app.use(bodyParser.json())
-    }
-
     run({ http, database, reactive, http_auth }: Etherial) {
-        http_auth.setCustomAuthentificationChecker(({ user_id }) => {
+        http_auth.setAuthChecker(({ user_id }) => {
             return User.findOne({
                 where: {
                     id: user_id,
                 },
             })
+        })
+
+        http_auth.setRoleChecker((user: User, role: any) => {
+            return true
         })
 
         http.app.use((err: { name: string }, req: Request, res: Response, next: any) => {
@@ -30,8 +24,8 @@ export default class App {
             }
         })
 
-        http.notFoundRoute((req, res) => {
-            res.error({ status: 404, error: 'api.not_found' })
+        http.notFoundRoute((req: Request, res: Response) => {
+            res.error({ status: 404, errors: ['api.not_found'] })
         })
 
         return Promise.all([

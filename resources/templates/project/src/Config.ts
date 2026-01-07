@@ -1,13 +1,14 @@
 import * as path from 'path'
 import { Dialect } from 'sequelize'
-
-import App from './app'
-
+import dotenv from 'dotenv'
+import App from './app.js'
 import { Database, DatabaseConfig } from 'etherial/components/database'
 import { Http, HttpConfig } from 'etherial/components/http'
 import { HttpAuth, HttpAuthConfig } from 'etherial/components/http.auth'
 import { Reactive, ReactiveConfig } from 'etherial/components/reactive'
 // import { Translation, TranslationConfig } from 'etherial/components/translation'
+
+dotenv.config()
 
 declare module 'etherial' {
     interface Etherial {
@@ -28,6 +29,7 @@ export default {
             password: process.env.DATABASE_PASSWORD!,
             name: process.env.DATABASE_NAME!,
             dialect: process.env.DATABASE_DIALECT! as Dialect,
+            //@ts-ignore
             models: [path.join(__dirname, 'models')],
         } satisfies DatabaseConfig,
     },
@@ -36,12 +38,15 @@ export default {
         config: {
             port: parseInt(process.env.HTTP_PORT!),
             routes: [path.join(__dirname, 'routes')],
+            bodyParser: {
+                json: true,
+            },
+
         } satisfies HttpConfig,
     },
     http_auth: {
         module: HttpAuth,
         config: {
-            type: 'JWT',
             secret: process.env.HTTP_AUTH_SECRET!,
         } satisfies HttpAuthConfig,
     },

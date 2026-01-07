@@ -20,11 +20,11 @@ import { Database, DatabaseConfig } from 'etherial/components/database'
     database: {
         module: Database,
         config: {
-            server: process.env.DB_HOST || 'localhost',
-            port: parseInt(process.env.DB_PORT || '5432'),
-            username: process.env.DB_USER || 'postgres',
-            password: process.env.DB_PASSWORD || 'secret',
-            name: process.env.DB_NAME || 'myapp',
+            server: process.env.DATABASE_HOST || 'localhost',
+            port: parseInt(process.env.DATABASE_PORT || '5432'),
+            username: process.env.DATABASE_USER || 'postgres',
+            password: process.env.DATABASE_PASSWORD || 'secret',
+            name: process.env.DATABASE_NAME || 'myapp',
             dialect: 'postgres', // 'mysql' | 'postgres' | 'sqlite' | 'mariadb' | 'mssql'
             
             // Auto-load models from this directory
@@ -45,11 +45,11 @@ import { Database, DatabaseConfig } from 'etherial/components/database'
 We recommend using a `.env` file:
 
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=root
-DB_PASSWORD=secret
-DB_NAME=etherial_db
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_USER=root
+DATABASE_PASSWORD=secret
+DATABASE_NAME=etherial_db
 ```
 
 ### Configuration Interface
