@@ -337,7 +337,17 @@ export class Http implements IEtherialModule {
 
         for (const { route, methods } of this.routes_leafs) {
             try {
-                const module = await import(route)
+                let module: any
+                try {
+                    module = await import(route)
+                } catch (importError: any) {
+                    // Retry with .js extension if module not found
+                    if (importError.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
+                        module = await import(route + '.js')
+                    } else {
+                        throw importError
+                    }
+                }
                 const controller = module.default
                 const instance = new controller()
                 const prefix = Reflect.getMetadata('prefix', controller) || ''

@@ -257,7 +257,19 @@ export class Http {
             this.setupHealthcheckRoute();
             for (const { route, methods } of this.routes_leafs) {
                 try {
-                    const module = yield import(route);
+                    let module;
+                    try {
+                        module = yield import(route);
+                    }
+                    catch (importError) {
+                        // Retry with .js extension if module not found
+                        if (importError.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
+                            module = yield import(route + '.js');
+                        }
+                        else {
+                            throw importError;
+                        }
+                    }
                     const controller = module.default;
                     const instance = new controller();
                     const prefix = Reflect.getMetadata('prefix', controller) || '';
