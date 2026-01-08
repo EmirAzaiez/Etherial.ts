@@ -247,6 +247,16 @@ export abstract class UserLeafBase extends Model<any> {
         console.log(`Email confirmation token for ${this.email}: ${confirmationToken}`)
     }
 
+    async sendSmsForPhoneVerification(confirmationCode: string): Promise<void> {
+        // TODO: Send SMS with confirmation code
+        console.log(`Phone confirmation code for ${this.phone}: ${confirmationCode}`)
+    }
+
+    async sendEmailForPasswordNotification(type: string): Promise<void> {
+        // TODO: Send email with password notification
+        console.log(`Password notification for ${this.email}`)
+    }
+
     static async createOrFetchUserFromGoogle(profile_id: string, firstname: string, lastname: string, email: string): Promise<UserLeafBase> {
         console.log('createOrFetchUserFromGoogle')
         return

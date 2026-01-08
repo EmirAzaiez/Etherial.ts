@@ -5,3 +5,4 @@ export { leafListCommand } from './leaf-list.js';
 export { leafRemoveCommand } from './leaf-remove.js';
 export { cmdCommand } from './cmd.js';
 export { openapiCommand } from './openapi.js';
+export { agentUpdateCommand } from './agent-update.js';

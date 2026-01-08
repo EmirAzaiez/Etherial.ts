@@ -1,6 +1,6 @@
 import { Controller, Post, Request, Response } from 'etherial/components/http/provider'
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
-import { ShouldBeAuthentificate } from 'etherial/components/http.security/provider'
+import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 import { User } from '../../models/User'
 import { PhoneValidationConfirmForm, PhoneValidationConfirmFormType, PhoneValidationSendForm, PhoneValidationSendFormType } from '../forms/user_phone_form'
 import * as crypto from 'crypto'
@@ -55,7 +55,7 @@ export default class ETHUserLeafPhoneController {
      */
     @Post('/users/me/phone/send')
     @ShouldValidateYupForm(PhoneValidationSendForm)
-    @ShouldBeAuthentificate()
+    @ShouldBeAuthenticated()
     public async sendPhoneValidation(req: Request & { form: PhoneValidationSendFormType; user: User }, res: Response): Promise<any> {
         try {
             const user = await User.unscoped().findByPk(req.user.id)
@@ -178,13 +178,13 @@ export default class ETHUserLeafPhoneController {
      * }
      */
     @Post('/users/me/phone/confirm')
-    @ShouldBeAuthentificate()
+    @ShouldBeAuthenticated()
     @ShouldValidateYupForm(PhoneValidationConfirmForm)
     public async confirmPhoneValidation(req: Request & { form: PhoneValidationConfirmFormType; user: User }, res: Response): Promise<any> {
         try {
             const user = await User.unscoped().findByPk(req.user.id)
 
-            if (user && !user.phone_verified && user.isConfirmationTokenValid(req.form.token, 'phone')) {
+            if (user && !user.phone_verified && user.isConfirmationTokenValid(req.form.token)) {
                 // Check if another user already owns this phone
                 const existing = await User.unscoped().findOne({
                     where: {

@@ -8,6 +8,7 @@ import { leafListCommand } from './commands/leaf-list.js';
 import { leafRemoveCommand } from './commands/leaf-remove.js';
 import { cmdCommand } from './commands/cmd.js';
 import { openapiCommand } from './commands/openapi.js';
+import { agentUpdateCommand } from './commands/agent-update.js';
 import { getLeafsWithUpdates } from './utils/leafs.js';
 const program = new Command();
 console.log(chalk.cyan(`
@@ -90,4 +91,9 @@ program
     .command('openapi')
     .description('Generate OpenAPI specification for the project')
     .action(openapiCommand);
+// Command: etherial agent:update
+program
+    .command('agent:update')
+    .description('Update .agent configuration from Etherial template (overwrites current .agent folder)')
+    .action(agentUpdateCommand);
 program.parse();

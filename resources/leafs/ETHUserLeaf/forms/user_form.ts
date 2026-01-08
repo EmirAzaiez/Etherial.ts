@@ -1,6 +1,6 @@
 import { EtherialYup } from 'etherial/components/http/yup.validator'
-import { EtherialYupS3 } from 'etherial/leafs/s3/extensions/http/yup.validator'
-import { S3FoldersKeys } from '../../constants'
+// import { EtherialYupS3 } from 'etherial/leafs/s3/extensions/http/yup.validator'
+// import { S3FoldersKeys } from '../../constants.ts'
 import { InferType } from 'yup'
 
 export const UpdatePasswordForm = EtherialYup.object({
@@ -33,7 +33,8 @@ export const CreatePasswordForm = EtherialYup.object({
 }).required()
 
 export const UpdateAvatarForm = EtherialYup.object({
-    avatar: EtherialYupS3.string().shouldBeS3File(S3FoldersKeys.USER_AVATAR, 'Avatar must be a valid file').required(),
+    avatar: EtherialYup.string().required(),
+    // avatar: EtherialYupS3.string().shouldBeS3File(S3FoldersKeys.USER_AVATAR, 'Avatar must be a valid file').required(),
 }).required()
 
 export type UpdatePasswordFormType = InferType<typeof UpdatePasswordForm>

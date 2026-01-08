@@ -225,11 +225,11 @@ export class Http implements IEtherialModule {
                         })
                         continue
                     } catch {
-                        this.log(`Warning: Could not load leaf route ${route}: ${(error as Error).message}`)
+                        this.log(`AWarning: Could not load leaf route ${route}: ${(error as Error).message}`)
                         // Fall through to error
                     }
                 } else {
-                    this.log(`Warning: Could not load leaf route ${route}: ${(error as Error).message}`)
+                    this.log(`BWarning: Could not load leaf route ${route}: ${(error as Error).message}`)
                 }
             }
         }
@@ -337,19 +337,22 @@ export class Http implements IEtherialModule {
 
         for (const { route, methods } of this.routes_leafs) {
             try {
-                let module: any
+                let ctrl: any
                 try {
-                    module = await import(route)
+                    ctrl = await import(route)
                 } catch (importError: any) {
                     // Retry with .js extension if module not found
                     if (importError.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
-                        module = await import(route + '.js')
+                        ctrl = await import(route + '.js')
                     } else {
                         throw importError
                     }
                 }
-                const controller = module.default
-                const instance = new controller()
+
+
+
+                const controller = ctrl.default || ctrl
+                const instance = new controller.default()
                 const prefix = Reflect.getMetadata('prefix', controller) || ''
                 const routes: RouteDefinition[] = Reflect.getMetadata('routes', controller) || []
 
@@ -359,7 +362,7 @@ export class Http implements IEtherialModule {
                     }
                 }
             } catch (error) {
-                this.log(`Warning: Could not load leaf route ${route}: ${(error as Error).message}`)
+                this.log(`CWarning: Could not load leaf route ${route}: ${(error as Error).message}`)
             }
         }
 

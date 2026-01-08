@@ -162,12 +162,12 @@ export class Http {
                             continue;
                         }
                         catch (_a) {
-                            this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
+                            this.log(`AWarning: Could not load leaf route ${route}: ${error.message}`);
                             // Fall through to error
                         }
                     }
                     else {
-                        this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
+                        this.log(`BWarning: Could not load leaf route ${route}: ${error.message}`);
                     }
                 }
             }
@@ -257,21 +257,21 @@ export class Http {
             this.setupHealthcheckRoute();
             for (const { route, methods } of this.routes_leafs) {
                 try {
-                    let module;
+                    let ctrl;
                     try {
-                        module = yield import(route);
+                        ctrl = yield import(route);
                     }
                     catch (importError) {
                         // Retry with .js extension if module not found
                         if (importError.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
-                            module = yield import(route + '.js');
+                            ctrl = yield import(route + '.js');
                         }
                         else {
                             throw importError;
                         }
                     }
-                    const controller = module.default;
-                    const instance = new controller();
+                    const controller = ctrl.default || ctrl;
+                    const instance = new controller.default();
                     const prefix = Reflect.getMetadata('prefix', controller) || '';
                     const routes = Reflect.getMetadata('routes', controller) || [];
                     for (const routeDef of routes) {
@@ -281,7 +281,7 @@ export class Http {
                     }
                 }
                 catch (error) {
-                    this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
+                    this.log(`CWarning: Could not load leaf route ${route}: ${error.message}`);
                 }
             }
             // 404 handler

@@ -4,7 +4,7 @@ import { Controller, Post, Put, Request, Response } from 'etherial/components/ht
 
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
-import { ShouldBeAuthentificate } from 'etherial/components/http.security/provider'
+import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
 import { User } from '../../models/User'
 
@@ -46,7 +46,7 @@ export default class ETHUserLeafAuthController {
      *    - credentials_expire_at à 90 jours à partir de maintenant
      *
      * @route POST /users/me/password
-     * @middleware ShouldBeAuthentificate - Vérifie que l'utilisateur est authentifié
+     * @middleware ShouldBeAuthenticated - Vérifie que l'utilisateur est authentifié
      * @middleware ShouldValidateYupForm - Valide le formulaire avec CreatePasswordForm
      * @param req.form.password - Le nouveau mot de passe à définir
      * @param req.user - L'utilisateur authentifié
@@ -57,7 +57,7 @@ export default class ETHUserLeafAuthController {
      * @returns 500 - Erreur interne du serveur
      */
     @Post('/users/me/password')
-    @ShouldBeAuthentificate()
+    @ShouldBeAuthenticated()
     @ShouldValidateYupForm(CreatePasswordForm)
     public async setUserPassword(req: Request & { form: CreatePasswordFormType; user: User }, res: Response): Promise<any> {
         try {
@@ -148,7 +148,7 @@ export default class ETHUserLeafAuthController {
      * }
      */
     @Put('/users/me/password')
-    @ShouldBeAuthentificate()
+    @ShouldBeAuthenticated()
     @ShouldValidateYupForm(UpdatePasswordForm)
     public async userUpdatePassword(req: Request & { form: UpdatePasswordFormType; user: User }, res: Response): Promise<any> {
         try {

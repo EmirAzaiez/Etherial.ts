@@ -4,7 +4,7 @@ import { Controller, Post, Request, Response } from 'etherial/components/http/pr
 
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
-import { ShouldBeAuthentificate } from 'etherial/components/http.security/provider'
+import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
 import { User } from '../../models/User'
 
@@ -57,7 +57,7 @@ export default class ETHUserLeafEmailController {
      * }
      */
     @Post('/users/me/email/send')
-    @ShouldBeAuthentificate()
+    @ShouldBeAuthenticated()
     @ShouldValidateYupForm(EmailValidationSendForm)
     public async sendEmailValidation(req: Request & { form: EmailValidationSendFormType; user: User }, res: Response): Promise<any> {
         try {
@@ -158,7 +158,7 @@ export default class ETHUserLeafEmailController {
      * }
      */
     @Post('/users/me/email/confirm')
-    @ShouldBeAuthentificate()
+    @ShouldBeAuthenticated()
     @ShouldValidateYupForm(EmailValidationConfirmForm)
     public async confirmEmailValidation(req: Request & { form: EmailValidationConfirmFormType; user: User }, res: Response): Promise<any> {
         try {
