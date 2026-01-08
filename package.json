@@ -32,8 +32,15 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepare": "npm run build"
   },
+  "files": [
+    "dist",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@tsed/common": "^5.36.0",
     "@tsed/core": "^5.36.0",
