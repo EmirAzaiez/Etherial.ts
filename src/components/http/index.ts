@@ -225,10 +225,12 @@ export class Http implements IEtherialModule {
                         })
                         continue
                     } catch {
+                        this.log(`Warning: Could not load leaf route ${route}: ${(error as Error).message}`)
                         // Fall through to error
                     }
+                } else {
+                    this.log(`Warning: Could not load leaf route ${route}: ${(error as Error).message}`)
                 }
-                this.log(`Warning: Could not load leaf route ${route}: ${(error as Error).message}`)
             }
         }
 

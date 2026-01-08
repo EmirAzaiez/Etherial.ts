@@ -162,10 +162,13 @@ export class Http {
                             continue;
                         }
                         catch (_a) {
+                            this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
                             // Fall through to error
                         }
                     }
-                    this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
+                    else {
+                        this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
+                    }
                 }
             }
             return controllers;
