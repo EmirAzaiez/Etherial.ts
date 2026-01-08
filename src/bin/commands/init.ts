@@ -25,7 +25,7 @@ function getTemplatePath(): string {
         return cwdNodeModules
     }
 
-    throw new Error('Template not found')
+    throw new Error(`Template not found at:\n- ${localPath}\n- ${cwdNodeModules}`)
 }
 
 /**

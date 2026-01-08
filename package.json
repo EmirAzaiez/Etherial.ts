@@ -1,6 +1,6 @@
 {
   "name": "etherial",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Modular TypeScript framework for building backend applications",
   "type": "module",
   "main": "dist/index.js",
@@ -38,7 +38,8 @@
     "dist",
     "package.json",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "resources"
   ],
   "dependencies": {
     "@tsed/common": "^5.36.0",
