@@ -2,205 +2,94 @@ import path from 'path'
 import fs from 'fs'
 import chalk from 'chalk'
 import ora from 'ora'
-import { Http } from '../../components/http/index.js'
-import { RouteDefinition } from '../../components/http/provider.js'
+import { createOpenAPIAnalyzer, OpenAPISpec } from '../../components/http/openapi.analyzer.js'
 
-export async function openapiCommand() { // etherial type is tricky as we load it dynamically
+export async function openapiCommand() {
     const projectPath = process.cwd()
-
-    // Find config file
-    const configPath = findConfigFile(projectPath)
-
-    if (!configPath) {
-        console.log(chalk.red('\n❌ Config file not found.'))
-        console.log(chalk.yellow('Make sure you have built your project: npm run build'))
-        return
-    }
 
     const spinner = ora('Analyzing project...').start()
 
     try {
-        const etherial = (await import('etherial')).default
-        // Load etherial is passed as arg from index usually, but here we might be running standalone? 
-        // Actually cmd system passes 'etherial' instance if called via 'cmd', but this is a specific command 'etherial openapi'
-        // We need to replicate setup from cmd.ts if this is a standalone command.
-        // Wait, looking at index.ts, 'openapi' will be exported.
-        // Implementation below assumes it is called essentially like `cmd` does, 
-        // BUT we need to initialize etherial first if it's not passed, or if we are the ones initializing it.
-        // Since we are defining `src/bin/commands/openapi.ts`, we likely need to handle initialization.
-        // Actually `index.ts` exports `initCommand`, `leaf...`, `cmdCommand`.
-        // We will export `openapiCommand`.
-        // Inspecting `bin/index.ts` (entry point) would clarify this, but assuming we need to bootstrap.
-
-        // Load project config
-        const config = (await loadConfig(configPath)).default
-
-        // Initialize etherial
-        etherial.init(config)
-        await etherial.run() // Run lifecycle to register leafs
-
-
-        // Find the Http module
-        // const httpModule = etherial.modules.find((m: any) => m instanceof Http) as Http
-
-        const httpModule = etherial.http
-
-
-        if (!httpModule) {
-            spinner.fail('Http module not found in Etherial instance.')
+        // Check if we have source files
+        const srcPath = path.join(projectPath, 'src')
+        if (!fs.existsSync(srcPath)) {
+            spinner.fail('Source directory not found')
+            console.log(chalk.yellow('Make sure you are in a project root with a src/ directory'))
             return
         }
 
-        spinner.text = 'Loading controllers...'
+        // Create analyzer
+        const analyzer = createOpenAPIAnalyzer()
 
-        // Load project controllers
-        const controllers = await httpModule.loadControllers()
+        // Detect project structure
+        const routesPath = detectRoutesPath(projectPath)
+        const modelsPath = detectModelsPath(projectPath)
+        const formsPath = detectFormsPath(projectPath)
 
-        // Load leaf controllers
-        const leafControllers = await httpModule.loadLeafControllers()
+        spinner.text = 'Analyzing routes...'
 
-        // Generate OpenAPI Spec
-        const openApiSpec: any = {
-            openapi: '3.0.0',
-            info: {
-                title: config.name || 'Etherial Project',
-                version: '1.0.0',
-            },
-            paths: {},
-            components: {
-                schemas: {},
-            },
-        }
-
-        // Helper to process routes
-        const processRoutes = (controller: any, prefix: string, allowedMethods?: string[]) => {
-            const routes: RouteDefinition[] = Reflect.getMetadata('routes', controller) || []
-
-            for (const route of routes) {
-                // Filter by allowed methods if specified (for Leafs)
-                if (allowedMethods && !allowedMethods.includes(route.methodName)) {
-                    continue
-                }
-
-                const fullPath = (prefix + route.path).replace(/:([a-zA-Z0-9_]+)/g, '{$1}') // Convert /:id to /{id}
-                const method = route.requestMethod
-
-                if (!openApiSpec.paths[fullPath]) {
-                    openApiSpec.paths[fullPath] = {}
-                }
-
-                const operation: any = {
-                    summary: route.methodName,
-                    responses: {
-                        '200': {
-                            description: 'Success',
-                        }
-                    }
-                }
-
-                // Inspect metadata for Request Body (Yup Schema)
-                const yupSchema = Reflect.getMetadata('yup_form_schema', controller.prototype, route.methodName)
-                if (yupSchema) {
-                    // Basic conversion of Yup to JSON Schema (simplified)
-                    // In a real implementation this would be more robust or use a library
-                    const description = yupSchema.describe()
-                    operation.requestBody = {
-                        content: {
-                            'application/json': {
-                                schema: convertYupToOpenApi(description)
-                            }
-                        }
-                    }
-                }
-
-                // Inspect metadata for Response (Sequelize Model)
-                const modelUsage = Reflect.getMetadata('model_usage', controller.prototype, route.methodName)
-                if (modelUsage) {
-                    const { model, operation: op } = modelUsage
-                    const modelName = model.name
-
-                    // Add Schema if not exists
-                    if (!openApiSpec.components.schemas[modelName]) {
-                        openApiSpec.components.schemas[modelName] = convertSequelizeToOpenApi(model)
-                    }
-
-                    // Link response
-                    if (op === 'findAll') {
-                        operation.responses['200'].content = {
-                            'application/json': {
-                                schema: {
-                                    type: 'object',
-                                    properties: {
-                                        status: { type: 'number', example: 200 },
-                                        data: {
-                                            type: 'array',
-                                            items: { $ref: `#/components/schemas/${modelName}` }
-                                        },
-                                        count: { type: 'number' }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // FindOne, Create, Update
-                        operation.responses['200'].content = {
-                            'application/json': {
-                                schema: {
-                                    type: 'object',
-                                    properties: {
-                                        status: { type: 'number', example: 200 },
-                                        data: { $ref: `#/components/schemas/${modelName}` }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Parameters
-                const pathParams = fullPath.match(/{([a-zA-Z0-9_]+)}/g)
-                if (pathParams) {
-                    operation.parameters = pathParams.map(p => ({
-                        name: p.replace(/[{}]/g, ''),
-                        in: 'path',
-                        required: true,
-                        schema: { type: 'string' }
-                    }))
-                }
-
-                openApiSpec.paths[fullPath][method] = operation
+        // Get project name from package.json if exists
+        let projectName = 'Etherial API'
+        const packageJsonPath = path.join(projectPath, 'package.json')
+        if (fs.existsSync(packageJsonPath)) {
+            try {
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+                projectName = packageJson.name || projectName
+            } catch {
+                // Ignore parse errors
             }
         }
 
-        // Process standard controllers
-        for (const { controller } of controllers) {
-            const ctrl = controller.default || controller
-            const prefix = Reflect.getMetadata('prefix', ctrl) || ''
-            processRoutes(ctrl, prefix)
-        }
+        // Analyze project
+        const spec = await analyzer.analyzeProject(projectPath, {
+            routesPaths: routesPath ? [routesPath] : [],
+            modelsPaths: modelsPath ? [modelsPath] : [],
+            formsPaths: formsPath ? [formsPath] : [],
+            projectName,
+        })
 
-        // Process leaf controllers
-        for (const { controller, methods } of leafControllers) {
-            const ctrl = controller.default || controller
-            const prefix = Reflect.getMetadata('prefix', ctrl) || ''
-            processRoutes(ctrl, prefix, methods)
-        }
+        // Add some stats
+        const routeCount = Object.keys(spec.paths).length
+        const schemaCount = Object.keys(spec.components.schemas).length
+        const leafCount = detectLeafCount(projectPath)
+
+        spinner.text = 'Writing openapi.json...'
 
         // Write file
-        fs.writeFileSync(path.join(process.cwd(), 'openapi.json'), JSON.stringify(openApiSpec, null, 2))
+        const outputPath = path.join(projectPath, 'openapi.json')
+        fs.writeFileSync(outputPath, JSON.stringify(spec, null, 2))
 
-        spinner.succeed('openapi.json generated successfully!')
+        spinner.succeed(chalk.green('openapi.json generated successfully!'))
+
+        console.log('')
+        console.log(chalk.cyan('📊 Summary:'))
+        console.log(chalk.white(`   • Routes: ${routeCount}`))
+        console.log(chalk.white(`   • Schemas: ${schemaCount}`))
+        if (leafCount > 0) {
+            console.log(chalk.white(`   • Leafs: ${leafCount}`))
+        }
+        console.log('')
+        console.log(chalk.gray(`   Output: ${outputPath}`))
 
     } catch (error) {
         spinner.fail('Failed to generate OpenAPI spec')
-        console.error(chalk.red(error))
+        console.error(chalk.red((error as Error).message))
+        if (process.env.DEBUG) {
+            console.error(error)
+        }
     }
 }
 
-function findConfigFile(projectPath: string): string | null {
+// ============================================
+// Path Detection Helpers
+// ============================================
+
+function detectRoutesPath(projectPath: string): string | null {
     const possiblePaths = [
-        path.join(projectPath, 'dist', 'Config.js'),
-        path.join(projectPath, 'dist', 'src', 'Config.js'),
+        path.join(projectPath, 'src', 'routes'),
+        path.join(projectPath, 'routes'),
+        path.join(projectPath, 'src', 'controllers'),
+        path.join(projectPath, 'controllers'),
     ]
 
     for (const p of possiblePaths) {
@@ -212,59 +101,70 @@ function findConfigFile(projectPath: string): string | null {
     return null
 }
 
-async function loadConfig(configPath: string): Promise<any> {
-    const config = await import(configPath)
-    return config.default || config
+function detectModelsPath(projectPath: string): string | null {
+    const possiblePaths = [
+        path.join(projectPath, 'src', 'models'),
+        path.join(projectPath, 'models'),
+    ]
+
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+            return p
+        }
+    }
+
+    return null
 }
 
-// Helpers
-function convertYupToOpenApi(description: any): any {
-    if (!description) return {}
+function detectFormsPath(projectPath: string): string | null {
+    const possiblePaths = [
+        path.join(projectPath, 'src', 'forms'),
+        path.join(projectPath, 'forms'),
+        path.join(projectPath, 'src', 'schemas'),
+        path.join(projectPath, 'schemas'),
+    ]
 
-    // Simplified conversion
-    if (description.type === 'object') {
-        const properties: any = {}
-        const required: string[] = []
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+            return p
+        }
+    }
 
-        if (description.fields) {
-            for (const key in description.fields) {
-                properties[key] = convertYupToOpenApi(description.fields[key])
-                // if (description.fields[key].tests?.some((t: any) => t.name === 'required')) required.push(key)
+    return null
+}
+
+function detectLeafCount(projectPath: string): number {
+    const srcPath = path.join(projectPath, 'src')
+    if (!fs.existsSync(srcPath)) return 0
+
+    try {
+        const entries = fs.readdirSync(srcPath, { withFileTypes: true })
+        let count = 0
+
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue
+
+            const dirPath = path.join(srcPath, entry.name)
+            const hasLeafJson = fs.existsSync(path.join(dirPath, 'leaf.json'))
+            const matchesPattern = /^ETH\w+Leaf$/.test(entry.name)
+
+            if (hasLeafJson || matchesPattern) {
+                count++
             }
         }
 
-        return {
-            type: 'object',
-            properties,
-            // required
-        }
+        return count
+    } catch {
+        return 0
     }
-
-    if (description.type === 'string') return { type: 'string' }
-    if (description.type === 'number') return { type: 'number' }
-    if (description.type === 'boolean') return { type: 'boolean' }
-
-    return { type: 'string' }
 }
 
-function convertSequelizeToOpenApi(model: any): any {
-    const properties: any = {}
-    const rawAttributes = model.rawAttributes
+// ============================================
+// Additional Export for CLI
+// ============================================
 
-    for (const key in rawAttributes) {
-        const attr = rawAttributes[key]
-        let type = 'string'
-
-        if (attr.type.constructor.name === 'INTEGER' || attr.type.key === 'INTEGER') type = 'number'
-        if (attr.type.constructor.name === 'FLOAT' || attr.type.key === 'FLOAT') type = 'number'
-        if (attr.type.constructor.name === 'BOOLEAN' || attr.type.key === 'BOOLEAN') type = 'boolean'
-        if (attr.type.constructor.name === 'DATE' || attr.type.key === 'DATE') type = 'string' // format: date-time
-
-        properties[key] = { type }
-    }
-
-    return {
-        type: 'object',
-        properties
-    }
+export const command = {
+    name: 'openapi',
+    description: 'Generate OpenAPI specification from project routes, models, and forms',
+    action: openapiCommand,
 }

@@ -142,9 +142,7 @@ export class Http {
     loadLeafControllers() {
         return __awaiter(this, void 0, void 0, function* () {
             const controllers = [];
-            console.log(2);
             for (const { route, methods } of this.routes_leafs) {
-                console.log(3);
                 try {
                     const module = yield import(route);
                     controllers.push({
@@ -153,8 +151,6 @@ export class Http {
                     });
                 }
                 catch (error) {
-                    console.log(4);
-                    console.log("ERRROR;", error);
                     // Retry with .js extension 
                     if (error.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
                         try {

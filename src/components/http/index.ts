@@ -206,9 +206,8 @@ export class Http implements IEtherialModule {
     public async loadLeafControllers(): Promise<{ controller: any; methods: string[] }[]> {
         const controllers: { controller: any; methods: string[] }[] = []
 
-        console.log(2)
+
         for (const { route, methods } of this.routes_leafs) {
-            console.log(3)
             try {
                 const module = await import(route)
                 controllers.push({
@@ -216,9 +215,6 @@ export class Http implements IEtherialModule {
                     methods,
                 })
             } catch (error: any) {
-                console.log(4)
-                console.log("ERRROR;", error)
-
                 // Retry with .js extension 
                 if (error.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
                     try {
