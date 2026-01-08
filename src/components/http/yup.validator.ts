@@ -149,7 +149,7 @@ export const ShouldValidateYupForm = (schema: any, location: 'body' | 'query' | 
         throw new Error('ShouldValidateYupForm: Invalid location')
     }
 
-    return Middleware(async (req: Request, res: Response, next: NextFunction) => {
+    const middlewareDecorator = Middleware(async (req: Request, res: Response, next: NextFunction) => {
         try {
             const yupContext: any = { _modelInstances: {} }
             const validatedData = await schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true, context: yupContext })
@@ -167,6 +167,11 @@ export const ShouldValidateYupForm = (schema: any, location: 'body' | 'query' | 
             res.error({ status: 400, errors: error.errors })
         }
     })
+
+    return (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => {
+        Reflect.defineMetadata('yup_form_schema', schema, target, propertyKey)
+        middlewareDecorator(target, propertyKey, descriptor)
+    }
 }
 
 /**

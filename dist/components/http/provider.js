@@ -68,7 +68,7 @@ export const Controller = (prefixOrOptions = '') => {
  */
 export const ShouldFindAllFromModel = (model, options) => {
     const { attributes, include = [], defaultLimit = 20, maxLimit = 100, allowedFilters = [], defaultOrder = [], canAccess, whereFn, search, } = options;
-    return Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const middlewareDecorator = Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b, _c, _d;
         try {
             // Check authorization
@@ -82,7 +82,6 @@ export const ShouldFindAllFromModel = (model, options) => {
             const page = Math.max(1, Number(req.query.page) || 1);
             const limit = Math.min(maxLimit, Math.max(1, Number(req.query.limit) || defaultLimit));
             const offset = (page - 1) * limit;
-            // Build where clause from allowed filters
             // Build where clause from allowed filters
             const where = {};
             for (const filter of allowedFilters) {
@@ -121,13 +120,17 @@ export const ShouldFindAllFromModel = (model, options) => {
             (_d = res.error) === null || _d === void 0 ? void 0 : _d.call(res, { status: 500, errors: [err.message] });
         }
     }));
+    return (target, propertyKey, descriptor) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'findAll', options }, target, propertyKey);
+        middlewareDecorator(target, propertyKey, descriptor);
+    };
 };
 /**
  * GET /:id - Find one record by ID
  */
 export const ShouldFindOneFromModel = (model, options) => {
     const { paramName, attributes, include = [], canAccess, whereFn } = options;
-    return Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const middlewareDecorator = Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b, _c, _d;
         try {
             const id = req.params[paramName];
@@ -156,13 +159,17 @@ export const ShouldFindOneFromModel = (model, options) => {
             (_d = res.error) === null || _d === void 0 ? void 0 : _d.call(res, { status: 500, errors: [err.message] });
         }
     }));
+    return (target, propertyKey, descriptor) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'findOne', options }, target, propertyKey);
+        middlewareDecorator(target, propertyKey, descriptor);
+    };
 };
 /**
  * POST / - Create a new record (use @ShouldValidateYupForm decorator for validation)
  */
 export const ShouldCreateFromModel = (model, options) => {
     const { canAccess } = options;
-    return Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const middlewareDecorator = Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e;
         try {
             // Check authorization
@@ -181,13 +188,17 @@ export const ShouldCreateFromModel = (model, options) => {
             (_d = res.error) === null || _d === void 0 ? void 0 : _d.call(res, { status: 400, errors: (_e = err.errors) !== null && _e !== void 0 ? _e : [err.message] });
         }
     }));
+    return (target, propertyKey, descriptor) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'create', options }, target, propertyKey);
+        middlewareDecorator(target, propertyKey, descriptor);
+    };
 };
 /**
  * PUT /:id - Update a record by ID (use @ShouldValidateYupForm decorator for validation)
  */
 export const ShouldUpdateFromModel = (model, options) => {
     const { paramName, canAccess } = options;
-    return Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const middlewareDecorator = Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f;
         try {
             const id = req.params[paramName];
@@ -212,13 +223,17 @@ export const ShouldUpdateFromModel = (model, options) => {
             (_e = res.error) === null || _e === void 0 ? void 0 : _e.call(res, { status: 400, errors: (_f = err.errors) !== null && _f !== void 0 ? _f : [err.message] });
         }
     }));
+    return (target, propertyKey, descriptor) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'update', options }, target, propertyKey);
+        middlewareDecorator(target, propertyKey, descriptor);
+    };
 };
 /**
  * DELETE /:id - Delete a record by ID
  */
 export const ShouldDeleteFromModel = (model, options) => {
     const { paramName, canAccess } = options;
-    return Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const middlewareDecorator = Middleware((req, res) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b, _c, _d;
         try {
             const id = req.params[paramName];
@@ -242,6 +257,10 @@ export const ShouldDeleteFromModel = (model, options) => {
             (_d = res.error) === null || _d === void 0 ? void 0 : _d.call(res, { status: 500, errors: [err.message] });
         }
     }));
+    return (target, propertyKey, descriptor) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'delete', options }, target, propertyKey);
+        middlewareDecorator(target, propertyKey, descriptor);
+    };
 };
 /**
  * GET /search?q=... - Full-text search across multiple fields

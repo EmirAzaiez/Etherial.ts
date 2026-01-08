@@ -153,7 +153,7 @@ export class Http implements IEtherialModule {
         }
     }
 
-    private async loadControllers(): Promise<{ route: string; controller: any }[]> {
+    public async loadControllers(): Promise<{ route: string; controller: any }[]> {
         const controllers: { route: string; controller: any }[] = []
 
         for (const routePath of this.routes) {
@@ -171,14 +171,68 @@ export class Http implements IEtherialModule {
                     const imports = await Promise.all(
                         files.map(async (file) => {
                             const filePath = `${routePath}/${file}`
-                            const module = await import(filePath)
-                            return { route: filePath, controller: module.default }
+                            try {
+                                const module = await import(filePath)
+                                return { route: filePath, controller: module.default }
+                            } catch (error: any) {
+                                // Try appending .js if import failed
+                                if (error.code === 'ERR_MODULE_NOT_FOUND' && !filePath.endsWith('.js')) {
+                                    try {
+                                        const module = await import(filePath + '.js')
+                                        return { route: filePath, controller: module.default }
+                                    } catch {
+                                        throw error // Throw original error if retry fails
+                                    }
+                                }
+                                throw error
+                            }
                         })
                     )
                     controllers.push(...imports)
                 }
             } catch (error) {
+                // Try appending .js to the main routePath if it failed (e.g. if routePath was a file without extension)
+                // However, fs.lstat would have likely failed first if it didn't exist?
+                // Actually lstat works on paths without extension? No.
+                // The issue user reported was likely in the `loadLeafControllers` block or `this.routes` iteration where routePath is an import string from node_modules or similar?
+
                 this.log(`Warning: Could not load route ${routePath}: ${(error as Error).message}`)
+            }
+        }
+
+        return controllers
+    }
+
+    public async loadLeafControllers(): Promise<{ controller: any; methods: string[] }[]> {
+        const controllers: { controller: any; methods: string[] }[] = []
+
+        console.log(2)
+        for (const { route, methods } of this.routes_leafs) {
+            console.log(3)
+            try {
+                const module = await import(route)
+                controllers.push({
+                    controller: module.default,
+                    methods,
+                })
+            } catch (error: any) {
+                console.log(4)
+                console.log("ERRROR;", error)
+
+                // Retry with .js extension 
+                if (error.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
+                    try {
+                        const module = await import(route + '.js')
+                        controllers.push({
+                            controller: module.default,
+                            methods,
+                        })
+                        continue
+                    } catch {
+                        // Fall through to error
+                    }
+                }
+                this.log(`Warning: Could not load leaf route ${route}: ${(error as Error).message}`)
             }
         }
 

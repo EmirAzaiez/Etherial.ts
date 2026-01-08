@@ -143,7 +143,7 @@ export const ShouldValidateYupForm = (schema, location = 'body') => {
     if (location != 'body' && location != 'query' && location != 'params') {
         throw new Error('ShouldValidateYupForm: Invalid location');
     }
-    return Middleware((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    const middlewareDecorator = Middleware((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const yupContext = { _modelInstances: {} };
             const validatedData = yield schema.validate(req[location], { abortEarly: false, strict: true, stripUnknown: true, context: yupContext });
@@ -160,6 +160,10 @@ export const ShouldValidateYupForm = (schema, location = 'body') => {
             res.error({ status: 400, errors: error.errors });
         }
     }));
+    return (target, propertyKey, descriptor) => {
+        Reflect.defineMetadata('yup_form_schema', schema, target, propertyKey);
+        middlewareDecorator(target, propertyKey, descriptor);
+    };
 };
 /**
  * @deprecated The method should not be used, use instead ShouldValidateYupForm

@@ -107,14 +107,69 @@ export class Http {
                         const files = yield fs.readdir(routePath);
                         const imports = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                             const filePath = `${routePath}/${file}`;
-                            const module = yield import(filePath);
-                            return { route: filePath, controller: module.default };
+                            try {
+                                const module = yield import(filePath);
+                                return { route: filePath, controller: module.default };
+                            }
+                            catch (error) {
+                                // Try appending .js if import failed
+                                if (error.code === 'ERR_MODULE_NOT_FOUND' && !filePath.endsWith('.js')) {
+                                    try {
+                                        const module = yield import(filePath + '.js');
+                                        return { route: filePath, controller: module.default };
+                                    }
+                                    catch (_a) {
+                                        throw error; // Throw original error if retry fails
+                                    }
+                                }
+                                throw error;
+                            }
                         })));
                         controllers.push(...imports);
                     }
                 }
                 catch (error) {
+                    // Try appending .js to the main routePath if it failed (e.g. if routePath was a file without extension)
+                    // However, fs.lstat would have likely failed first if it didn't exist?
+                    // Actually lstat works on paths without extension? No.
+                    // The issue user reported was likely in the `loadLeafControllers` block or `this.routes` iteration where routePath is an import string from node_modules or similar?
                     this.log(`Warning: Could not load route ${routePath}: ${error.message}`);
+                }
+            }
+            return controllers;
+        });
+    }
+    loadLeafControllers() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const controllers = [];
+            console.log(2);
+            for (const { route, methods } of this.routes_leafs) {
+                console.log(3);
+                try {
+                    const module = yield import(route);
+                    controllers.push({
+                        controller: module.default,
+                        methods,
+                    });
+                }
+                catch (error) {
+                    console.log(4);
+                    console.log("ERRROR;", error);
+                    // Retry with .js extension 
+                    if (error.code === 'ERR_MODULE_NOT_FOUND' && !route.endsWith('.js')) {
+                        try {
+                            const module = yield import(route + '.js');
+                            controllers.push({
+                                controller: module.default,
+                                methods,
+                            });
+                            continue;
+                        }
+                        catch (_a) {
+                            // Fall through to error
+                        }
+                    }
+                    this.log(`Warning: Could not load leaf route ${route}: ${error.message}`);
                 }
             }
             return controllers;

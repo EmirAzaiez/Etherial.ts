@@ -189,7 +189,7 @@ export const ShouldFindAllFromModel = (model: any, options: FindAllOptions): Met
         search,
     } = options
 
-    return Middleware(async (req: RequestWithUser, res: Response) => {
+    const middlewareDecorator = Middleware(async (req: RequestWithUser, res: Response) => {
         try {
             // Check authorization
             if (canAccess) {
@@ -204,7 +204,6 @@ export const ShouldFindAllFromModel = (model: any, options: FindAllOptions): Met
             const limit = Math.min(maxLimit, Math.max(1, Number(req.query.limit) || defaultLimit))
             const offset = (page - 1) * limit
 
-            // Build where clause from allowed filters
             // Build where clause from allowed filters
             const where: any = {}
             for (const filter of allowedFilters) {
@@ -247,6 +246,11 @@ export const ShouldFindAllFromModel = (model: any, options: FindAllOptions): Met
             res.error?.({ status: 500, errors: [err.message] })
         }
     })
+
+    return (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'findAll', options }, target, propertyKey)
+        middlewareDecorator(target, propertyKey, descriptor)
+    }
 }
 
 /**
@@ -255,7 +259,7 @@ export const ShouldFindAllFromModel = (model: any, options: FindAllOptions): Met
 export const ShouldFindOneFromModel = (model: any, options: FindOneOptions): MethodDecorator => {
     const { paramName, attributes, include = [], canAccess, whereFn } = options
 
-    return Middleware(async (req: RequestWithUser, res: Response) => {
+    const middlewareDecorator = Middleware(async (req: RequestWithUser, res: Response) => {
         try {
             const id = req.params[paramName]
 
@@ -287,6 +291,11 @@ export const ShouldFindOneFromModel = (model: any, options: FindOneOptions): Met
             res.error?.({ status: 500, errors: [err.message] })
         }
     })
+
+    return (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'findOne', options }, target, propertyKey)
+        middlewareDecorator(target, propertyKey, descriptor)
+    }
 }
 
 /**
@@ -295,7 +304,7 @@ export const ShouldFindOneFromModel = (model: any, options: FindOneOptions): Met
 export const ShouldCreateFromModel = (model: any, options: CreateOptions): MethodDecorator => {
     const { canAccess } = options
 
-    return Middleware(async (req: RequestWithUser, res: Response) => {
+    const middlewareDecorator = Middleware(async (req: RequestWithUser, res: Response) => {
         try {
             // Check authorization
             if (canAccess) {
@@ -313,6 +322,11 @@ export const ShouldCreateFromModel = (model: any, options: CreateOptions): Metho
             res.error?.({ status: 400, errors: err.errors ?? [err.message] })
         }
     })
+
+    return (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'create', options }, target, propertyKey)
+        middlewareDecorator(target, propertyKey, descriptor)
+    }
 }
 
 /**
@@ -321,7 +335,7 @@ export const ShouldCreateFromModel = (model: any, options: CreateOptions): Metho
 export const ShouldUpdateFromModel = (model: any, options: UpdateOptions): MethodDecorator => {
     const { paramName, canAccess } = options
 
-    return Middleware(async (req: RequestWithUser, res: Response) => {
+    const middlewareDecorator = Middleware(async (req: RequestWithUser, res: Response) => {
         try {
             const id = req.params[paramName]
             const record = await model.findByPk(id)
@@ -347,6 +361,11 @@ export const ShouldUpdateFromModel = (model: any, options: UpdateOptions): Metho
             res.error?.({ status: 400, errors: err.errors ?? [err.message] })
         }
     })
+
+    return (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'update', options }, target, propertyKey)
+        middlewareDecorator(target, propertyKey, descriptor)
+    }
 }
 
 /**
@@ -355,7 +374,7 @@ export const ShouldUpdateFromModel = (model: any, options: UpdateOptions): Metho
 export const ShouldDeleteFromModel = (model: any, options: DeleteOptions): MethodDecorator => {
     const { paramName, canAccess } = options
 
-    return Middleware(async (req: RequestWithUser, res: Response) => {
+    const middlewareDecorator = Middleware(async (req: RequestWithUser, res: Response) => {
         try {
             const id = req.params[paramName]
             const record = await model.findByPk(id)
@@ -380,6 +399,11 @@ export const ShouldDeleteFromModel = (model: any, options: DeleteOptions): Metho
             res.error?.({ status: 500, errors: [err.message] })
         }
     })
+
+    return (target: any, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) => {
+        Reflect.defineMetadata('model_usage', { model, operation: 'delete', options }, target, propertyKey)
+        middlewareDecorator(target, propertyKey, descriptor)
+    }
 }
 
 // ============================================

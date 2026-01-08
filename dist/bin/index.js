@@ -7,6 +7,7 @@ import { leafUpdateCommand } from './commands/leaf-update.js';
 import { leafListCommand } from './commands/leaf-list.js';
 import { leafRemoveCommand } from './commands/leaf-remove.js';
 import { cmdCommand } from './commands/cmd.js';
+import { openapiCommand } from './commands/openapi.js';
 import { getLeafsWithUpdates } from './utils/leafs.js';
 const program = new Command();
 console.log(chalk.cyan(`
@@ -84,4 +85,9 @@ program
     .command('cmd [command]')
     .description('Run an Etherial module command (e.g. database:migrate)')
     .action(cmdCommand);
+// Command: etherial openapi
+program
+    .command('openapi')
+    .description('Generate OpenAPI specification for the project')
+    .action(openapiCommand);
 program.parse();
