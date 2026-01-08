@@ -117,6 +117,76 @@ export const Controller = (prefixOrOptions: string | ControllerOptions = ''): Cl
 }
 
 // ============================================
+// OpenAPI Response Schema Decorator
+// ============================================
+
+export interface OpenAPIResponseSchemaOptions {
+    /** Whether the response is an array */
+    isArray?: boolean
+    /** Description of the response */
+    description?: string
+    /** HTTP status code (default: 200) */
+    statusCode?: number
+}
+
+/**
+ * Decorator to define the response schema for OpenAPI documentation.
+ * The schema will be wrapped in `{ status: number, data: <schema> }`.
+ * 
+ * @param schemaOrModel - Either a Sequelize Model class (e.g., User) or an inline schema object
+ * @param options - Optional configuration (isArray, description, statusCode)
+ * 
+ * @example Using a Model:
+ * ```typescript
+ * @Get('/users/me')
+ * @OpenAPIResponseSchema(User)
+ * getMe(req: Request, res: Response) {
+ *     return User.findByPk(req.user.id)
+ * }
+ * 
+ * @Get('/users')
+ * @OpenAPIResponseSchema(User, { isArray: true })
+ * getAll(req: Request, res: Response) {
+ *     return User.findAll()
+ * }
+ * ```
+ * 
+ * @example Using an inline schema object:
+ * ```typescript
+ * @Get('/stats')
+ * @OpenAPIResponseSchema({
+ *     totalUsers: { type: 'number' },
+ *     activeToday: { type: 'number' },
+ *     lastUpdate: { type: 'string', format: 'date-time' }
+ * })
+ * getStats(req: Request, res: Response) {
+ *     return { totalUsers: 100, activeToday: 25, lastUpdate: new Date() }
+ * }
+ * ```
+ */
+export const OpenAPIResponseSchema = (
+    schemaOrModel: any,
+    options: OpenAPIResponseSchemaOptions = {}
+): MethodDecorator => {
+    return (target: any, propertyKey: string): void => {
+        // Determine if it's a Model (has .name) or an inline schema object
+        const isModel = typeof schemaOrModel === 'function' && schemaOrModel.name
+
+        Reflect.defineMetadata('openapi_response_schema', {
+            schema: schemaOrModel,
+            schemaName: isModel ? schemaOrModel.name : null,
+            isInlineSchema: !isModel,
+            isArray: options.isArray ?? false,
+            description: options.description,
+            statusCode: options.statusCode ?? 200
+        }, target, propertyKey)
+    }
+}
+
+// Alias for backward compatibility
+export const ResponseSchema = OpenAPIResponseSchema
+
+// ============================================
 // CRUD Model Decorators
 // ============================================
 

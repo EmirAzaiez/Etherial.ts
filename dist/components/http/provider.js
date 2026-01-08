@@ -64,6 +64,58 @@ export const Controller = (prefixOrOptions = '') => {
     };
 };
 /**
+ * Decorator to define the response schema for OpenAPI documentation.
+ * The schema will be wrapped in `{ status: number, data: <schema> }`.
+ *
+ * @param schemaOrModel - Either a Sequelize Model class (e.g., User) or an inline schema object
+ * @param options - Optional configuration (isArray, description, statusCode)
+ *
+ * @example Using a Model:
+ * ```typescript
+ * @Get('/users/me')
+ * @OpenAPIResponseSchema(User)
+ * getMe(req: Request, res: Response) {
+ *     return User.findByPk(req.user.id)
+ * }
+ *
+ * @Get('/users')
+ * @OpenAPIResponseSchema(User, { isArray: true })
+ * getAll(req: Request, res: Response) {
+ *     return User.findAll()
+ * }
+ * ```
+ *
+ * @example Using an inline schema object:
+ * ```typescript
+ * @Get('/stats')
+ * @OpenAPIResponseSchema({
+ *     totalUsers: { type: 'number' },
+ *     activeToday: { type: 'number' },
+ *     lastUpdate: { type: 'string', format: 'date-time' }
+ * })
+ * getStats(req: Request, res: Response) {
+ *     return { totalUsers: 100, activeToday: 25, lastUpdate: new Date() }
+ * }
+ * ```
+ */
+export const OpenAPIResponseSchema = (schemaOrModel, options = {}) => {
+    return (target, propertyKey) => {
+        var _a, _b;
+        // Determine if it's a Model (has .name) or an inline schema object
+        const isModel = typeof schemaOrModel === 'function' && schemaOrModel.name;
+        Reflect.defineMetadata('openapi_response_schema', {
+            schema: schemaOrModel,
+            schemaName: isModel ? schemaOrModel.name : null,
+            isInlineSchema: !isModel,
+            isArray: (_a = options.isArray) !== null && _a !== void 0 ? _a : false,
+            description: options.description,
+            statusCode: (_b = options.statusCode) !== null && _b !== void 0 ? _b : 200
+        }, target, propertyKey);
+    };
+};
+// Alias for backward compatibility
+export const ResponseSchema = OpenAPIResponseSchema;
+/**
  * GET / - Find all records with pagination, filtering, and optional search
  */
 export const ShouldFindAllFromModel = (model, options) => {
