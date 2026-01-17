@@ -1,0 +1,65 @@
+{
+    "name": "ETHAdminLeaf",
+    "version": "3.0.0",
+    "description": "Admin API with built-in features and generic CRUD for custom collections.",
+    "author": "Etherial Team",
+    "dependencies": [
+        "ETHUserLeaf",
+        "ETHPulseLeaf"
+    ],
+    "config": {
+        "example": {
+            "eth_admin_leaf": {
+                "config": {
+                    "users": {
+                        "enabled": true
+                    },
+                    "messages": {
+                        "enabled": true
+                    },
+                    "campaigns": {
+                        "enabled": true
+                    },
+                    "collections": [
+                        {
+                            "name": "app_updates",
+                            "model": "AppUpdate",
+                            "crud": [
+                                "list",
+                                "show",
+                                "create",
+                                "update",
+                                "delete"
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "routes": {
+        "users": {
+            "methods": [
+                "list"
+            ]
+        },
+        "messages": {
+            "methods": [
+                "list",
+                "show"
+            ]
+        },
+        "campaigns": {
+            "methods": [
+                "list",
+                "show",
+                "create"
+            ]
+        },
+        "collections": {
+            "methods": [
+                "crud"
+            ]
+        }
+    }
+}

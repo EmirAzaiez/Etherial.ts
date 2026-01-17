@@ -10,6 +10,9 @@ import { AuthFormGoogle, AuthFormGoogleType } from '../forms/auth_form'
 
 import axios from 'axios'
 
+import { OAuth2Client } from "google-auth-library"
+
+
 @Controller()
 export default class ETHUserLeafAuthGoogleController {
     /**
@@ -62,70 +65,67 @@ export default class ETHUserLeafAuthGoogleController {
     @ShouldValidateYupForm(AuthFormGoogle)
     public async authGoogle(req: Request & { form: AuthFormGoogleType }, res: Response): Promise<any> {
         try {
-            // Fetch user information from Google using the access token
-            const googleAccount = await axios.get('https://www.googleapis.com/userinfo/v2/me', {
-                headers: {
-                    Authorization: `Bearer ${req.form.google_token}`,
-                },
+
+            const client = new OAuth2Client(etherial.eth_user_leaf.google_client_id)
+
+            const ticket = await client.verifyIdToken({
+                idToken: req.form.google_token,
+                audience: etherial.eth_user_leaf.google_client_id,
             })
 
-            const { id: googleId, email, name, picture, given_name, family_name } = googleAccount.data
+            const payload = ticket.getPayload()
 
-            // Check if user already exists with this Google ID
-            let user = await User.findOne({ where: { google_id: googleId } })
-
-            if (!user) {
-                // Check if email already exists
-                const existingEmailUser = await User.findOne({ where: { email }, attributes: { include: ['email_confirmed'] } })
-
-                if (!existingEmailUser) {
-                    // Create new user account when no Google ID or email match
-                    user = await User.create({
-                        google_id: googleId,
-                        email: email,
-                        firstname: given_name,
-                        lastname: family_name,
-                        username: name,
-                        avatar: picture,
-                        should_set_password: true,
-                        email_confirmed: true,
-                        email_confirmed_at: new Date(),
-                    })
-                } else {
-                    if (!existingEmailUser.email_confirmed) {
-                        // email exists but not confirmed → confirm it & link Google ID
-                        user = await existingEmailUser.update({
-                            google_id: googleId,
-                            should_set_password: true,
-                            password: null,
-                            email_confirmed: true,
-                            email_confirmed_at: new Date(),
-                        })
-                    } else {
-                        // email exists and already confirmed → just link Google ID
-                        user = await existingEmailUser.update({
-                            google_id: googleId,
-                        })
-                    }
-                }
+            if (!payload) {
+                return res.error({
+                    status: 400,
+                    errors: ['api.errors.invalid_Google_access_token'],
+                })
             }
 
-            // generate token
-            res.success({
-                status: 200,
-                data: {
-                    token: etherial.http_auth.generateToken({
-                        user_id: user.id,
-                    }),
-                },
-            })
+            const { id: googleId, email, picture, given_name, family_name } = payload
 
-            user.insertAuditLog({
-                req: req,
-                action: 'USER_LOGIN_GOOGLE',
-                status: 'Success',
-                resource: 'auth_google',
-            })
+            try {
+
+                const user = await User.createOrFetchUserFromGoogle(
+                    googleId,
+                    given_name,
+                    family_name,
+                    email,
+                    picture,
+                )
+
+                if (user) {
+                    user.insertAuditLog({
+                        req: req,
+                        action: 'USER_LOGIN_GOOGLE',
+                        status: 'Success',
+                        resource: 'auth_google',
+                    })
+
+                    res.success({
+                        status: 200,
+                        data: {
+                            token: etherial.http_auth.generateToken({
+                                user_id: user.id,
+                            }),
+                        },
+                    })
+                } else {
+                    return res.error({
+                        status: 400,
+                        errors: ['api.errors.invalid_Google_access_token'],
+                    })
+                }
+
+            } catch (error) {
+                console.error('Error during Google authentication:', error)
+                return res.error({
+                    status: 400,
+                    errors: ['api.errors.invalid_Google_access_token'],
+                })
+            }
+
+
         } catch (err) {
             console.error('Error during Google authentication:', err)
             return res.error({

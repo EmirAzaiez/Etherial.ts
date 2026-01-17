@@ -10,7 +10,20 @@
         "google-auth-library": "^9.0.0",
         "apple-signin-auth": "^1.7.0"
     },
-    "env": [],
+    "env": [
+        {
+            "key": "GOOGLE_CLIENT_ID",
+            "description": "Google OAuth Client ID (required for Google auth)",
+            "required": false,
+            "example": "123456789.apps.googleusercontent.com"
+        },
+        {
+            "key": "APPLE_CLIENT_ID",
+            "description": "Apple Sign-In Service ID (required for Apple auth)",
+            "required": false,
+            "example": "com.yourapp.service"
+        }
+    ],
     "config": {
         "import": "import ETHUserLeaf, { ETHUserLeafConfig } from './ETHUserLeaf/app'",
         "example": {

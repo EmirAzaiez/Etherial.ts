@@ -9,13 +9,12 @@ import {
     UpdatedAt,
     ForeignKey,
     BelongsTo,
-    AfterCreate,
     DataType,
 } from 'etherial/components/database/provider'
 
 import { User } from '../../models/User'
 
-export abstract class ETHDeviceLeafNotificationBaseModel extends Model<any> {
+export abstract class ETHPulseLeafNotificationBaseModel extends Model<any> {
     @AutoIncrement
     @PrimaryKey
     @AllowNull(false)

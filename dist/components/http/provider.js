@@ -575,3 +575,4 @@ export const ShouldUpdateFieldInModel = (model, options) => {
 };
 // Aliases
 export const ShouldUseRoute = Middleware;
+export const ShouldUseMiddleware = Middleware;

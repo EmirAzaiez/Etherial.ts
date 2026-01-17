@@ -1,0 +1,157 @@
+{
+    "name": "ETHPulseLeaf",
+    "version": "2.0.0",
+    "description": "Unified messaging system for SMS, Email, and Push Notifications with provider-based architecture, device management, and customizable templates",
+    "author": "Etherial Team",
+    "dependencies": [],
+    "requirements": [
+        {
+            "type": "model",
+            "name": "User",
+            "description": "User model is required for device-user association",
+            "hint": "Install ETHUserLeaf (etherial leaf:add ETHUserLeaf) or create your own User model in src/models/User.ts"
+        }
+    ],
+    "npm_dependencies": {
+        "twilio": "^5.10.0",
+        "nodemailer": "^7.0.6",
+        "ejs": "^3.1.10",
+        "expo-server-sdk": "^3.7.0"
+    },
+    "env": [
+        {
+            "key": "TWILIO_ACCOUNT_SID",
+            "description": "Twilio Account SID for SMS",
+            "required": false,
+            "example": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+            "key": "TWILIO_AUTH_TOKEN",
+            "description": "Twilio Auth Token",
+            "required": false,
+            "example": "your_auth_token"
+        },
+        {
+            "key": "TWILIO_PHONE_NUMBER",
+            "description": "Twilio phone number (with country code)",
+            "required": false,
+            "example": "+15551234567"
+        },
+        {
+            "key": "SMTP_HOST",
+            "description": "SMTP server host for emails",
+            "required": false,
+            "example": "smtp.gmail.com"
+        },
+        {
+            "key": "SMTP_PORT",
+            "description": "SMTP server port",
+            "required": false,
+            "example": "587"
+        },
+        {
+            "key": "SMTP_SECURE",
+            "description": "Use TLS/SSL for SMTP",
+            "required": false,
+            "example": "false"
+        },
+        {
+            "key": "SMTP_USER",
+            "description": "SMTP authentication username",
+            "required": false,
+            "example": "your@email.com"
+        },
+        {
+            "key": "SMTP_PASS",
+            "description": "SMTP authentication password",
+            "required": false,
+            "example": "your_password"
+        },
+        {
+            "key": "SMTP_FROM",
+            "description": "Default sender email address",
+            "required": false,
+            "example": "noreply@yourapp.com"
+        },
+        {
+            "key": "EXPO_ACCESS_TOKEN",
+            "description": "Expo access token for push notifications (optional, for enhanced rate limits)",
+            "required": false,
+            "example": "your_expo_access_token"
+        }
+    ],
+    "config": {
+        "import": "import ETHPulseLeaf, { ETHPulseLeafConfig } from './ETHPulseLeaf/app'",
+        "example": {
+            "eth_pulse_leaf": {
+                "module": "ETHPulseLeaf",
+                "config": {
+                    "sms": {
+                        "default": "twilio",
+                        "providers": {
+                            "twilio": {
+                                "accountSid": "process.env.TWILIO_ACCOUNT_SID!",
+                                "authToken": "process.env.TWILIO_AUTH_TOKEN!",
+                                "fromNumber": "process.env.TWILIO_PHONE_NUMBER!"
+                            }
+                        }
+                    },
+                    "email": {
+                        "default": "nodemailer",
+                        "providers": {
+                            "nodemailer": {
+                                "host": "process.env.SMTP_HOST!",
+                                "port": "parseInt(process.env.SMTP_PORT || '587')",
+                                "secure": "process.env.SMTP_SECURE === 'true'",
+                                "auth": {
+                                    "user": "process.env.SMTP_USER!",
+                                    "pass": "process.env.SMTP_PASS!"
+                                },
+                                "from": "process.env.SMTP_FROM!"
+                            }
+                        }
+                    },
+                    "push": {
+                        "default": "expo",
+                        "providers": {
+                            "expo": {
+                                "accessToken": "process.env.EXPO_ACCESS_TOKEN"
+                            }
+                        }
+                    },
+                    "routes": {
+                        "devices": [
+                            "registerDevice",
+                            "revokeDevice"
+                        ]
+                    },
+                    "templates": {
+                        "logoUrl": "https://yourapp.com/logo.png",
+                        "primaryColor": "#6366F1",
+                        "companyName": "YourApp",
+                        "footerText": "© 2026 YourApp. All rights reserved."
+                    }
+                }
+            }
+        }
+    },
+    "models": [
+        "MessageLog",
+        "Device",
+        "Notification"
+    ],
+    "routes": {
+        "devices": {
+            "description": "Device registration and management",
+            "methods": [
+                "registerDevice",
+                "revokeDevice"
+            ]
+        }
+    },
+    "services": [
+        "sms",
+        "email",
+        "push"
+    ]
+}

@@ -11,6 +11,11 @@ import jwt from 'jsonwebtoken';
 export class HttpAuth {
     constructor({ secret }) {
         /**
+         * Set the custom authentication checker
+         * @deprecated Use setAuthChecker instead
+         */
+        this.setCustomAuthentificationChecker = this.setAuthChecker;
+        /**
          * JWT Authentication middleware
          */
         this.authMiddleware = (req, res, next) => __awaiter(this, void 0, void 0, function* () {

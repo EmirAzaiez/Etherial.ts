@@ -65,7 +65,6 @@ export class Http implements IEtherialModule {
 
         this.log = this.setupLogging(config.logging)
 
-
         this.server = http.createServer(this.app)
 
         this.routes = config.routes

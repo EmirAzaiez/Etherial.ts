@@ -3,14 +3,13 @@ import { ShouldBeAuthentificate } from 'etherial/components/http.security/provid
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import { User } from '../../models/User'
-// import { DeviceService } from '../services/device.service'
 import { RegisterDeviceForm, RegisterDeviceFormType, RevokeDeviceForm, RevokeDeviceFormType } from '../forms/device_form'
 import { Device } from '../models/Device'
 
 import etherial from 'etherial'
 
 @Controller()
-export default class ETHMobileDevicesController {
+export default class ETHPulseDevicesController {
     @Post('/devices/register')
     @ShouldValidateYupForm(RegisterDeviceForm)
     public async registerDevice(req: Request & { user: User; form: RegisterDeviceFormType }, res: Response): Promise<any> {

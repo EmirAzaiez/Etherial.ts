@@ -1,0 +1,18 @@
+<% // Welcome Email Template // Uses the base transactional template structure const
+    baseTemplatePath='../base/transactional.ejs' ; %>
+    <%- include(baseTemplatePath, { title: data.title || 'Welcome!' , preheader: `Welcome to ${config.companyName
+        || 'our platform' }!`, greeting: data.greeting || `Hey ${data.userName || 'there' }! 👋`, body: ` <p>We're
+        thrilled to have you on board!</p>
+        <p>${data.message || 'Your account has been successfully created and you\'re ready to get started.'}</p>
+        ${data.features ? `
+        <p style="margin-top: 20px; font-weight: 600; color: #1e293b;">Here's what you can do:</p>
+        <ul style="color: #475569; padding-left: 20px;">
+            ${data.features.map(feature => `<li style="margin-bottom: 8px;">${feature}</li>`).join('')}
+        </ul>
+        ` : ''}
+        `,
+        buttonText: data.buttonText || 'Get Started',
+        buttonUrl: data.buttonUrl || data.dashboardUrl,
+        footer: 'Need help getting started? Just reply to this email and we\'ll be happy to assist!',
+        config: config
+        }) %>

@@ -2,7 +2,6 @@ import { Table, Column, Model, DataType, Default, PrimaryKey, AutoIncrement, All
 
 import { User } from '../../models/User'
 import { RegisterDeviceFormType } from '../forms/device_form'
-import * as ExpoPushService from '../services/expo.push'
 
 export enum DevicePlatform {
     WEB = 1,
@@ -155,19 +154,6 @@ export class Device extends Model<Device> {
                 last_activity: new Date(),
                 ...pushObject,
             })
-        }
-    }
-
-    async sendPushNotification(message: string, data: any) {
-        if (this.push_token_type === DevicePushTokenType.EXPO) {
-            await ExpoPushService.push([this], { message: message, data: data })
-        }
-    }
-
-    static async sendPushNotification(devices: Device[], message: string, data: any) {
-        let expoDevices = devices.filter((device) => device.push_token_type === DevicePushTokenType.EXPO)
-        if (expoDevices.length > 0) {
-            await ExpoPushService.push(expoDevices, { message: message, data: data })
         }
     }
 }

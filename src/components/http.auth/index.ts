@@ -66,6 +66,12 @@ export class HttpAuth implements IEtherialModule {
     }
 
     /**
+     * Set the custom authentication checker
+     * @deprecated Use setAuthChecker instead
+     */
+    setCustomAuthentificationChecker = this.setAuthChecker
+
+    /**
      * Set the custom role checker
      */
     setRoleChecker(checker: RoleChecker): void {

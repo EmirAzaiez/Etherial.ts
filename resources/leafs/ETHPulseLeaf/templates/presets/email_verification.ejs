@@ -1,0 +1,22 @@
+<% // Email Verification Template // Uses the base transactional template structure const
+    baseTemplatePath='../base/transactional.ejs' ; %>
+    <%- include(baseTemplatePath, { title: data.title || 'Verify Your Email' ,
+        preheader: 'Confirm your email address to get started' , greeting: data.greeting || `Welcome ${data.userName
+        || '' },`, body: ` <p>Thanks for signing up! Please confirm your email address to complete your registration.
+        </p>
+        <p>Click the button below to verify your email:</p>
+        `,
+        buttonText: 'Verify Email',
+        buttonUrl: data.verificationUrl,
+        additionalContent: data.verificationCode ? `
+        <p style="text-align: center; font-size: 14px; color: #64748b;">
+            Or enter this verification code manually:
+        </p>
+        <p
+            style="text-align: center; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: ${config.primaryColor || '#6366F1'}; background: #f1f5f9; padding: 20px; border-radius: 12px; margin: 20px 0;">
+            ${data.verificationCode}
+        </p>
+        ` : '',
+        footer: 'If you didn\'t create an account, you can safely ignore this email.',
+        config: config
+        }) %>

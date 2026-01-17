@@ -3,13 +3,16 @@ import { Etherial } from 'etherial'
 import * as path from 'path'
 
 export default class EthUserLeaf {
-    etherial_module_name = 'eth_user_leaf'
-
     private routes: { route: string; methods: string[] }[] = []
     default_avatar: string
+    google_client_id: string
+    apple_client_id: string
 
     constructor(private config: ETHUserLeafConfig) {
         this.default_avatar = config.default_avatar
+
+        this.google_client_id = config.google_client_id
+        this.apple_client_id = config.apple_client_id
 
         if (this.config.routes) {
             if (this.config.routes.auth && this.config.routes.auth.length > 0) {
@@ -30,10 +33,18 @@ export default class EthUserLeaf {
 
             if (this.config.routes.auth_google && this.config.routes.auth_google.length > 0) {
                 this.routes.push({ route: path.join(__dirname, 'routes/auth_google'), methods: this.config.routes.auth_google })
+
+                if (!this.config.google_client_id) {
+                    throw new Error('Google client ID is required')
+                }
             }
 
             if (this.config.routes.auth_apple && this.config.routes.auth_apple.length > 0) {
                 this.routes.push({ route: path.join(__dirname, 'routes/auth_apple'), methods: this.config.routes.auth_apple })
+
+                if (!this.config.apple_client_id) {
+                    throw new Error('Apple client ID is required')
+                }
             }
         }
     }
@@ -73,4 +84,6 @@ export interface ETHUserLeafConfig {
         users_password: UsersPasswordMethods[]
         users_phone: UsersPhoneMethods[]
     }
+    google_client_id: string
+    apple_client_id: string
 }

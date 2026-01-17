@@ -257,13 +257,15 @@ export abstract class UserLeafBase extends Model<any> {
         console.log(`Password notification for ${this.email}`)
     }
 
-    static async createOrFetchUserFromGoogle(profile_id: string, firstname: string, lastname: string, email: string): Promise<UserLeafBase> {
+    static async createOrFetchUserFromGoogle(googleId: string, firstname: string, lastname: string, email: string, picture: string): Promise<UserLeafBase | null> {
         console.log('createOrFetchUserFromGoogle')
-        return
+        return null
     }
 
-    static async createOrFetchUserFromApple(appleId: string, email: string, firstname: string, lastname: string): Promise<UserLeafBase> {
+    static async createOrFetchUserFromApple(appleId: string, email: string, firstname: string, lastname: string): Promise<UserLeafBase | null> {
         console.log('createOrFetchUserFromApple')
-        return
+        return null
     }
+
+    insertAuditLog() { }
 }

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <title><%= typeof title !== 'undefined' ? title : 'Email' %></title>
+    <style>
+        /* Reset */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        
+        /* Base Styles */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f8fafc;
+        }
+
+        /* Container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, <%= config.primaryColor || '#6366F1' %> 0%, <%= config.secondaryColor || '#818CF8' %> 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .logo {
+            max-height: 50px;
+            max-width: 200px;
+        }
+
+        .header-title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 20px 0 0 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Content */
+        .content {
+            padding: 40px 30px;
+            background-color: #ffffff;
+        }
+
+        .greeting {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .body-text {
+            font-size: 16px;
+            color: #475569;
+            margin-bottom: 30px;
+            line-height: 1.7;
+        }
+
+        .body-text p {
+            margin: 0 0 16px 0;
+        }
+
+        /* Button */
+        .button-container {
+            text-align: center;
+            margin: 35px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, <%= config.primaryColor || '#6366F1' %> 0%, <%= config.secondaryColor || '#818CF8' %> 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 12px;
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+            transition: all 0.3s ease;
+        }
+
+        .button:hover {
+            box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.5);
+            transform: translateY(-1px);
+        }
+
+        /* Divider */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
+            margin: 30px 0;
+        }
+
+        /* Footer */
+        .footer {
+            padding: 30px;
+            background-color: #f8fafc;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-text {
+            font-size: 13px;
+            color: #94a3b8;
+            margin: 0 0 15px 0;
+        }
+
+        .footer-note {
+            font-size: 12px;
+            color: #cbd5e1;
+            margin-top: 20px;
+        }
+
+        /* Social Links */
+        .social-links {
+            margin: 20px 0;
+        }
+
+        .social-icon {
+            display: inline-block;
+            margin: 0 8px;
+        }
+
+        .social-icon img {
+            width: 24px;
+            height: 24px;
+            opacity: 0.7;
+        }
+
+        /* Company Info */
+        .company-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 10px;
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+            .header, .content, .footer {
+                padding: 30px 20px !important;
+            }
+            .header-title {
+                font-size: 24px !important;
+            }
+            .button {
+                padding: 14px 30px !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc;">
+    <!-- Preheader (hidden preview text) -->
+    <% if (typeof preheader !== 'undefined' && preheader) { %>
+    <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
+        <%= preheader %>
+        &#847; &#847; &#847; &#847; &#847;
+    </div>
+    <% } %>
+
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc;">
+        <tr>
+            <td align="center" style="padding: 40px 10px;">
+                <table role="presentation" class="email-container" border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td class="header">
+                            <% if (config.logoUrl) { %>
+                                <img src="<%= config.logoUrl %>" alt="<%= config.companyName || 'Logo' %>" class="logo">
+                            <% } %>
+                            <% if (typeof title !== 'undefined' && title) { %>
+                                <h1 class="header-title"><%= title %></h1>
+                            <% } %>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td class="content">
+                            <% if (typeof greeting !== 'undefined' && greeting) { %>
+                                <p class="greeting"><%= greeting %></p>
+                            <% } %>
+
+                            <div class="body-text">
+                                <%- body %>
+                            </div>
+
+                            <% if (typeof buttonText !== 'undefined' && buttonText && typeof buttonUrl !== 'undefined' && buttonUrl) { %>
+                                <div class="button-container">
+                                    <a href="<%= buttonUrl %>" class="button" target="_blank">
+                                        <%= buttonText %>
+                                    </a>
+                                </div>
+                            <% } %>
+
+                            <% if (typeof additionalContent !== 'undefined' && additionalContent) { %>
+                                <div class="divider"></div>
+                                <div class="body-text">
+                                    <%- additionalContent %>
+                                </div>
+                            <% } %>
+
+                            <% if (typeof footer !== 'undefined' && footer) { %>
+                                <div class="divider"></div>
+                                <p class="body-text" style="font-size: 14px; color: #94a3b8;">
+                                    <%= footer %>
+                                </p>
+                            <% } %>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td class="footer">
+                            <% if (config.companyName) { %>
+                                <p class="company-name"><%= config.companyName %></p>
+                            <% } %>
+
+                            <% if (config.socialLinks) { %>
+                                <div class="social-links">
+                                    <% if (config.socialLinks.twitter) { %>
+                                        <a href="<%= config.socialLinks.twitter %>" class="social-icon">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" alt="Twitter">
+                                        </a>
+                                    <% } %>
+                                    <% if (config.socialLinks.instagram) { %>
+                                        <a href="<%= config.socialLinks.instagram %>" class="social-icon">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram">
+                                        </a>
+                                    <% } %>
+                                    <% if (config.socialLinks.facebook) { %>
+                                        <a href="<%= config.socialLinks.facebook %>" class="social-icon">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook">
+                                        </a>
+                                    <% } %>
+                                    <% if (config.socialLinks.linkedin) { %>
+                                        <a href="<%= config.socialLinks.linkedin %>" class="social-icon">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/733/733561.png" alt="LinkedIn">
+                                        </a>
+                                    <% } %>
+                                </div>
+                            <% } %>
+
+                            <% if (config.footerText) { %>
+                                <p class="footer-text"><%= config.footerText %></p>
+                            <% } %>
+
+                            <p class="footer-note">
+                                This email was sent by <%= config.companyName || 'us' %>. 
+                                If you have any questions, feel free to reply to this email.
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

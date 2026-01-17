@@ -25,23 +25,6 @@ Stores user devices and their push tokens.
 | `status` | `BOOLEAN` | Active status |
 | `last_activity` | `DATE` | Last time device was seen |
 
-## DeviceNotificationLog
-
-Logs attempts to send push notifications and their results.
-
-**Table Name:** `devices_notification_logs`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | `INTEGER` | Primary Key |
-| `device_id` | `INTEGER` | Foreign Key (Device) |
-| `device_token` | `STRING` | Device UUID (Snapshot) |
-| `push_token` | `STRING` | Push Token (Snapshot) |
-| `receipt_id` | `STRING` | Expo Receipt ID |
-| `message` | `STRING` | Notification Body |
-| `status` | `STRING` | `ok`, `error` |
-| `error_message` | `STRING` | Detailed error if failed |
-
 ## Notification
 
 A base model for in-app notifications (optional usage).
