@@ -265,6 +265,7 @@ export const ShouldValidateForm = (form, options = { exclude_validator: false, i
             }
         });
     }
+    //@ts-ignore
     return Middleware(arr);
 };
 /**
@@ -275,4 +276,3 @@ export const UseForm = ShouldValidateForm;
  * @deprecated The method should not be used, use instead ShouldValidateForm
  */
 export const ShouldCustom = ShouldValidateCustom;
-//# sourceMappingURL=validator.js.map

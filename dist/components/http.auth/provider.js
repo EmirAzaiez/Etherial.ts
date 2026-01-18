@@ -27,4 +27,10 @@ function ShouldBeAuthenticatedWithBasicAuth(username, password) {
 function ShouldBeAuthenticatedWithApiKey(apiKey, headerKey = 'x-api-key') {
     return Middleware(etherial['http_auth'].apiKeyMiddleware(apiKey, headerKey));
 }
-export { ShouldBeAuthenticated, ShouldBeAuthenticatedWithRole, ShouldBeAuthenticatedWithBasicAuth, ShouldBeAuthenticatedWithApiKey };
+/**
+ * @deprecated Use ShouldBeAuthenticated instead
+ */
+function ShouldBeAuthentificate() {
+    return Middleware(etherial['http_auth'].authMiddleware);
+}
+export { ShouldBeAuthenticated, ShouldBeAuthenticatedWithRole, ShouldBeAuthenticatedWithBasicAuth, ShouldBeAuthenticatedWithApiKey, ShouldBeAuthentificate };

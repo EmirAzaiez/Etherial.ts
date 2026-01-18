@@ -838,6 +838,7 @@ export const ShouldUseRoute = Middleware
 export const ShouldUseMiddleware = Middleware
 
 
+
 // Utility type for typed route params
 export type RouteParams<T extends string> = T extends `${string}:${infer Param}/${infer Rest}`
     ? { [K in Param | keyof RouteParams<Rest>]: string }

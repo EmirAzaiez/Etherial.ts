@@ -32,10 +32,18 @@ function ShouldBeAuthenticatedWithApiKey(apiKey: string, headerKey: string = 'x-
     return Middleware(etherial['http_auth'].apiKeyMiddleware(apiKey, headerKey))
 }
 
+/**
+ * @deprecated Use ShouldBeAuthenticated instead
+ */
+function ShouldBeAuthentificate(): MethodDecorator {
+    return Middleware(etherial['http_auth'].authMiddleware)
+}
+
 export {
     ShouldBeAuthenticated,
     ShouldBeAuthenticatedWithRole,
     ShouldBeAuthenticatedWithBasicAuth,
-    ShouldBeAuthenticatedWithApiKey
+    ShouldBeAuthenticatedWithApiKey,
+    ShouldBeAuthentificate
 }
 

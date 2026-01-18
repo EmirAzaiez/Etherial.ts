@@ -10,6 +10,8 @@ import { RawSQL } from './components/sql/index.js'
 import { Translation } from './components/translation/index.js'
 import { HttpFront } from './components/http.front/index.js'
 
+import { EthLeafS3 } from './leafs/s3/index.js'
+
 // Type for module configuration
 export interface ModuleConfig {
     [key: string]: unknown
@@ -46,6 +48,7 @@ export interface IEtherial {
     reactive?: Reactive
     translation?: Translation
     sql?: RawSQL
+    leaf_s3?: EthLeafS3
 }
 
 type ModuleConstructor = new (config: ModuleConfig) => IEtherialModule
@@ -69,6 +72,7 @@ export class Etherial implements IEtherial {
     reactive?: Reactive
     translation?: Translation
     sql?: RawSQL
+    leaf_s3?: EthLeafS3
 
     initDone = false
     initInProgress = false

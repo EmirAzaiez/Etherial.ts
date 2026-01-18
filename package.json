@@ -28,6 +28,26 @@
     "./components/http/yup.validator": {
       "default": "./dist/components/http/yup.validator.js",
       "types": "./dist/components/http/yup.validator.d.ts"
+    },
+    "./leafs/s3": {
+      "default": "./dist/leafs/s3/index.js",
+      "types": "./dist/leafs/s3/index.d.ts"
+    },
+    "./leafs/s3/forms/file_request_form": {
+      "default": "./dist/leafs/s3/forms/file_request_form.js",
+      "types": "./dist/leafs/s3/forms/file_request_form.d.ts"
+    },
+    "./leafs/s3/routes/files": {
+      "default": "./dist/leafs/s3/routes/files.js",
+      "types": "./dist/leafs/s3/routes/files.d.ts"
+    },
+    "./leafs/s3/extensions/http/validator": {
+      "default": "./dist/leafs/s3/extensions/http/validator.js",
+      "types": "./dist/leafs/s3/extensions/http/validator.d.ts"
+    },
+    "./leafs/s3/provider": {
+      "default": "./dist/leafs/s3/provider.js",
+      "types": "./dist/leafs/s3/provider.d.ts"
     }
   },
   "scripts": {
@@ -42,6 +62,8 @@
     "resources"
   ],
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.971.0",
+    "@aws-sdk/s3-request-presigner": "^3.971.0",
     "@tsed/common": "^5.36.0",
     "@tsed/core": "^5.36.0",
     "@types/bluebird": "^3.5.29",
@@ -75,6 +97,7 @@
     "socket.io": "^4.6.1",
     "ts-morph": "^27.0.2",
     "ts-node": "^10.9.1",
+    "uniqid": "^5.4.0",
     "yup": "^1.7.0"
   },
   "author": "",
