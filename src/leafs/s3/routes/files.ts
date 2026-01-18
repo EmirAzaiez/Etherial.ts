@@ -1,9 +1,9 @@
-import etherial from '../../../index'
+import etherial from '../../../index.js'
 
 import * as mime from 'mime-types'
 import uniqid, { time, process } from 'uniqid'
 
-import * as FileRequestForm from '../forms/file_request_form'
+import * as FileRequestForm from '../forms/file_request_form.js'
 
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { PutObjectCommand } from '@aws-sdk/client-s3'

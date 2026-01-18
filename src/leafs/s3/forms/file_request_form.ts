@@ -1,4 +1,4 @@
-import { Form, Body, ShouldExist, ShouldBeNotEmpty } from '../../../components/http/validator'
+import { Form, Body, ShouldExist, ShouldBeNotEmpty } from '../../../components/http/validator.js'
 
 @Form()
 export class Create {

@@ -1,15 +1,15 @@
-import etherial from "../../../../index"
+import etherial from "../../../../index.js"
 
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
-export const ShouldBeS3File = (folder: string) : PropertyDecorator => {
+export const ShouldBeS3File = (folder: string): PropertyDecorator => {
 
     return (target: any, propertyKey: string) => {
 
         let validations = Reflect.getMetadata('validations', target.constructor)
 
         validations[propertyKey] = validations[propertyKey].custom((value) => {
-            
+
             return new Promise((resolve, reject) => {
 
                 const eal = etherial.leaf_s3
@@ -22,7 +22,7 @@ export const ShouldBeS3File = (folder: string) : PropertyDecorator => {
                 }).catch(() => {
                     reject('api.form.errors.file_not_exist')
                 })
-    
+
             })
 
         })

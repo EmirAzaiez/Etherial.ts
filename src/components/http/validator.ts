@@ -1,6 +1,6 @@
 import { validationResult, body, query, ValidationChain, matchedData } from 'express-validator'
 
-import { Middleware, Request } from './provider'
+import { Middleware, Request } from './provider.js'
 
 export { ValidationChain }
 export { body }
