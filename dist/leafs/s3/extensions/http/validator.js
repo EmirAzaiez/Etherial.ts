@@ -1,4 +1,4 @@
-import etherial from "../../../../index";
+import etherial from "../../../../index.js";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 export const ShouldBeS3File = (folder) => {
     return (target, propertyKey) => {

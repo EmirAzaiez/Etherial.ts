@@ -1,5 +1,5 @@
 import { validationResult, body, query, matchedData } from 'express-validator';
-import { Middleware } from './provider';
+import { Middleware } from './provider.js';
 export { body };
 export { query };
 export const FormGenerator = (elements) => {

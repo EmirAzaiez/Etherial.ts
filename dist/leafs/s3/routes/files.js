@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import etherial from '../../../index';
+import etherial from '../../../index.js';
 import * as mime from 'mime-types';
 import uniqid, { time, process } from 'uniqid';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
