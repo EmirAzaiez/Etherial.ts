@@ -353,7 +353,7 @@ export class Http implements IEtherialModule {
                 const controller = ctrl.default || ctrl
                 const instance = new controller.default()
                 const prefix = Reflect.getMetadata('prefix', controller) || ''
-                const routes: RouteDefinition[] = Reflect.getMetadata('routes', controller) || []
+                const routes: RouteDefinition[] = Reflect.getMetadata('routes', controller.default) || []
 
                 for (const routeDef of routes) {
                     if (methods.includes(routeDef.methodName)) {

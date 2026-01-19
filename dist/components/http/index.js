@@ -273,7 +273,7 @@ export class Http {
                     const controller = ctrl.default || ctrl;
                     const instance = new controller.default();
                     const prefix = Reflect.getMetadata('prefix', controller) || '';
-                    const routes = Reflect.getMetadata('routes', controller) || [];
+                    const routes = Reflect.getMetadata('routes', controller.default) || [];
                     for (const routeDef of routes) {
                         if (methods.includes(routeDef.methodName)) {
                             this.registerRoute(controller, routeDef, instance, prefix);

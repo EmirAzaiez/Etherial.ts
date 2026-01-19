@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Delete, Request, Response } from 'etherial/components/http/provider'
-import { ShouldBeAuthentificate } from 'etherial/components/http.security/provider'
+import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import { User } from '../../models/User'
@@ -34,7 +34,7 @@ export default class ETHPulseDevicesController {
 
     @Post('/devices/revoke')
     @ShouldValidateYupForm(RevokeDeviceForm)
-    @ShouldBeAuthentificate()
+    @ShouldBeAuthenticated()
     public async revokeDevice(req: Request & { user: User; form: RevokeDeviceFormType }, res: Response): Promise<any> {
         const decoded = etherial.http_auth.decodeJWTToken(req.headers['authorization'].replace('Bearer ', '') as string)
 
