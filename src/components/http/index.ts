@@ -348,12 +348,22 @@ export class Http implements IEtherialModule {
                     }
                 }
 
-
-
                 const controller = ctrl.default || ctrl
-                const instance = new controller.default()
-                const prefix = Reflect.getMetadata('prefix', controller) || ''
-                const routes: RouteDefinition[] = Reflect.getMetadata('routes', controller.default) || []
+
+                let instance = null
+                let prefix = null
+                let routes = null
+
+                if (controller.default) {
+                    instance = new controller.default();
+                    prefix = Reflect.getMetadata('prefix', controller.default) || '';
+                    routes = Reflect.getMetadata('routes', controller.default) || [];
+                } else {
+                    instance = new controller();
+                    prefix = Reflect.getMetadata('prefix', controller) || '';
+                    routes = Reflect.getMetadata('routes', controller) || [];
+                }
+
 
                 for (const routeDef of routes) {
                     if (methods.includes(routeDef.methodName)) {
