@@ -1,5 +1,5 @@
 import { Sequelize, ModelCtor, Model } from 'sequelize-typescript';
-import { IEtherialModule } from '../../index';
+import { IEtherialModule } from '../../index.js';
 import { Dialect } from 'sequelize';
 export type LoggingFunction = (sql: string, timing?: number) => void;
 export interface DatabaseConfig {
@@ -9,7 +9,7 @@ export interface DatabaseConfig {
     username: string;
     password: string;
     dialect: Dialect;
-    models?: ModelCtor<Model>[];
+    models?: (ModelCtor<Model> | string)[];
     logging?: boolean | LoggingFunction;
     storage?: string;
     ssl?: boolean | {
@@ -24,7 +24,7 @@ export interface DatabaseConfig {
     timezone?: string;
 }
 export declare class Database implements IEtherialModule {
-    models: ModelCtor<Model>[];
+    models: (ModelCtor<Model> | string)[];
     sequelize: Sequelize;
     private config;
     constructor(config: DatabaseConfig);

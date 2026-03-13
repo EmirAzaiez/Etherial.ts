@@ -1,4 +1,4 @@
-import { IEtherialModule, IEtherial } from '../../index';
+import { IEtherialModule, IEtherial } from '../../index.js';
 export interface HttpFrontConfig {
     viewsFolder?: string;
     defaultLayout?: string;

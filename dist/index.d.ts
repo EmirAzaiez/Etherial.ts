@@ -1,12 +1,15 @@
 import 'reflect-metadata';
-import { Http } from './components/http';
-import { HttpAuth } from './components/http.auth';
-import { HttpSecurity } from './components/http.security';
-import { Reactive } from './components/reactive';
-import { Database } from './components/database';
-import { RawSQL } from './components/sql';
-import { Translation } from './components/translation';
-import { HttpFront } from './components/http.front';
+import { Http } from './components/http/index.js';
+import { HttpAuth } from './components/http.auth/index.js';
+import { HttpSecurity } from './components/http.security/index.js';
+import { Reactive } from './components/reactive/index.js';
+import { Database } from './components/database/index.js';
+import { RawSQL } from './components/sql/index.js';
+import { Translation } from './components/translation/index.js';
+import { HttpFront } from './components/http.front/index.js';
+import { EthLeafS3 } from './leafs/s3/index.js';
+import EthMediaLeaf from './leafs/ETHMediaLeaf/app.js';
+import EthUserLeaf from './leafs/ETHUserLeaf/app.js';
 export interface ModuleConfig {
     [key: string]: unknown;
 }
@@ -35,6 +38,9 @@ export interface IEtherial {
     reactive?: Reactive;
     translation?: Translation;
     sql?: RawSQL;
+    leaf_s3?: EthLeafS3;
+    eth_media_leaf?: EthMediaLeaf;
+    eth_user_leaf?: EthUserLeaf;
 }
 type ModuleConstructor = new (config: ModuleConfig) => IEtherialModule;
 type ModuleWithConfig = {
@@ -53,6 +59,9 @@ export declare class Etherial implements IEtherial {
     reactive?: Reactive;
     translation?: Translation;
     sql?: RawSQL;
+    leaf_s3?: EthLeafS3;
+    eth_media_leaf?: EthMediaLeaf;
+    eth_user_leaf?: EthUserLeaf;
     initDone: boolean;
     initInProgress: boolean;
     private static readonly RESERVED_KEYS;

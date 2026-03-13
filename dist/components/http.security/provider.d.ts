@@ -1,4 +1,4 @@
-import { RateLimitConfig, IPFilterConfig, BruteForceConfig } from './index';
+import { RateLimitConfig, IPFilterConfig, BruteForceConfig } from './index.js';
 /**
  * Apply rate limiting to a specific route
  *

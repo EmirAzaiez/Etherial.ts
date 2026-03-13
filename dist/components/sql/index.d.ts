@@ -1,5 +1,5 @@
 import { Knex } from 'knex';
-import { IEtherialModule } from '../../index';
+import { IEtherialModule } from '../../index.js';
 type RawSQLDialect = 'mysql' | 'mysql2' | 'pg' | 'sqlite3' | 'mssql' | 'oracledb';
 export interface RawSQLConfig {
     server: string;

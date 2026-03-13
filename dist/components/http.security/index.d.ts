@@ -1,5 +1,5 @@
 import { Request, RequestHandler } from 'express';
-import { IEtherialModule } from '../../index';
+import { IEtherialModule } from '../../index.js';
 export interface RateLimitConfig {
     windowMs: number;
     max: number;

@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io';
-import { IEtherialModule } from '../../index';
+import { IEtherialModule } from '../../index.js';
 interface ReactiveListener {
     event: string;
     callback: (data: any, socket: Socket) => void | Promise<void>;
@@ -19,6 +19,7 @@ export interface ReactiveConfig {
 }
 interface ConnectedUser {
     socketId: string;
+    deviceId?: string;
     userId?: string | number;
     rooms: Set<string>;
     connectedAt: Date;
@@ -28,6 +29,7 @@ export declare class Reactive implements IEtherialModule {
     io: Server | null;
     private config;
     private connectedSockets;
+    private deviceToSocket;
     private middlewares;
     private globalListeners;
     constructor(config?: ReactiveConfig);
@@ -131,6 +133,44 @@ export declare class Reactive implements IEtherialModule {
      * Broadcast to a room except sender
      */
     broadcastToRoom(socket: Socket, room: string, event: string, data: any): void;
+    /**
+     * Emit to a specific device
+     */
+    emitToDevice(deviceId: string, event: string, data: any): void;
+    /**
+     * Emit to a specific device of a user
+     * Useful when user has multiple devices and you want to target one
+     */
+    emitToUserDevice(userId: string | number, deviceId: string, event: string, data: any): void;
+    /**
+     * Get all devices for a user
+     */
+    getUserDevices(userId: string | number): {
+        deviceId: string;
+        socketId: string;
+        connectedAt: Date;
+    }[];
+    /**
+     * Get socket info for a device
+     */
+    getDeviceInfo(deviceId: string): ConnectedUser | undefined;
+    /**
+     * Check if a device is online
+     */
+    isDeviceOnline(deviceId: string): boolean;
+    /**
+     * Disconnect a specific device
+     */
+    disconnectDevice(deviceId: string, reason?: string): Promise<number>;
+    /**
+     * Get all connected devices count
+     */
+    getDeviceCount(): number;
+    /**
+     * Get devices for all online users
+     * Returns a map of userId -> deviceIds[]
+     */
+    getOnlineUsersDevices(): Map<string | number, string[]>;
     beforeRun(): Promise<void>;
     run(): Promise<void>;
     afterRun(): Promise<void>;

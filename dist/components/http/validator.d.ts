@@ -1,5 +1,5 @@
 import { body, query, ValidationChain } from 'express-validator';
-import { Request } from './provider';
+import { Request } from './provider.js';
 export { ValidationChain };
 export { body };
 export { query };

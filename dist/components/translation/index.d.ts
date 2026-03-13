@@ -1,4 +1,4 @@
-import { IEtherialModule } from '../../index';
+import { IEtherialModule } from '../../index.js';
 export interface TranslationConfig {
     /** Langue par défaut (ex: 'EN', 'FR') */
     defaultLanguage?: string;

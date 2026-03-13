@@ -51,6 +51,51 @@ export interface ControllerOptions {
     middlewares?: express.RequestHandler[];
 }
 export declare const Controller: (prefixOrOptions?: string | ControllerOptions) => ClassDecorator;
+export interface OpenAPIResponseSchemaOptions {
+    /** Whether the response is an array */
+    isArray?: boolean;
+    /** Description of the response */
+    description?: string;
+    /** HTTP status code (default: 200) */
+    statusCode?: number;
+}
+/**
+ * Decorator to define the response schema for OpenAPI documentation.
+ * The schema will be wrapped in `{ status: number, data: <schema> }`.
+ *
+ * @param schemaOrModel - Either a Sequelize Model class (e.g., User) or an inline schema object
+ * @param options - Optional configuration (isArray, description, statusCode)
+ *
+ * @example Using a Model:
+ * ```typescript
+ * @Get('/users/me')
+ * @OpenAPIResponseSchema(User)
+ * getMe(req: Request, res: Response) {
+ *     return User.findByPk(req.user.id)
+ * }
+ *
+ * @Get('/users')
+ * @OpenAPIResponseSchema(User, { isArray: true })
+ * getAll(req: Request, res: Response) {
+ *     return User.findAll()
+ * }
+ * ```
+ *
+ * @example Using an inline schema object:
+ * ```typescript
+ * @Get('/stats')
+ * @OpenAPIResponseSchema({
+ *     totalUsers: { type: 'number' },
+ *     activeToday: { type: 'number' },
+ *     lastUpdate: { type: 'string', format: 'date-time' }
+ * })
+ * getStats(req: Request, res: Response) {
+ *     return { totalUsers: 100, activeToday: 25, lastUpdate: new Date() }
+ * }
+ * ```
+ */
+export declare const OpenAPIResponseSchema: (schemaOrModel: any, options?: OpenAPIResponseSchemaOptions) => MethodDecorator;
+export declare const ResponseSchema: (schemaOrModel: any, options?: OpenAPIResponseSchemaOptions) => MethodDecorator;
 export interface RequestWithUser extends Request {
     user?: any;
 }
@@ -246,6 +291,7 @@ export interface CRUDConfig {
     };
 }
 export declare const ShouldUseRoute: (cb: express.RequestHandler | express.RequestHandler[]) => MethodDecorator;
+export declare const ShouldUseMiddleware: (cb: express.RequestHandler | express.RequestHandler[]) => MethodDecorator;
 export type RouteParams<T extends string> = T extends `${string}:${infer Param}/${infer Rest}` ? {
     [K in Param | keyof RouteParams<Rest>]: string;
 } : T extends `${string}:${infer Param}` ? {

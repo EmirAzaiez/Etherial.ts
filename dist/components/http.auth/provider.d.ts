@@ -14,4 +14,8 @@ declare function ShouldBeAuthenticatedWithBasicAuth(username: string, password: 
  * Decorator to require API Key authentication on a route
  */
 declare function ShouldBeAuthenticatedWithApiKey(apiKey: string, headerKey?: string): MethodDecorator;
-export { ShouldBeAuthenticated, ShouldBeAuthenticatedWithRole, ShouldBeAuthenticatedWithBasicAuth, ShouldBeAuthenticatedWithApiKey };
+/**
+ * @deprecated Use ShouldBeAuthenticated instead
+ */
+declare function ShouldBeAuthentificate(): MethodDecorator;
+export { ShouldBeAuthenticated, ShouldBeAuthenticatedWithRole, ShouldBeAuthenticatedWithBasicAuth, ShouldBeAuthenticatedWithApiKey, ShouldBeAuthentificate };

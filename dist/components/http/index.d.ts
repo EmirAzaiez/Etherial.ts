@@ -2,7 +2,7 @@ import express, { RequestHandler, ErrorRequestHandler } from 'express';
 import http from 'http';
 import https from 'https';
 import { CorsOptions } from 'cors';
-import { IEtherialModule, IEtherial } from '../../index';
+import { IEtherialModule, IEtherial } from '../../index.js';
 export type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head' | 'all';
 export interface HttpConfig {
     port: number;
@@ -58,7 +58,14 @@ export declare class Http implements IEtherialModule {
     private validateConfig;
     private setupLogging;
     private setupBodyParsers;
-    private loadControllers;
+    loadControllers(): Promise<{
+        route: string;
+        controller: any;
+    }[]>;
+    loadLeafControllers(): Promise<{
+        controller: any;
+        methods: string[];
+    }[]>;
     private registerRoute;
     private setupHealthcheckRoute;
     listen(): Promise<this>;

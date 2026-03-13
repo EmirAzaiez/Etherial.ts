@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { IEtherialModule } from '../../index';
+import { IEtherialModule } from '../../index.js';
 export interface JWTPayload {
     [key: string]: any;
 }
@@ -32,6 +32,11 @@ export declare class HttpAuth implements IEtherialModule {
      * Set the custom authentication checker
      */
     setAuthChecker(checker: AuthChecker): void;
+    /**
+     * Set the custom authentication checker
+     * @deprecated Use setAuthChecker instead
+     */
+    setCustomAuthentificationChecker: (checker: AuthChecker) => void;
     /**
      * Set the custom role checker
      */
