@@ -11,6 +11,8 @@ import { Translation } from './components/translation/index.js'
 import { HttpFront } from './components/http.front/index.js'
 
 import { EthLeafS3 } from './leafs/s3/index.js'
+import EthMediaLeaf from './leafs/ETHMediaLeaf/app.js'
+import EthUserLeaf from './leafs/ETHUserLeaf/app.js'
 
 // Type for module configuration
 export interface ModuleConfig {
@@ -49,6 +51,9 @@ export interface IEtherial {
     translation?: Translation
     sql?: RawSQL
     leaf_s3?: EthLeafS3
+
+    eth_media_leaf?: EthMediaLeaf
+    eth_user_leaf?: EthUserLeaf
 }
 
 type ModuleConstructor = new (config: ModuleConfig) => IEtherialModule
@@ -73,6 +78,9 @@ export class Etherial implements IEtherial {
     translation?: Translation
     sql?: RawSQL
     leaf_s3?: EthLeafS3
+
+    eth_media_leaf?: EthMediaLeaf
+    eth_user_leaf?: EthUserLeaf
 
     initDone = false
     initInProgress = false

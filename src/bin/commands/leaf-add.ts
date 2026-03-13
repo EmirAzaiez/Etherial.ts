@@ -1,24 +1,13 @@
 import chalk from 'chalk'
-import inquirer from 'inquirer'
 import {
     getAvailableLeafs,
     leafExists,
-    copyLeafToProject,
     getLeafConfig,
-    getMissingDependencies,
-    getInstallOrder,
-    getMissingRequirements,
     LeafConfig
 } from '../utils/leafs.js'
 
-interface LeafAddOptions {
-    force: boolean
-    skipDeps: boolean
-    skipRequirements: boolean
-}
-
-export async function leafAddCommand(leafName: string, options: LeafAddOptions) {
-    console.log(chalk.blue(`\n🌿 Installing Leaf: ${leafName}\n`))
+export async function leafAddCommand(leafName: string) {
+    console.log(chalk.blue(`\n🌿 Leaf: ${leafName}\n`))
 
     // Check if Leaf exists
     if (!leafExists(leafName)) {
@@ -34,98 +23,14 @@ export async function leafAddCommand(leafName: string, options: LeafAddOptions) 
         return
     }
 
-    // Get leaf configuration
+    // Get leaf configuration and display setup info
     const leafConfig = getLeafConfig(leafName)
 
-    // Check requirements (models, files, etc.)
-    if (!options.skipRequirements) {
-        const missingRequirements = getMissingRequirements(leafName)
-        if (missingRequirements.length > 0) {
-            console.log(chalk.red(`❌ Missing requirements for ${leafName}:\n`))
-
-            for (const { requirement } of missingRequirements) {
-                const typeIcon = requirement.type === 'model' ? '🗄️' : requirement.type === 'file' ? '📄' : '📁'
-                console.log(chalk.yellow(`  ${typeIcon} ${requirement.type.toUpperCase()}: ${requirement.name}`))
-                console.log(chalk.gray(`     ${requirement.description}`))
-                if (requirement.hint) {
-                    console.log(chalk.cyan(`     💡 ${requirement.hint}`))
-                }
-                console.log()
-            }
-
-            const { continueAnyway } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'continueAnyway',
-                    message: 'Continue installation anyway? (may cause errors)',
-                    default: false,
-                },
-            ])
-
-            if (!continueAnyway) {
-                console.log(chalk.yellow('\n❌ Installation cancelled. Please satisfy the requirements first.\n'))
-                console.log(chalk.gray('   Use --skip-requirements to force installation.\n'))
-                return
-            }
-        }
-    }
-
-    // Check dependencies
-    if (!options.skipDeps) {
-        const missingDeps = getMissingDependencies(leafName)
-        if (missingDeps.length > 0) {
-            console.log(chalk.yellow(`⚠️  This leaf requires the following dependencies:\n`))
-            missingDeps.forEach(dep => {
-                const depConfig = getLeafConfig(dep)
-                console.log(chalk.cyan(`  - ${dep}`) + (depConfig ? chalk.gray(` (v${depConfig.version})`) : ''))
-            })
-            console.log()
-
-            const { installDeps } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'installDeps',
-                    message: 'Install required dependencies?',
-                    default: true,
-                },
-            ])
-
-            if (!installDeps) {
-                console.log(chalk.yellow('\n❌ Cannot install without dependencies. Use --skip-deps to force.\n'))
-                return
-            }
-
-            // Install dependencies first
-            const installOrder = getInstallOrder(leafName)
-            for (const depName of installOrder) {
-                if (depName !== leafName) {
-                    const depResult = copyLeafToProject(depName)
-                    if (depResult.success) {
-                        console.log(chalk.green(`  ✓ ${depName} installed`))
-                    } else {
-                        console.log(chalk.red(`  ✗ Failed to install ${depName}: ${depResult.error}`))
-                        return
-                    }
-                }
-            }
-            console.log()
-        }
-    }
-
-    // Install the main leaf
-    const result = copyLeafToProject(leafName)
-
-    if (!result.success) {
-        console.log(chalk.red(`❌ Failed to install ${leafName}: ${result.error}`))
-        return
-    }
-
-    // Display post-installation info
     if (leafConfig) {
         displayPostInstallInfo(leafConfig)
     } else {
-        console.log(chalk.green(`\n✅ ${leafName} installed successfully!\n`))
-        console.log(chalk.cyan(`  Installed in: src/${leafName}/\n`))
+        console.log(chalk.green(`\n✅ ${leafName} is available in the etherial package.\n`))
+        console.log(chalk.cyan(`  Import it from 'etherial' and add it to your config.\n`))
     }
 }
 
@@ -135,7 +40,7 @@ function displayPostInstallInfo(config: LeafConfig) {
     const doubleLine = '═'.repeat(boxWidth)
 
     console.log(chalk.green(doubleLine))
-    console.log(chalk.green.bold(`  ✅ ${config.name} v${config.version} installed successfully!`))
+    console.log(chalk.green.bold(`  🌿 ${config.name} v${config.version}`))
     console.log(chalk.green(doubleLine))
     console.log()
 
@@ -208,7 +113,7 @@ function displayPostInstallInfo(config: LeafConfig) {
         console.log(chalk.gray(`  ${line}`))
         console.log()
         config.dependencies.forEach(dep => {
-            console.log(chalk.green(`    ✓ ${dep}`))
+            console.log(chalk.cyan(`    - ${dep}`))
         })
         console.log()
     }

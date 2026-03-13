@@ -3,7 +3,15 @@
     "version": "1.0.0",
     "description": "Complete user management system with authentication (email, Google, Apple), password reset, phone validation and profile management",
     "author": "Etherial Team",
+    "config_key": "eth_user_leaf",
     "dependencies": [],
+    "mandatory_models": [
+        {
+            "name": "User",
+            "base_class": "UserLeafBase",
+            "description": "User model for authentication and profile management"
+        }
+    ],
     "npm_dependencies": {
         "bcryptjs": "^2.4.3",
         "jsonwebtoken": "^9.0.0",
@@ -31,6 +39,7 @@
                 "module": "ETHUserLeaf",
                 "config": {
                     "default_avatar": "https://example.com/default-avatar.png",
+                    "avatar_s3_folder": "avatars",
                     "routes": {
                         "auth": [
                             "authEmail"

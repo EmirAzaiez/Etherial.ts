@@ -3,6 +3,7 @@
     "version": "3.0.0",
     "description": "Admin API with built-in features and generic CRUD for custom collections.",
     "author": "Etherial Team",
+    "config_key": "eth_admin_leaf",
     "dependencies": [
         "ETHUserLeaf",
         "ETHPulseLeaf"

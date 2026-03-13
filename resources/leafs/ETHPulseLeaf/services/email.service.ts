@@ -3,7 +3,6 @@ import {
     EmailResult,
     EmailOptions,
     TransactionalContent,
-    TemplateEmailOptions
 } from '../providers/email/IEmailProvider'
 import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog'
 
@@ -84,99 +83,6 @@ export class EmailService {
         )
 
         return result
-    }
-
-    /**
-     * Send email using custom EJS template
-     */
-    async sendFromTemplate(
-        templateName: string,
-        options: TemplateEmailOptions,
-        providerName?: string
-    ): Promise<EmailResult> {
-        const provider = this.provider(providerName)
-        const result = await provider.sendFromTemplate(templateName, options)
-
-        // Log the message
-        const recipients = Array.isArray(options.to) ? options.to : [options.to]
-        await Promise.all(
-            recipients.map(recipient =>
-                this.logMessage({
-                    provider: provider.name,
-                    recipient,
-                    subject: options.subject,
-                    status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
-                    externalId: result.messageId,
-                    errorMessage: result.error,
-                    metadata: { type: 'template', templateName },
-                })
-            )
-        )
-
-        return result
-    }
-
-    /**
-     * Send password reset email using preset template
-     */
-    async sendPasswordReset(
-        to: string,
-        resetUrl: string,
-        userName?: string,
-        expiresIn?: string,
-        providerName?: string
-    ): Promise<EmailResult> {
-        return this.sendFromTemplate('password_reset', {
-            to,
-            subject: 'Reset Your Password',
-            data: {
-                resetUrl,
-                userName,
-                expiresIn: expiresIn || '1 hour',
-            },
-        }, providerName)
-    }
-
-    /**
-     * Send email verification using preset template
-     */
-    async sendEmailVerification(
-        to: string,
-        verificationUrl: string,
-        verificationCode?: string,
-        userName?: string,
-        providerName?: string
-    ): Promise<EmailResult> {
-        return this.sendFromTemplate('email_verification', {
-            to,
-            subject: 'Verify Your Email',
-            data: {
-                verificationUrl,
-                verificationCode,
-                userName,
-            },
-        }, providerName)
-    }
-
-    /**
-     * Send welcome email using preset template
-     */
-    async sendWelcome(
-        to: string,
-        dashboardUrl: string,
-        userName?: string,
-        features?: string[],
-        providerName?: string
-    ): Promise<EmailResult> {
-        return this.sendFromTemplate('welcome', {
-            to,
-            subject: 'Welcome!',
-            data: {
-                dashboardUrl,
-                userName,
-                features,
-            },
-        }, providerName)
     }
 
     /**

@@ -3,7 +3,25 @@
     "version": "1.0.0",
     "description": "Unified payment wall with support for multiple providers (Stripe, PayPal, and more). Same API, any provider.",
     "author": "Etherial Team",
+    "config_key": "eth_payment_leaf",
     "dependencies": [],
+    "mandatory_models": [
+        {
+            "name": "Payment",
+            "base_class": "BasePayment",
+            "description": "Payment model for tracking payment transactions"
+        },
+        {
+            "name": "Subscription",
+            "base_class": "BaseSubscription",
+            "description": "Subscription model for recurring payments"
+        },
+        {
+            "name": "Customer",
+            "base_class": "BaseCustomer",
+            "description": "Customer model for provider customer mapping"
+        }
+    ],
     "requirements": [
         {
             "type": "model",

@@ -3,7 +3,20 @@
     "version": "2.0.0",
     "description": "Unified messaging system for SMS, Email, and Push Notifications with provider-based architecture, device management, and customizable templates",
     "author": "Etherial Team",
+    "config_key": "eth_pulse_leaf",
     "dependencies": [],
+    "mandatory_models": [
+        {
+            "name": "Device",
+            "base_class": "BaseDevice",
+            "description": "Device model for push notifications and device management"
+        },
+        {
+            "name": "MessageLog",
+            "base_class": "BaseMessageLog",
+            "description": "Message log for tracking all sent SMS, emails, and push notifications"
+        }
+    ],
     "requirements": [
         {
             "type": "model",

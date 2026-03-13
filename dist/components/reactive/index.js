@@ -13,6 +13,7 @@ export class Reactive {
     constructor(config = {}) {
         this.io = null;
         this.connectedSockets = new Map();
+        this.deviceToSocket = new Map(); // deviceId -> socketIds
         this.middlewares = [];
         this.globalListeners = [];
         this.config = config;
@@ -68,13 +69,25 @@ export class Reactive {
      * Handle new socket connection
      */
     handleConnection(socket, listeners) {
+        var _a;
+        // Extract device_id from handshake auth
+        const deviceId = (_a = socket.handshake.auth) === null || _a === void 0 ? void 0 : _a.device_id;
         // Track socket
         this.connectedSockets.set(socket.id, {
             socketId: socket.id,
+            deviceId,
             rooms: new Set(['all', 'guests']),
             connectedAt: new Date(),
             lastActivity: new Date(),
         });
+        // Track device -> socket mapping
+        if (deviceId) {
+            if (!this.deviceToSocket.has(deviceId)) {
+                this.deviceToSocket.set(deviceId, new Set());
+            }
+            this.deviceToSocket.get(deviceId).add(socket.id);
+            socket.join(`device_${deviceId}`);
+        }
         // Join default rooms
         socket.join('all');
         socket.join('guests');
@@ -86,6 +99,7 @@ export class Reactive {
         // Emit connection event
         socket.emit('connected', {
             socketId: socket.id,
+            deviceId: deviceId !== null && deviceId !== void 0 ? deviceId : null,
             timestamp: Date.now(),
         });
     }
@@ -95,6 +109,7 @@ export class Reactive {
     setupAuthHandlers(socket) {
         const httpAuth = etherial['http_auth'];
         socket.on('auth', (token, callback) => __awaiter(this, void 0, void 0, function* () {
+            var _a;
             if (!httpAuth) {
                 callback === null || callback === void 0 ? void 0 : callback({ success: false, error: 'Auth module not available' });
                 return;
@@ -119,8 +134,17 @@ export class Reactive {
                 yield socket.leave('guests');
                 socket.join('users');
                 socket.join(userRoom);
+                // If device_id is present, join user-device specific room
+                // This allows targeting: all user sockets OR specific user+device
+                if (socketInfo === null || socketInfo === void 0 ? void 0 : socketInfo.deviceId) {
+                    socket.join(`user_${userId}_device_${socketInfo.deviceId}`);
+                }
                 callback === null || callback === void 0 ? void 0 : callback({ success: true });
-                socket.emit('authenticated', { userId });
+                socket.emit('authenticated', {
+                    userId,
+                    deviceId: (_a = socketInfo === null || socketInfo === void 0 ? void 0 : socketInfo.deviceId) !== null && _a !== void 0 ? _a : null,
+                    socketId: socket.id,
+                });
             }
             catch (error) {
                 callback === null || callback === void 0 ? void 0 : callback({ success: false, error: 'Authentication failed' });
@@ -182,6 +206,17 @@ export class Reactive {
      */
     setupDisconnectHandler(socket) {
         socket.on('disconnect', (reason) => {
+            // Clean up device tracking
+            const socketInfo = this.connectedSockets.get(socket.id);
+            if (socketInfo === null || socketInfo === void 0 ? void 0 : socketInfo.deviceId) {
+                const deviceSockets = this.deviceToSocket.get(socketInfo.deviceId);
+                if (deviceSockets) {
+                    deviceSockets.delete(socket.id);
+                    if (deviceSockets.size === 0) {
+                        this.deviceToSocket.delete(socketInfo.deviceId);
+                    }
+                }
+            }
             this.connectedSockets.delete(socket.id);
             // You can emit a custom event if needed
             // this.emit('users', 'user_disconnected', { socketId: socket.id, reason })
@@ -351,6 +386,110 @@ export class Reactive {
      */
     broadcastToRoom(socket, room, event, data) {
         socket.to(room).emit(event, data);
+    }
+    // ==================== Device Methods ====================
+    /**
+     * Emit to a specific device
+     */
+    emitToDevice(deviceId, event, data) {
+        this.emit(`device_${deviceId}`, event, data);
+    }
+    /**
+     * Emit to a specific device of a user
+     * Useful when user has multiple devices and you want to target one
+     */
+    emitToUserDevice(userId, deviceId, event, data) {
+        if (!this.io)
+            return;
+        const deviceSockets = this.deviceToSocket.get(deviceId);
+        if (!deviceSockets)
+            return;
+        for (const socketId of deviceSockets) {
+            const socketInfo = this.connectedSockets.get(socketId);
+            if ((socketInfo === null || socketInfo === void 0 ? void 0 : socketInfo.userId) === userId) {
+                this.io.to(socketId).emit(event, data);
+            }
+        }
+    }
+    /**
+     * Get all devices for a user
+     */
+    getUserDevices(userId) {
+        const devices = [];
+        for (const [socketId, info] of this.connectedSockets) {
+            if (info.userId === userId && info.deviceId) {
+                devices.push({
+                    deviceId: info.deviceId,
+                    socketId,
+                    connectedAt: info.connectedAt,
+                });
+            }
+        }
+        return devices;
+    }
+    /**
+     * Get socket info for a device
+     */
+    getDeviceInfo(deviceId) {
+        const socketIds = this.deviceToSocket.get(deviceId);
+        if (!socketIds || socketIds.size === 0)
+            return undefined;
+        // Return the first socket info (a device might have multiple sockets in edge cases)
+        const firstSocketId = socketIds.values().next().value;
+        return this.connectedSockets.get(firstSocketId);
+    }
+    /**
+     * Check if a device is online
+     */
+    isDeviceOnline(deviceId) {
+        const sockets = this.deviceToSocket.get(deviceId);
+        return sockets !== undefined && sockets.size > 0;
+    }
+    /**
+     * Disconnect a specific device
+     */
+    disconnectDevice(deviceId, reason) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.io)
+                return 0;
+            const socketIds = this.deviceToSocket.get(deviceId);
+            if (!socketIds)
+                return 0;
+            let count = 0;
+            for (const socketId of socketIds) {
+                const socket = this.io.sockets.sockets.get(socketId);
+                if (socket) {
+                    socket.disconnect(true);
+                    count++;
+                }
+            }
+            return count;
+        });
+    }
+    /**
+     * Get all connected devices count
+     */
+    getDeviceCount() {
+        return this.deviceToSocket.size;
+    }
+    /**
+     * Get devices for all online users
+     * Returns a map of userId -> deviceIds[]
+     */
+    getOnlineUsersDevices() {
+        const userDevices = new Map();
+        for (const [, info] of this.connectedSockets) {
+            if (info.userId !== undefined && info.deviceId) {
+                if (!userDevices.has(info.userId)) {
+                    userDevices.set(info.userId, []);
+                }
+                const devices = userDevices.get(info.userId);
+                if (!devices.includes(info.deviceId)) {
+                    devices.push(info.deviceId);
+                }
+            }
+        }
+        return userDevices;
     }
     beforeRun() {
         return __awaiter(this, void 0, void 0, function* () {

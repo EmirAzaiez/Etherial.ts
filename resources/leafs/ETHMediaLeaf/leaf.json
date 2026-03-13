@@ -3,7 +3,15 @@
     "version": "2.0.0",
     "description": "S3-compatible media management with upload, storage, retrieval and fine-grained access control",
     "author": "Etherial Team",
+    "config_key": "eth_media_leaf",
     "dependencies": [],
+    "mandatory_models": [
+        {
+            "name": "Media",
+            "base_class": "BaseMedia",
+            "description": "Media model for file uploads and access control"
+        }
+    ],
     "requirements": [
         {
             "type": "model",

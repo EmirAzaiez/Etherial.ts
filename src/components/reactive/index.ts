@@ -24,6 +24,7 @@ export interface ReactiveConfig {
 
 interface ConnectedUser {
     socketId: string
+    deviceId?: string
     userId?: string | number
     rooms: Set<string>
     connectedAt: Date
@@ -34,6 +35,7 @@ export class Reactive implements IEtherialModule {
     io: Server | null = null
     private config: ReactiveConfig
     private connectedSockets: Map<string, ConnectedUser> = new Map()
+    private deviceToSocket: Map<string, Set<string>> = new Map() // deviceId -> socketIds
     private middlewares: SocketMiddleware[] = []
     private globalListeners: ReactiveListener[] = []
 
@@ -98,13 +100,26 @@ export class Reactive implements IEtherialModule {
      * Handle new socket connection
      */
     private handleConnection(socket: Socket, listeners: ReactiveListener[]): void {
+        // Extract device_id from handshake auth
+        const deviceId = socket.handshake.auth?.device_id as string | undefined
+
         // Track socket
         this.connectedSockets.set(socket.id, {
             socketId: socket.id,
+            deviceId,
             rooms: new Set(['all', 'guests']),
             connectedAt: new Date(),
             lastActivity: new Date(),
         })
+
+        // Track device -> socket mapping
+        if (deviceId) {
+            if (!this.deviceToSocket.has(deviceId)) {
+                this.deviceToSocket.set(deviceId, new Set())
+            }
+            this.deviceToSocket.get(deviceId)!.add(socket.id)
+            socket.join(`device_${deviceId}`)
+        }
 
         // Join default rooms
         socket.join('all')
@@ -119,6 +134,7 @@ export class Reactive implements IEtherialModule {
         // Emit connection event
         socket.emit('connected', {
             socketId: socket.id,
+            deviceId: deviceId ?? null,
             timestamp: Date.now(),
         })
     }
@@ -159,8 +175,18 @@ export class Reactive implements IEtherialModule {
                 socket.join('users')
                 socket.join(userRoom)
 
+                // If device_id is present, join user-device specific room
+                // This allows targeting: all user sockets OR specific user+device
+                if (socketInfo?.deviceId) {
+                    socket.join(`user_${userId}_device_${socketInfo.deviceId}`)
+                }
+
                 callback?.({ success: true })
-                socket.emit('authenticated', { userId })
+                socket.emit('authenticated', {
+                    userId,
+                    deviceId: socketInfo?.deviceId ?? null,
+                    socketId: socket.id,
+                })
 
             } catch (error) {
                 callback?.({ success: false, error: 'Authentication failed' })
@@ -229,6 +255,18 @@ export class Reactive implements IEtherialModule {
      */
     private setupDisconnectHandler(socket: Socket): void {
         socket.on('disconnect', (reason) => {
+            // Clean up device tracking
+            const socketInfo = this.connectedSockets.get(socket.id)
+            if (socketInfo?.deviceId) {
+                const deviceSockets = this.deviceToSocket.get(socketInfo.deviceId)
+                if (deviceSockets) {
+                    deviceSockets.delete(socket.id)
+                    if (deviceSockets.size === 0) {
+                        this.deviceToSocket.delete(socketInfo.deviceId)
+                    }
+                }
+            }
+
             this.connectedSockets.delete(socket.id)
 
             // You can emit a custom event if needed
@@ -409,6 +447,122 @@ export class Reactive implements IEtherialModule {
      */
     broadcastToRoom(socket: Socket, room: string, event: string, data: any): void {
         socket.to(room).emit(event, data)
+    }
+
+    // ==================== Device Methods ====================
+
+    /**
+     * Emit to a specific device
+     */
+    emitToDevice(deviceId: string, event: string, data: any): void {
+        this.emit(`device_${deviceId}`, event, data)
+    }
+
+    /**
+     * Emit to a specific device of a user
+     * Useful when user has multiple devices and you want to target one
+     */
+    emitToUserDevice(userId: string | number, deviceId: string, event: string, data: any): void {
+        if (!this.io) return
+
+        const deviceSockets = this.deviceToSocket.get(deviceId)
+        if (!deviceSockets) return
+
+        for (const socketId of deviceSockets) {
+            const socketInfo = this.connectedSockets.get(socketId)
+            if (socketInfo?.userId === userId) {
+                this.io.to(socketId).emit(event, data)
+            }
+        }
+    }
+
+    /**
+     * Get all devices for a user
+     */
+    getUserDevices(userId: string | number): { deviceId: string; socketId: string; connectedAt: Date }[] {
+        const devices: { deviceId: string; socketId: string; connectedAt: Date }[] = []
+
+        for (const [socketId, info] of this.connectedSockets) {
+            if (info.userId === userId && info.deviceId) {
+                devices.push({
+                    deviceId: info.deviceId,
+                    socketId,
+                    connectedAt: info.connectedAt,
+                })
+            }
+        }
+
+        return devices
+    }
+
+    /**
+     * Get socket info for a device
+     */
+    getDeviceInfo(deviceId: string): ConnectedUser | undefined {
+        const socketIds = this.deviceToSocket.get(deviceId)
+        if (!socketIds || socketIds.size === 0) return undefined
+
+        // Return the first socket info (a device might have multiple sockets in edge cases)
+        const firstSocketId = socketIds.values().next().value
+        return this.connectedSockets.get(firstSocketId)
+    }
+
+    /**
+     * Check if a device is online
+     */
+    isDeviceOnline(deviceId: string): boolean {
+        const sockets = this.deviceToSocket.get(deviceId)
+        return sockets !== undefined && sockets.size > 0
+    }
+
+    /**
+     * Disconnect a specific device
+     */
+    async disconnectDevice(deviceId: string, reason?: string): Promise<number> {
+        if (!this.io) return 0
+
+        const socketIds = this.deviceToSocket.get(deviceId)
+        if (!socketIds) return 0
+
+        let count = 0
+        for (const socketId of socketIds) {
+            const socket = this.io.sockets.sockets.get(socketId)
+            if (socket) {
+                socket.disconnect(true)
+                count++
+            }
+        }
+
+        return count
+    }
+
+    /**
+     * Get all connected devices count
+     */
+    getDeviceCount(): number {
+        return this.deviceToSocket.size
+    }
+
+    /**
+     * Get devices for all online users
+     * Returns a map of userId -> deviceIds[]
+     */
+    getOnlineUsersDevices(): Map<string | number, string[]> {
+        const userDevices = new Map<string | number, string[]>()
+
+        for (const [, info] of this.connectedSockets) {
+            if (info.userId !== undefined && info.deviceId) {
+                if (!userDevices.has(info.userId)) {
+                    userDevices.set(info.userId, [])
+                }
+                const devices = userDevices.get(info.userId)!
+                if (!devices.includes(info.deviceId)) {
+                    devices.push(info.deviceId)
+                }
+            }
+        }
+
+        return userDevices
     }
 
     async beforeRun(): Promise<void> {

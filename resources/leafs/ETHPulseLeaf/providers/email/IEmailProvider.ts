@@ -41,13 +41,6 @@ export interface TransactionalContent {
     additionalContent?: string
 }
 
-export interface TemplateEmailOptions {
-    to: string | string[]
-    subject: string
-    data: Record<string, any>
-    from?: string
-}
-
 export interface IEmailProvider {
     readonly name: string
 
@@ -63,13 +56,5 @@ export interface IEmailProvider {
         to: string | string[],
         subject: string,
         content: TransactionalContent
-    ): Promise<EmailResult>
-
-    /**
-     * Send email using a custom EJS template
-     */
-    sendFromTemplate(
-        templateName: string,
-        options: TemplateEmailOptions
     ): Promise<EmailResult>
 }

@@ -7,7 +7,6 @@ import {
     EmailResult,
     EmailOptions,
     TransactionalContent,
-    TemplateEmailOptions
 } from './IEmailProvider'
 import { TemplateConfig } from '../../templates/TemplateEngine'
 
@@ -101,46 +100,6 @@ export class NodemailerProvider implements IEmailProvider {
             to,
             subject,
             html,
-        })
-    }
-
-    async sendFromTemplate(
-        templateName: string,
-        options: TemplateEmailOptions
-    ): Promise<EmailResult> {
-        // Look for template in custom path first, then fall back to presets
-        let templatePath: string
-
-        if (this.customTemplatesPath) {
-            const customPath = path.join(this.customTemplatesPath, `${templateName}.ejs`)
-            if (fs.existsSync(customPath)) {
-                templatePath = customPath
-            } else {
-                templatePath = path.join(__dirname, '../../templates/presets', `${templateName}.ejs`)
-            }
-        } else {
-            templatePath = path.join(__dirname, '../../templates/presets', `${templateName}.ejs`)
-        }
-
-        if (!fs.existsSync(templatePath)) {
-            return {
-                success: false,
-                error: `Template "${templateName}" not found`,
-                provider: this.name,
-                timestamp: new Date(),
-            }
-        }
-
-        const html = await this.renderTemplate(templatePath, {
-            ...options.data,
-            config: this.templateConfig || {},
-        })
-
-        return this.send({
-            to: options.to,
-            subject: options.subject,
-            html,
-            from: options.from,
         })
     }
 
