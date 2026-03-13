@@ -16,41 +16,9 @@
       "default": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./components/*": {
-      "default": "./dist/components/*/index.js",
-      "types": "./dist/components/*/index.d.ts"
-    },
-    "./components/*/provider": {
-      "default": "./dist/components/*/provider.js",
-      "types": "./dist/components/*/provider.d.ts"
-    },
-    "./components/http/validator": {
-      "default": "./dist/components/http/validator.js",
-      "types": "./dist/components/http/validator.d.ts"
-    },
-    "./components/http/yup.validator": {
-      "default": "./dist/components/http/yup.validator.js",
-      "types": "./dist/components/http/yup.validator.d.ts"
-    },
-    "./leafs/s3": {
-      "default": "./dist/leafs/s3/index.js",
-      "types": "./dist/leafs/s3/index.d.ts"
-    },
-    "./leafs/s3/forms/file_request_form": {
-      "default": "./dist/leafs/s3/forms/file_request_form.js",
-      "types": "./dist/leafs/s3/forms/file_request_form.d.ts"
-    },
-    "./leafs/s3/routes/files": {
-      "default": "./dist/leafs/s3/routes/files.js",
-      "types": "./dist/leafs/s3/routes/files.d.ts"
-    },
-    "./leafs/s3/extensions/http/validator": {
-      "default": "./dist/leafs/s3/extensions/http/validator.js",
-      "types": "./dist/leafs/s3/extensions/http/validator.d.ts"
-    },
-    "./leafs/s3/provider": {
-      "default": "./dist/leafs/s3/provider.js",
-      "types": "./dist/leafs/s3/provider.d.ts"
+    "./*": {
+      "default": "./dist/*.js",
+      "types": "./dist/*.d.ts"
     }
   },
   "scripts": {

@@ -5,7 +5,7 @@ import {
     Get
 } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
-import { Reactive } from 'etherial/components/reactive'
+import { Reactive } from 'etherial/components/reactive/index'
 
 const getAdminLeaf = () => (etherial as any).eth_admin_leaf
 const getReactive = (): Reactive | null => {
