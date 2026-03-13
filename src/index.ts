@@ -11,8 +11,10 @@ import { Translation } from './components/translation/index.js'
 import { HttpFront } from './components/http.front/index.js'
 
 import { EthLeafS3 } from './leafs/s3/index.js'
-import EthMediaLeaf from './leafs/ETHMediaLeaf/app.js'
-import EthUserLeaf from './leafs/ETHUserLeaf/app.js'
+import ETHMediaLeaf from './leafs/ETHMediaLeaf/app.js'
+import ETHUserLeaf from './leafs/ETHUserLeaf/app.js'
+import ETHAdminLeaf from './leafs/ETHAdminLeaf/app.js'
+import ETHPulseLeaf from './leafs/ETHPulseLeaf/app.js'
 
 // Type for module configuration
 export interface ModuleConfig {
@@ -52,8 +54,10 @@ export interface IEtherial {
     sql?: RawSQL
     leaf_s3?: EthLeafS3
 
-    eth_media_leaf?: EthMediaLeaf
-    eth_user_leaf?: EthUserLeaf
+    eth_media_leaf?: ETHMediaLeaf
+    eth_user_leaf?: ETHUserLeaf
+    eth_admin_leaf?: ETHAdminLeaf
+    eth_pulse_leaf?: ETHPulseLeaf
 }
 
 type ModuleConstructor = new (config: ModuleConfig) => IEtherialModule
@@ -79,8 +83,10 @@ export class Etherial implements IEtherial {
     sql?: RawSQL
     leaf_s3?: EthLeafS3
 
-    eth_media_leaf?: EthMediaLeaf
-    eth_user_leaf?: EthUserLeaf
+    eth_media_leaf?: ETHMediaLeaf
+    eth_user_leaf?: ETHUserLeaf
+    eth_admin_leaf?: ETHAdminLeaf
+    eth_pulse_leaf?: ETHPulseLeaf
 
     initDone = false
     initInProgress = false
