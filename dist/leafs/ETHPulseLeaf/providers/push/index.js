@@ -1,1 +1,1 @@
-export { ExpoProvider } from './ExpoProvider';
+export { ExpoProvider } from './ExpoProvider.js';

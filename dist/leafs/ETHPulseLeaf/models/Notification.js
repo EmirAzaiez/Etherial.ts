@@ -28,7 +28,7 @@ import etherial from 'etherial';
  *
  * Usage in your project:
  * ```typescript
- * import { BaseNotification } from '../ETHPulseLeaf/models/Notification'
+ * import { BaseNotification } from '../ETHPulseLeaf/models/Notification.js'
  *
  * @Table({ tableName: 'notifications' })
  * export class Notification extends BaseNotification {

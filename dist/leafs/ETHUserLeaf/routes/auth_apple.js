@@ -20,7 +20,7 @@ import etherial from 'etherial';
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import * as jwt from 'jsonwebtoken';
-import { AuthFormApple } from '../forms/auth_form';
+import { AuthFormApple } from '../forms/auth_form.js';
 const getModels = () => {
     const models = etherial.database.sequelize.models;
     return {

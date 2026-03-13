@@ -1,5 +1,5 @@
 import Twilio from 'twilio'
-import { ISmsProvider, SmsResult, SmsOptions } from './ISmsProvider'
+import { ISmsProvider, SmsResult, SmsOptions } from './ISmsProvider.js'
 
 export interface TwilioConfig {
     accountSid: string

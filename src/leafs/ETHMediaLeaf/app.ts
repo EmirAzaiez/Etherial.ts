@@ -8,8 +8,8 @@ import { PutBucketCorsCommand, S3Client, DeleteObjectCommand, HeadObjectCommand,
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 import { Request } from 'etherial/components/http/provider'
-import { BaseMedia as Media } from './models/Media'
-import { BaseMediaQuota as MediaQuota } from './models/MediaQuota'
+import { BaseMedia as Media } from './models/Media.js'
+import { BaseMediaQuota as MediaQuota } from './models/MediaQuota.js'
 import sharp from 'sharp'
 
 // Type for the access control callback

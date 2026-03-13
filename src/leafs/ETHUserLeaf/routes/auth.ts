@@ -4,7 +4,7 @@ import { Controller, Post, Get, Request, Response } from 'etherial/components/ht
 
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
-import { AuthFormEmail, AuthFormEmailType, AuthFormUsername, AuthFormUsernameType } from '../forms/auth_form'
+import { AuthFormEmail, AuthFormEmailType, AuthFormUsername, AuthFormUsernameType } from '../forms/auth_form.js'
 
 import * as bcrypt from 'bcrypt'
 

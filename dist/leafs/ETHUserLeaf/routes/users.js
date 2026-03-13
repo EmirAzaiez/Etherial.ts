@@ -20,7 +20,7 @@ import etherial from 'etherial';
 import { Controller, Put } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
-import { UpdateBioForm, UpdateAvatarForm } from '../forms/user_form';
+import { UpdateBioForm, UpdateAvatarForm } from '../forms/user_form.js';
 const getModels = () => {
     const models = etherial.database.sequelize.models;
     return {

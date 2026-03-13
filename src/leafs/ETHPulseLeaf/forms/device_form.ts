@@ -1,7 +1,7 @@
 import { EtherialYup } from 'etherial/components/http/yup.validator'
 import { InferType } from 'yup'
 
-import { DevicePlatform } from '../models/Device'
+import { DevicePlatform } from '../models/Device.js'
 
 export const RegisterDeviceForm = EtherialYup.object({
     device: EtherialYup.string()

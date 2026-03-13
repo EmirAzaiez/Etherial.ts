@@ -3,9 +3,9 @@ import * as path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-import { ActionRegistry, SerializedAction } from './features/ActionRegistry'
-import { HookRegistry, ResolvedHooks } from './features/HookRegistry'
-import { CollectionConfig, SerializedCollection } from './features/CollectionConfig'
+import { ActionRegistry, SerializedAction } from './features/ActionRegistry.js'
+import { HookRegistry, ResolvedHooks } from './features/HookRegistry.js'
+import { CollectionConfig, SerializedCollection } from './features/CollectionConfig.js'
 
 export type AccessChecker = (
     user: any,
@@ -458,4 +458,4 @@ export default class ETHAdminLeaf {
 }
 
 // Re-export types
-export * from './features'
+export * from './features/index.js'

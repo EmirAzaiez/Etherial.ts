@@ -1,5 +1,5 @@
-import { FieldDefinition } from './ActionRegistry'
-import { SerializedAction } from './ActionRegistry'
+import { FieldDefinition } from './ActionRegistry.js'
+import { SerializedAction } from './ActionRegistry.js'
 
 // ============================================
 // Sub-Collection (embedded list in show view)

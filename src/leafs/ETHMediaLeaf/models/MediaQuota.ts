@@ -10,7 +10,7 @@ import {
     UpdatedAt,
     Unique,
     DataType,
-} from '../../../components/database/provider'
+} from '../../../components/database/provider.js'
 
 export class BaseMediaQuota extends Model<BaseMediaQuota> {
     @AutoIncrement

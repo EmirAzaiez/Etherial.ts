@@ -2,8 +2,8 @@ import { Controller, Get, Post, Delete, Request, Response } from 'etherial/compo
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
-import { RegisterDeviceForm, RegisterDeviceFormType, RevokeDeviceForm, RevokeDeviceFormType } from '../forms/device_form'
-import { Device } from '../models/Device'
+import { RegisterDeviceForm, RegisterDeviceFormType, RevokeDeviceForm, RevokeDeviceFormType } from '../forms/device_form.js'
+import { Device } from '../models/Device.js'
 
 import etherial from 'etherial'
 

@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog';
+import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js';
 export class EmailService {
     constructor(providers, defaultProvider) {
         this.providers = new Map();

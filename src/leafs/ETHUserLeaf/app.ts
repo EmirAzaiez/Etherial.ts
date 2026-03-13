@@ -17,31 +17,31 @@ export default class EthUserLeaf {
 
         if (this.config.routes) {
             if (this.config.routes.auth && this.config.routes.auth.length > 0) {
-                this.routes.push({ route: path.join(__dirname, 'routes/auth'), methods: this.config.routes.auth })
+                this.routes.push({ route: path.join(__dirname, 'routes/auth.js'), methods: this.config.routes.auth })
             }
 
             if (this.config.routes.users && this.config.routes.users.length > 0) {
-                this.routes.push({ route: path.join(__dirname, 'routes/users'), methods: this.config.routes.users })
+                this.routes.push({ route: path.join(__dirname, 'routes/users.js'), methods: this.config.routes.users })
             }
 
             if (this.config.routes.users_email && this.config.routes.users_email.length > 0) {
-                this.routes.push({ route: path.join(__dirname, 'routes/users_email'), methods: this.config.routes.users_email })
+                this.routes.push({ route: path.join(__dirname, 'routes/users_email.js'), methods: this.config.routes.users_email })
             }
 
             if (this.config.routes.users_password && this.config.routes.users_password.length > 0) {
-                this.routes.push({ route: path.join(__dirname, 'routes/users_password'), methods: this.config.routes.users_password })
+                this.routes.push({ route: path.join(__dirname, 'routes/users_password.js'), methods: this.config.routes.users_password })
             }
 
             if (this.config.routes.users_phone && this.config.routes.users_phone.length > 0) {
-                this.routes.push({ route: path.join(__dirname, 'routes/users_phone'), methods: this.config.routes.users_phone })
+                this.routes.push({ route: path.join(__dirname, 'routes/users_phone.js'), methods: this.config.routes.users_phone })
             }
 
             if (this.config.routes.auth_google && this.config.routes.auth_google.length > 0) {
-                this.routes.push({ route: path.join(__dirname, 'routes/auth_google'), methods: this.config.routes.auth_google })
+                this.routes.push({ route: path.join(__dirname, 'routes/auth_google.js'), methods: this.config.routes.auth_google })
             }
 
             if (this.config.routes.auth_apple && this.config.routes.auth_apple.length > 0) {
-                this.routes.push({ route: path.join(__dirname, 'routes/auth_apple'), methods: this.config.routes.auth_apple })
+                this.routes.push({ route: path.join(__dirname, 'routes/auth_apple.js'), methods: this.config.routes.auth_apple })
             }
         }
     }

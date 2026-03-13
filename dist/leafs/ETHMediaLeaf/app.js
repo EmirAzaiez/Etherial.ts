@@ -12,8 +12,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { PutBucketCorsCommand, S3Client, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { BaseMedia as Media } from './models/Media';
-import { BaseMediaQuota as MediaQuota } from './models/MediaQuota';
+import { BaseMedia as Media } from './models/Media.js';
+import { BaseMediaQuota as MediaQuota } from './models/MediaQuota.js';
 import sharp from 'sharp';
 export default class EthMediaLeaf {
     constructor(config) {

@@ -1,17 +1,17 @@
-import etherial from '../../../index'
+import etherial from '../../../index.js'
 
-import { Controller, Post, Get, Delete, Request, Response } from '../../../components/http/provider'
+import { Controller, Post, Get, Delete, Request, Response } from '../../../components/http/provider.js'
 
-import { ShouldValidateYupForm } from '../../../components/http/yup.validator'
-import { ShouldBeAuthenticated } from '../../../components/http.auth/provider'
+import { ShouldValidateYupForm } from '../../../components/http/yup.validator.js'
+import { ShouldBeAuthenticated } from '../../../components/http.auth/provider.js'
 
-import { BaseMedia, MediaStatus } from '../models/Media'
-import { Model } from '../../../components/database/provider'
+import { BaseMedia, MediaStatus } from '../models/Media.js'
+import { Model } from '../../../components/database/provider.js'
 
 import {
     MediaFormRequest,
     MediaFormRequestType,
-} from '../forms/media_form'
+} from '../forms/media_form.js'
 
 // Models are retrieved dynamically from Sequelize registry
 // This allows the Leaf to use the user's extended models (User, Media)

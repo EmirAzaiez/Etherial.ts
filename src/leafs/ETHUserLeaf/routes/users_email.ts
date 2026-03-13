@@ -6,9 +6,9 @@ import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
-import { UserLeafBase } from '../models/User'
+import { UserLeafBase } from '../models/User.js'
 
-import { EmailValidationSendForm, EmailValidationSendFormType, EmailValidationConfirmForm, EmailValidationConfirmFormType } from '../forms/user_form'
+import { EmailValidationSendForm, EmailValidationSendFormType, EmailValidationConfirmForm, EmailValidationConfirmFormType } from '../forms/user_form.js'
 
 import * as crypto from 'crypto'
 

@@ -12,16 +12,16 @@ import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Providers
-import { TwilioProvider } from './providers/sms';
-import { NodemailerProvider } from './providers/email';
-import { ExpoProvider } from './providers/push';
+import { TwilioProvider } from './providers/sms/index.js';
+import { NodemailerProvider } from './providers/email/index.js';
+import { ExpoProvider } from './providers/push/index.js';
 // Services
-import { SmsService } from './services/sms.service';
-import { EmailService } from './services/email.service';
-import { PushService } from './services/push.service';
+import { SmsService } from './services/sms.service.js';
+import { EmailService } from './services/email.service.js';
+import { PushService } from './services/push.service.js';
 // Templates
-import { defaultTemplateConfig } from './templates/TemplateEngine';
-import { UnifonicProvider } from './providers/sms/UnifonicProvider';
+import { defaultTemplateConfig } from './templates/TemplateEngine.js';
+import { UnifonicProvider } from './providers/sms/UnifonicProvider.js';
 /**
  * ETHPulseLeaf - Unified Messaging System
  *
@@ -321,6 +321,6 @@ export default class ETHPulseLeaf {
 export const AvailableRouteMethods = {
     devices: ['registerDevice', 'revokeDevice'],
 };
-export { MessageLog, MessageType, MessageStatus } from './models/MessageLog';
-export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus } from './models/Device';
-export { ETHPulseLeafNotificationBaseModel } from './models/Notification';
+export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js';
+export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus } from './models/Device.js';
+export { ETHPulseLeafNotificationBaseModel } from './models/Notification.js';

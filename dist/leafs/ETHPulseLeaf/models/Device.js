@@ -39,7 +39,7 @@ export var DevicePushTokenStatus;
  *
  * @example
  * ```typescript
- * import { BaseDevice } from '../ETHPulseLeaf/models/Device'
+ * import { BaseDevice } from '../ETHPulseLeaf/models/Device.js'
  *
  * @Table({ tableName: 'devices', freezeTableName: true })
  * export class Device extends BaseDevice {

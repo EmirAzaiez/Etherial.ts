@@ -19,7 +19,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
-import { AuthFormEmail, AuthFormUsername } from '../forms/auth_form';
+import { AuthFormEmail, AuthFormUsername } from '../forms/auth_form.js';
 import * as bcrypt from 'bcrypt';
 const getModels = () => {
     const models = etherial.database.sequelize.models;

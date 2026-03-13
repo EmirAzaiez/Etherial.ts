@@ -6,9 +6,9 @@ import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
-import { UserLeafBase } from '../models/User'
+import { UserLeafBase } from '../models/User.js'
 
-import { UpdateBioForm, UpdateBioFormType, UpdateAvatarForm, UpdateAvatarFormType } from '../forms/user_form'
+import { UpdateBioForm, UpdateBioFormType, UpdateAvatarForm, UpdateAvatarFormType } from '../forms/user_form.js'
 
 const getModels = () => {
     const models = etherial.database!.sequelize.models

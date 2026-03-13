@@ -10,7 +10,7 @@ export {
     FieldDefinition,
     FieldOption,
     yupToForm
-} from './ActionRegistry'
+} from './ActionRegistry.js'
 
 // Hook Registry
 export {
@@ -18,7 +18,7 @@ export {
     Hook,
     HookFunctions,
     ResolvedHooks
-} from './HookRegistry'
+} from './HookRegistry.js'
 
 // Collection Config
 export {
@@ -26,4 +26,4 @@ export {
     CollectionMeta,
     CollectionViews,
     SerializedCollection
-} from './CollectionConfig'
+} from './CollectionConfig.js'

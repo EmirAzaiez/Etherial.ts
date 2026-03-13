@@ -1,5 +1,5 @@
-import { ISmsProvider, SmsResult, SmsOptions } from '../providers/sms/ISmsProvider'
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog'
+import { ISmsProvider, SmsResult, SmsOptions } from '../providers/sms/ISmsProvider.js'
+import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js'
 
 export class SmsService {
     private providers: Map<string, ISmsProvider> = new Map()

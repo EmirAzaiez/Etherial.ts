@@ -1,3 +1,3 @@
-export { default } from './app'
-export * from './app'
-export * from './features'
+export { default } from './app.js'
+export * from './app.js'
+export * from './features/index.js'

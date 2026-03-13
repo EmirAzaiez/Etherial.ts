@@ -1,2 +1,2 @@
-export { IPushProvider, PushResult, PushMessage, PushOptions } from './IPushProvider'
-export { ExpoProvider, ExpoConfig } from './ExpoProvider'
+export { IPushProvider, PushResult, PushMessage, PushOptions } from './IPushProvider.js'
+export { ExpoProvider, ExpoConfig } from './ExpoProvider.js'

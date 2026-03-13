@@ -16,12 +16,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import etherial from '../../../index';
-import { Controller, Post, Get, Delete } from '../../../components/http/provider';
-import { ShouldValidateYupForm } from '../../../components/http/yup.validator';
-import { ShouldBeAuthenticated } from '../../../components/http.auth/provider';
-import { MediaStatus } from '../models/Media';
-import { MediaFormRequest, } from '../forms/media_form';
+import etherial from '../../../index.js';
+import { Controller, Post, Get, Delete } from '../../../components/http/provider.js';
+import { ShouldValidateYupForm } from '../../../components/http/yup.validator.js';
+import { ShouldBeAuthenticated } from '../../../components/http.auth/provider.js';
+import { MediaStatus } from '../models/Media.js';
+import { MediaFormRequest, } from '../forms/media_form.js';
 // Models are retrieved dynamically from Sequelize registry
 // This allows the Leaf to use the user's extended models (User, Media)
 // instead of hardcoded imports that wouldn't exist in the Leaf package

@@ -1,2 +1,2 @@
-export * from './ISmsProvider';
-export * from './TwilioProvider';
+export * from './ISmsProvider.js';
+export * from './TwilioProvider.js';

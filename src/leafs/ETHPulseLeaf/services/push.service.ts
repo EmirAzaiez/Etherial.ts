@@ -1,6 +1,6 @@
-import { IPushProvider, PushResult, PushMessage, PushOptions } from '../providers/push/IPushProvider'
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog'
-import { Device } from '../models/Device'
+import { IPushProvider, PushResult, PushMessage, PushOptions } from '../providers/push/IPushProvider.js'
+import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js'
+import { Device } from '../models/Device.js'
 
 export class PushService {
     private providers: Map<string, IPushProvider> = new Map()

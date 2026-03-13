@@ -4,7 +4,7 @@ import { Controller, Post, Request, Response } from 'etherial/components/http/pr
 
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
-import { AuthFormGoogle, AuthFormGoogleType } from '../forms/auth_form'
+import { AuthFormGoogle, AuthFormGoogleType } from '../forms/auth_form.js'
 
 import axios from 'axios'
 

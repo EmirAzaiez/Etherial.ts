@@ -20,7 +20,7 @@ import etherial from 'etherial';
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
-import { PhoneValidationConfirmForm, PhoneValidationSendForm } from '../forms/user_phone_form';
+import { PhoneValidationConfirmForm, PhoneValidationSendForm } from '../forms/user_phone_form.js';
 import * as crypto from 'crypto';
 import { Op } from 'sequelize';
 const getModels = () => {

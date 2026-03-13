@@ -8,7 +8,7 @@ import {
     UpdatedAt,
     DataType,
     Default,
-} from '../../../components/database/provider'
+} from '../../../components/database/provider.js'
 
 export enum MediaStatus {
     PENDING = 'pending',
@@ -25,8 +25,8 @@ export enum MediaStatus {
  * @example
  * ```typescript
  * import { Table, ForeignKey, BelongsTo, Column, AllowNull } from 'etherial/components/database/provider'
- * import { BaseMedia } from '../ETHMediaLeaf/models/Media'
- * import { User } from './User'
+ * import { BaseMedia } from '../ETHMediaLeaf/models/Media.js'
+ * import { User } from './User.js'
  *
  * @Table({ tableName: 'medias', freezeTableName: true })
  * export class Media extends BaseMedia {

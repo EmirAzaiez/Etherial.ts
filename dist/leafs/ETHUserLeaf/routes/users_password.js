@@ -20,7 +20,7 @@ import etherial from 'etherial';
 import { Controller, Post, Put } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
-import { UpdatePasswordForm, PasswordResetRequestForm, PasswordResetConfirmForm, CreatePasswordForm, } from '../forms/user_form';
+import { UpdatePasswordForm, PasswordResetRequestForm, PasswordResetConfirmForm, CreatePasswordForm, } from '../forms/user_form.js';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 const getModels = () => {

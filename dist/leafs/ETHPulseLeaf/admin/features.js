@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import * as yup from 'yup';
-import { Device, DevicePushTokenStatus } from '../models/Device';
+import { Device, DevicePushTokenStatus } from '../models/Device.js';
 import { Op } from 'sequelize';
 import etherial from 'etherial';
 const getPulseLeaf = () => etherial.eth_pulse_leaf;

@@ -1,5 +1,5 @@
 import { EtherialYup } from 'etherial/components/http/yup.validator';
-import { DevicePlatform } from '../models/Device';
+import { DevicePlatform } from '../models/Device.js';
 export const RegisterDeviceForm = EtherialYup.object({
     device: EtherialYup.string()
         .matches(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, 'device must be a valid UUID v4')

@@ -16,7 +16,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt, DataType, Default, } from '../../../components/database/provider';
+import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt, DataType, Default, } from '../../../components/database/provider.js';
 export var MediaStatus;
 (function (MediaStatus) {
     MediaStatus["PENDING"] = "pending";
@@ -32,8 +32,8 @@ export var MediaStatus;
  * @example
  * ```typescript
  * import { Table, ForeignKey, BelongsTo, Column, AllowNull } from 'etherial/components/database/provider'
- * import { BaseMedia } from '../ETHMediaLeaf/models/Media'
- * import { User } from './User'
+ * import { BaseMedia } from '../ETHMediaLeaf/models/Media.js'
+ * import { User } from './User.js'
  *
  * @Table({ tableName: 'medias', freezeTableName: true })
  * export class Media extends BaseMedia {

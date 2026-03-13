@@ -1,7 +1,7 @@
 import etherial from 'etherial'
 
 import { Model } from 'etherial/components/database/provider'
-import type { PushResult } from '../providers/push'
+import type { PushResult } from '../providers/push/index.js'
 
 /**
  * ETHPulseLeaf User Mixin
@@ -10,8 +10,8 @@ import type { PushResult } from '../providers/push'
  * 
  * Usage in your project's User.ts:
  * ```typescript
- * import { UserLeafBase } from './ETHUserLeaf/models/User'
- * import { applyPulseMixin, PulseUserMethods } from './ETHPulseLeaf/models_mixins/UserPulseMixin'
+ * import { UserLeafBase } from './ETHUserLeaf/models/User.js'
+ * import { applyPulseMixin, PulseUserMethods } from './ETHPulseLeaf/models_mixins/UserPulseMixin.js'
  * 
  * @Table({ tableName: 'users' })
  * export class User extends applyPulseMixin(UserLeafBase) {

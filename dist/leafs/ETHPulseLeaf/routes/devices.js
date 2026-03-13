@@ -19,8 +19,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
-import { RegisterDeviceForm, RevokeDeviceForm } from '../forms/device_form';
-import { Device } from '../models/Device';
+import { RegisterDeviceForm, RevokeDeviceForm } from '../forms/device_form.js';
+import { Device } from '../models/Device.js';
 import etherial from 'etherial';
 let ETHPulseDevicesController = class ETHPulseDevicesController {
     registerDevice(req, res) {

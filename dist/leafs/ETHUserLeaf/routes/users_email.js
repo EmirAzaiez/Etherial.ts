@@ -20,7 +20,7 @@ import etherial from 'etherial';
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
-import { EmailValidationSendForm, EmailValidationConfirmForm } from '../forms/user_form';
+import { EmailValidationSendForm, EmailValidationConfirmForm } from '../forms/user_form.js';
 import * as crypto from 'crypto';
 const getModels = () => {
     const models = etherial.database.sequelize.models;

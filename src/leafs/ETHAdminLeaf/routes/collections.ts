@@ -8,8 +8,8 @@ import {
     Delete,
 } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
-import { ActionContext, FieldDefinition, FieldHasMany, FieldBelongsToMany } from '../features/ActionRegistry'
-import { CollectionStat } from '../features/CollectionConfig'
+import { ActionContext, FieldDefinition, FieldHasMany, FieldBelongsToMany } from '../features/ActionRegistry.js'
+import { CollectionStat } from '../features/CollectionConfig.js'
 import { Op, fn, col } from 'sequelize'
 
 const getAdminLeaf = () => (etherial as any).eth_admin_leaf

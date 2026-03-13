@@ -16,7 +16,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, Default, CreatedAt, UpdatedAt, Unique, DataType, } from '../../../components/database/provider';
+import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, Default, CreatedAt, UpdatedAt, Unique, DataType, } from '../../../components/database/provider.js';
 export class BaseMediaQuota extends Model {
     /**
      * Get human readable storage used

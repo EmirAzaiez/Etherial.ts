@@ -21,8 +21,8 @@ var __rest = (this && this.__rest) || function (s, e) {
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { ActionRegistry } from './features/ActionRegistry';
-import { HookRegistry } from './features/HookRegistry';
+import { ActionRegistry } from './features/ActionRegistry.js';
+import { HookRegistry } from './features/HookRegistry.js';
 export default class ETHAdminLeaf {
     constructor(config = {}) {
         this.etherial_module_name = 'eth_admin_leaf';
@@ -389,4 +389,4 @@ export default class ETHAdminLeaf {
     }
 }
 // Re-export types
-export * from './features';
+export * from './features/index.js';

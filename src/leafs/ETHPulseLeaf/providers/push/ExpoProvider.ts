@@ -1,5 +1,5 @@
 import { Expo, ExpoPushMessage, ExpoPushTicket } from 'expo-server-sdk'
-import { IPushProvider, PushResult, PushMessage, PushOptions } from './IPushProvider'
+import { IPushProvider, PushResult, PushMessage, PushOptions } from './IPushProvider.js'
 
 export interface ExpoConfig {
     accessToken?: string

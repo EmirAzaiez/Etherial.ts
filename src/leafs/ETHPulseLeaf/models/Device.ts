@@ -1,5 +1,5 @@
 import { Column, Model, DataType, Default, PrimaryKey, AutoIncrement, AllowNull, Unique } from 'etherial/components/database/provider'
-import { RegisterDeviceFormType } from '../forms/device_form'
+import { RegisterDeviceFormType } from '../forms/device_form.js'
 
 export enum DevicePlatform {
     WEB = 1,
@@ -31,7 +31,7 @@ export interface DeviceAttributes {
  *
  * @example
  * ```typescript
- * import { BaseDevice } from '../ETHPulseLeaf/models/Device'
+ * import { BaseDevice } from '../ETHPulseLeaf/models/Device.js'
  *
  * @Table({ tableName: 'devices', freezeTableName: true })
  * export class Device extends BaseDevice {

@@ -5,7 +5,7 @@ import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import * as jwt from 'jsonwebtoken'
 
-import { AuthFormApple, AuthFormAppleType } from '../forms/auth_form'
+import { AuthFormApple, AuthFormAppleType } from '../forms/auth_form.js'
 
 const getModels = () => {
     const models = etherial.database!.sequelize.models

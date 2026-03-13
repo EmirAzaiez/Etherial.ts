@@ -6,18 +6,18 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Providers
-import { ISmsProvider, TwilioProvider, TwilioConfig } from './providers/sms'
-import { IEmailProvider, NodemailerProvider, NodemailerConfig } from './providers/email'
-import { IPushProvider, ExpoProvider, ExpoConfig } from './providers/push'
+import { ISmsProvider, TwilioProvider, TwilioConfig } from './providers/sms/index.js'
+import { IEmailProvider, NodemailerProvider, NodemailerConfig } from './providers/email/index.js'
+import { IPushProvider, ExpoProvider, ExpoConfig } from './providers/push/index.js'
 
 // Services
-import { SmsService } from './services/sms.service'
-import { EmailService } from './services/email.service'
-import { PushService } from './services/push.service'
+import { SmsService } from './services/sms.service.js'
+import { EmailService } from './services/email.service.js'
+import { PushService } from './services/push.service.js'
 
 // Templates
-import { TemplateConfig, defaultTemplateConfig } from './templates/TemplateEngine'
-import { UnifonicConfig, UnifonicProvider } from './providers/sms/UnifonicProvider'
+import { TemplateConfig, defaultTemplateConfig } from './templates/TemplateEngine.js'
+import { UnifonicConfig, UnifonicProvider } from './providers/sms/UnifonicProvider.js'
 
 /**
  * ETHPulseLeaf - Unified Messaging System
@@ -419,10 +419,10 @@ export interface ETHPulseLeafConfig {
 }
 
 // Re-export types for external use
-export { ISmsProvider, SmsResult, SmsOptions } from './providers/sms'
-export { IEmailProvider, EmailResult, EmailOptions, TransactionalContent } from './providers/email'
-export { IPushProvider, PushResult, PushMessage, PushOptions } from './providers/push'
-export { TemplateConfig } from './templates/TemplateEngine'
-export { MessageLog, MessageType, MessageStatus } from './models/MessageLog'
-export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus, DeviceAttributes } from './models/Device'
-export { ETHPulseLeafNotificationBaseModel } from './models/Notification'
+export { ISmsProvider, SmsResult, SmsOptions } from './providers/sms/index.js'
+export { IEmailProvider, EmailResult, EmailOptions, TransactionalContent } from './providers/email/index.js'
+export { IPushProvider, PushResult, PushMessage, PushOptions } from './providers/push/index.js'
+export { TemplateConfig } from './templates/TemplateEngine.js'
+export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js'
+export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus, DeviceAttributes } from './models/Device.js'
+export { ETHPulseLeafNotificationBaseModel } from './models/Notification.js'

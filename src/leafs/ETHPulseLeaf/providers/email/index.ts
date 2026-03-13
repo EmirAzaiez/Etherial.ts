@@ -1,2 +1,2 @@
-export * from './IEmailProvider'
-export * from './NodemailerProvider'
+export * from './IEmailProvider.js'
+export * from './NodemailerProvider.js'

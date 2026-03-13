@@ -1,4 +1,4 @@
 // Action Registry
-export { ActionRegistry, yupToForm } from './ActionRegistry';
+export { ActionRegistry, yupToForm } from './ActionRegistry.js';
 // Hook Registry
-export { HookRegistry } from './HookRegistry';
+export { HookRegistry } from './HookRegistry.js';

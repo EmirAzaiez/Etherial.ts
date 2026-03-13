@@ -3,8 +3,8 @@ import {
     EmailResult,
     EmailOptions,
     TransactionalContent,
-} from '../providers/email/IEmailProvider'
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog'
+} from '../providers/email/IEmailProvider.js'
+import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js'
 
 export class EmailService {
     private providers: Map<string, IEmailProvider> = new Map()

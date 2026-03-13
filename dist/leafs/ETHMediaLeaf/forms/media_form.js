@@ -1,4 +1,4 @@
-import { EtherialYup } from '../../../components/http/yup.validator';
+import { EtherialYup } from '../../../components/http/yup.validator.js';
 /**
  * Form for requesting a presigned upload URL
  */
