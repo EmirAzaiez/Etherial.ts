@@ -19,6 +19,8 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { ActionRegistry } from './features/ActionRegistry';
 import { HookRegistry } from './features/HookRegistry';
 export default class ETHAdminLeaf {

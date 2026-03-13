@@ -1,5 +1,8 @@
 import { Etherial } from 'etherial'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import { ActionRegistry, SerializedAction } from './features/ActionRegistry'
 import { HookRegistry, ResolvedHooks } from './features/HookRegistry'
 import { CollectionConfig, SerializedCollection } from './features/CollectionConfig'
