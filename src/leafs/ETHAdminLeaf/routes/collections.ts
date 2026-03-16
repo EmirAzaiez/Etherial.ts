@@ -8,7 +8,7 @@ import {
     Delete,
 } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
-import { ActionContext, FieldDefinition, FieldHasMany, FieldBelongsToMany } from '../features/ActionRegistry.js'
+import { ActionContext, FieldDefinition, FieldHasMany, FieldBelongsToMany, BelongsToManyInput } from '../features/ActionRegistry.js'
 import { CollectionStat } from '../features/CollectionConfig.js'
 import { Op, fn, col } from 'sequelize'
 
@@ -145,44 +145,85 @@ function buildNestedIncludesForFields(fields: FieldDefinition[]): any[] {
 }
 
 /**
+ * Check if BelongsToManyInput contains pivot data (object format)
+ */
+function hasPivotData(items: BelongsToManyInput): items is Array<{ id: number; through?: Record<string, any> }> {
+    return items.length > 0 && typeof items[0] === 'object'
+}
+
+/**
  * Process belongsToMany relations after parent record is created/updated
- * Syncs the junction table with the provided IDs
+ * Supports two formats (backward compatible):
+ * - Simple: [1, 2, 3] → uses Sequelize set()
+ * - With pivot: [{id: 5, through: {role: 2}}, {id: 8, through: {role: 1}}] → uses junction model directly
  */
 async function processBelongsToManyItems(
     record: any,
     fieldName: string,
-    _config: FieldBelongsToMany, // For future pivot fields support
-    itemIds: number[] | undefined
+    config: FieldBelongsToMany,
+    items: BelongsToManyInput | undefined
 ): Promise<{ added: number; removed: number }> {
     const stats = { added: 0, removed: 0 }
 
-    if (!itemIds || !Array.isArray(itemIds)) {
+    if (!items || !Array.isArray(items)) {
         return stats
     }
 
     try {
-        // Use Sequelize's set method for the association
-        // This automatically handles the junction table
-        const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
-
-        if (typeof record[setMethodName] === 'function') {
-            // Get current associations to calculate stats
-            const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
-            const currentItems: any[] = typeof record[getMethodName] === 'function'
-                ? await record[getMethodName]()
-                : []
-            const currentIds = new Set<number>(currentItems.map((item: any) => item.id))
-
-            // Set new associations
-            await record[setMethodName](itemIds)
-
-            // Calculate stats
-            const newIds = new Set<number>(itemIds)
-            for (const id of itemIds) {
-                if (!currentIds.has(id)) stats.added++
+        if (items.length > 0 && hasPivotData(items)) {
+            // Format with pivot data — use junction model directly
+            const JunctionModel = typeof config.through === 'string' ? null : config.through
+            if (!JunctionModel) {
+                console.error(`[ETHAdminLeaf] Pivot fields require a junction model (not string) for ${fieldName}`)
+                return stats
             }
-            for (const id of currentIds) {
-                if (!newIds.has(id as number)) stats.removed++
+
+            // Get current associations for stats
+            const currentJunctions = await JunctionModel.findAll({
+                where: { [config.foreignKey]: record.id },
+                raw: true
+            })
+            const currentOtherIds = new Set(currentJunctions.map((j: any) => j[config.otherKey]))
+
+            // Remove all existing junction rows
+            await JunctionModel.destroy({ where: { [config.foreignKey]: record.id } })
+            stats.removed = currentJunctions.length
+
+            // Create new junction rows with pivot data
+            for (const item of items) {
+                await JunctionModel.create({
+                    [config.foreignKey]: record.id,
+                    [config.otherKey]: item.id,
+                    ...(item.through || {})
+                })
+                if (!currentOtherIds.has(item.id)) {
+                    stats.added++
+                }
+            }
+            // Adjust stats: items that were re-created aren't truly "added"
+            stats.added = items.filter(item => !currentOtherIds.has(item.id)).length
+            stats.removed = currentJunctions.filter((j: any) => !items.some(item => item.id === j[config.otherKey])).length
+        } else {
+            // Simple ID format — use Sequelize's set method
+            const itemIds = items as number[]
+            const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
+
+            if (typeof record[setMethodName] === 'function') {
+                const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
+                const currentItems: any[] = typeof record[getMethodName] === 'function'
+                    ? await record[getMethodName]()
+                    : []
+                const currentIds = new Set<number>(currentItems.map((item: any) => item.id))
+
+                await record[setMethodName](itemIds)
+
+                const newIds = new Set<number>(itemIds)
+                for (const id of itemIds) {
+                    if (!currentIds.has(id)) stats.added++
+                }
+                for (const id of currentIds) {
+                    if (!newIds.has(id as number)) stats.removed++
+                }
             }
         }
     } catch (err: any) {
@@ -301,6 +342,8 @@ function transformFields(items: any[], fields: any[]): any[] {
     // Build maps for transformations
     const optionsMap: Record<string, Record<any, string>> = {}
     const secureFields: Set<string> = new Set()
+    const jsonFields: Set<string> = new Set()
+    const relationFields: Map<string, { collection: string; displayField: string }> = new Map()
 
     for (const field of fields) {
         // Collect enum options
@@ -314,16 +357,22 @@ function transformFields(items: any[], fields: any[]): any[] {
         if (field.secure) {
             secureFields.add(field.name)
         }
-    }
-
-    // If no transformations needed, return items as-is
-    if (Object.keys(optionsMap).length === 0 && secureFields.size === 0) {
-        return items
+        // Collect json fields
+        if (field.type === 'json') {
+            jsonFields.add(field.name)
+        }
+        // Collect relation fields
+        if (field.type === 'relation' && field.relation) {
+            relationFields.set(field.name, field.relation)
+        }
     }
 
     // Transform each item
     return items.map(item => {
-        const json = item.toJSON ? item.toJSON() : { ...item }
+        let json = item.toJSON ? item.toJSON() : { ...item }
+
+        // Apply custom field type afterRead hooks
+        json = applyAfterRead(json, fields)
 
         // Apply enum transformations
         for (const [fieldName, valueToLabel] of Object.entries(optionsMap)) {
@@ -336,6 +385,32 @@ function transformFields(items: any[], fields: any[]): any[] {
         for (const fieldName of secureFields) {
             if (json[fieldName] !== undefined) {
                 json[fieldName] = maskSecureValue(json[fieldName])
+            }
+        }
+
+        // Format JSON fields for readable display
+        for (const fieldName of jsonFields) {
+            const val = json[fieldName]
+            if (val == null) continue
+            if (Array.isArray(val)) {
+                json[fieldName] = val.map((item: any) => {
+                    if (typeof item === 'object') {
+                        // Show most meaningful values: name, value, url, key
+                        return item.name || item.value || item.url || item.key || JSON.stringify(item)
+                    }
+                    return String(item)
+                })
+            } else if (typeof val === 'object') {
+                json[fieldName] = JSON.stringify(val, null, 2)
+            }
+        }
+
+        // Resolve relation display fields (user_id: 5 → user_id: "email@test.com")
+        for (const [fieldName, relConfig] of relationFields) {
+            const associationName = fieldName.replace(/_id$/, '')
+            const related = json[associationName]
+            if (related && related[relConfig.displayField]) {
+                json[fieldName] = related[relConfig.displayField]
             }
         }
 
@@ -406,6 +481,149 @@ function transformMediaUrls(data: any, cdnUrl?: string): any {
 }
 
 /**
+ * Process custom field types for create/update operations
+ * Runs beforeSave and validate hooks for any fields that use custom types
+ */
+async function processCustomFieldTypes(
+    data: Record<string, any>,
+    fields: FieldDefinition[] | undefined,
+    phase: 'beforeSave' | 'validate'
+): Promise<Record<string, any>> {
+    if (!fields) return data
+
+    const adminLeaf = getAdminLeaf()
+    const result = { ...data }
+
+    for (const field of fields) {
+        const customType = adminLeaf?.getCustomFieldType(field.type)
+        if (!customType) continue
+
+        const value = result[field.name]
+        if (value === undefined) continue
+
+        if (phase === 'beforeSave' && customType.beforeSave) {
+            result[field.name] = customType.beforeSave(value, field)
+        }
+
+        if (phase === 'validate' && customType.validate) {
+            await customType.validate(value, field)
+        }
+    }
+
+    return result
+}
+
+/**
+ * Apply afterRead hooks for custom field types
+ */
+function applyAfterRead(
+    data: Record<string, any>,
+    fields: FieldDefinition[] | undefined
+): Record<string, any> {
+    if (!fields) return data
+
+    const adminLeaf = getAdminLeaf()
+    const result = { ...data }
+
+    for (const field of fields) {
+        const customType = adminLeaf?.getCustomFieldType(field.type)
+        if (!customType?.afterRead) continue
+
+        if (result[field.name] !== undefined) {
+            result[field.name] = customType.afterRead(result[field.name], field)
+        }
+    }
+
+    return result
+}
+
+/**
+ * Parse advanced filters from query parameters
+ * Supports Django-style double-underscore operators:
+ * - field=value → exact match (backward compatible)
+ * - field__ne=value → not equal
+ * - field__gt, field__gte, field__lt, field__lte → comparisons
+ * - field__between=start,end → range
+ * - field__in=val1,val2,val3 → IN
+ * - field__null=true/false → IS NULL / IS NOT NULL
+ * - field__like=pattern → LIKE
+ */
+function parseAdvancedFilters(filters: Record<string, any>, allowedFilters: string[]): Record<string, any> {
+    const where: any = {}
+
+    for (const [key, value] of Object.entries(filters)) {
+        if (value === undefined || value === '') continue
+
+        // Check for operator suffix
+        const parts = key.split('__')
+        const fieldName = parts[0]
+        const operator = parts[1]
+
+        // Whitelist check on the base field name
+        if (!allowedFilters.includes(fieldName)) continue
+
+        if (!operator) {
+            // Simple exact match (backward compatible)
+            where[fieldName] = value
+            continue
+        }
+
+        switch (operator) {
+            case 'ne':
+                where[fieldName] = { [Op.ne]: value }
+                break
+            case 'gt':
+                where[fieldName] = { ...where[fieldName], [Op.gt]: value }
+                break
+            case 'gte':
+                where[fieldName] = { ...where[fieldName], [Op.gte]: value }
+                break
+            case 'lt':
+                where[fieldName] = { ...where[fieldName], [Op.lt]: value }
+                break
+            case 'lte':
+                where[fieldName] = { ...where[fieldName], [Op.lte]: value }
+                break
+            case 'between': {
+                const [start, end] = String(value).split(',')
+                if (start && end) {
+                    where[fieldName] = { [Op.between]: [start.trim(), end.trim()] }
+                }
+                break
+            }
+            case 'in': {
+                const values = String(value).split(',').map(v => v.trim())
+                where[fieldName] = { [Op.in]: values }
+                break
+            }
+            case 'null':
+                where[fieldName] = String(value) === 'true' ? null : { [Op.ne]: null }
+                break
+            case 'like':
+                where[fieldName] = { [Op.like]: value }
+                break
+            default:
+                // Unknown operator, treat as exact match on full key
+                break
+        }
+    }
+
+    return where
+}
+
+/**
+ * Escape a value for CSV output
+ */
+function escapeCsvValue(value: any): string {
+    if (value === null || value === undefined) return ''
+    const str = String(value)
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`
+    }
+    return str
+}
+
+/**
  * Admin Collections Controller
  * Single controller handling all CRUD operations for all collections
  */
@@ -437,21 +655,15 @@ export default class AdminCollectionsController {
         }
 
         try {
-            const { limit = 25, offset = 0, sort, order, search, ...filters } = req.query
+            const { limit = 25, offset = 0, sort, order, search, showDeleted, ...filters } = req.query
             const listView = collection.views?.list
 
-            // Build where clause from filters
-            const where: any = {}
+            // Build where clause from advanced filters
             const allowedFilters = listView?.filters || []
-            for (const [key, value] of Object.entries(filters)) {
-                if (allowedFilters.includes(key) && value !== undefined && value !== '') {
-                    where[key] = value
-                }
-            }
+            const where: any = parseAdvancedFilters(filters, allowedFilters)
 
             // Build search clause
             if (search && listView?.search && listView.search.length > 0) {
-                const { Op } = require('sequelize')
                 where[Op.or] = listView.search.map((field: string) => ({
                     [field]: { [Op.iLike]: `%${search}%` }
                 }))
@@ -467,13 +679,19 @@ export default class AdminCollectionsController {
                 orderClause = [['created_at', 'DESC']]
             }
 
+            // Soft delete: show deleted records if requested and collection supports it
+            const paranoidOption = collection.softDelete?.enabled && showDeleted === 'true'
+                ? { paranoid: false }
+                : {}
+
             const result = await collection.model.findAndCountAll({
                 where,
                 attributes: listView?.fields,
                 include: listView?.include || [],
                 order: orderClause,
                 limit: Number(limit),
-                offset: Number(offset)
+                offset: Number(offset),
+                ...paranoidOption
             })
 
             // Transform field values for admin display (enums, secure fields)
@@ -498,10 +716,11 @@ export default class AdminCollectionsController {
     @Get('/admin/collections/:collection/:id(\\d+)')
     @ShouldBeAuthenticated()
     async show(
-        req: Request & { user: any; params: { collection: string; id: string } },
+        req: Request & { user: any; params: { collection: string; id: string }; query: any },
         res: Response
     ): Promise<any> {
         const { collection: collectionName, id } = req.params
+        const { raw } = req.query
         const adminLeaf = getAdminLeaf()
 
         const collection = adminLeaf?.getCollection(collectionName)
@@ -526,6 +745,13 @@ export default class AdminCollectionsController {
 
             if (!record) {
                 return (res as any).error?.({ status: 404, errors: ['not_found'] })
+            }
+
+            // raw=true: skip enum/secure transformations (used by edit forms to get raw values)
+            if (raw === 'true') {
+                const rawData = record.toJSON ? record.toJSON() : { ...record }
+                const recordWithUrls = transformMediaUrls(rawData)
+                return (res as any).success?.({ status: 200, data: recordWithUrls })
             }
 
             // Transform field values for admin display (enums, secure fields)
@@ -620,13 +846,36 @@ export default class AdminCollectionsController {
             }
             const nestedIncludes = buildNestedIncludesForFields(fieldsForIncludes)
 
-            const items = await subConfig.model.findAndCountAll({
-                where: { [subConfig.foreignKey]: id },
-                include: nestedIncludes,
-                order,
-                limit: Number(limit),
-                offset: Number(offset)
-            })
+            // M:M: query via junction table, then fetch related model
+            let items
+            if (subConfig.through && subConfig.otherKey) {
+                const junctionRows = await subConfig.through.findAll({
+                    where: { [subConfig.foreignKey]: id },
+                    attributes: [subConfig.otherKey],
+                    raw: true,
+                })
+                const relatedIds = junctionRows.map((r: any) => r[subConfig.otherKey]).filter(Boolean)
+
+                if (relatedIds.length === 0) {
+                    items = { rows: [], count: 0 }
+                } else {
+                    items = await subConfig.model.findAndCountAll({
+                        where: { id: relatedIds },
+                        include: nestedIncludes,
+                        order,
+                        limit: Number(limit),
+                        offset: Number(offset),
+                    })
+                }
+            } else {
+                items = await subConfig.model.findAndCountAll({
+                    where: { [subConfig.foreignKey]: id },
+                    include: nestedIncludes,
+                    order,
+                    limit: Number(limit),
+                    offset: Number(offset)
+                })
+            }
 
             // Try to get the sub-collection's registered fields for transformation
             const subCollection = adminLeaf?.getCollection(subName)
@@ -689,7 +938,7 @@ export default class AdminCollectionsController {
 
             // Extract belongsToMany fields from data
             const belongsToManyFields = getBelongsToManyFields(collection.fields)
-            const belongsToManyData: Map<string, number[]> = new Map()
+            const belongsToManyData: Map<string, BelongsToManyInput> = new Map()
 
             for (const [fieldName] of belongsToManyFields) {
                 if (data[fieldName] !== undefined) {
@@ -702,6 +951,10 @@ export default class AdminCollectionsController {
             if (resolvedHooks?.beforeCreate) {
                 data = await resolvedHooks.beforeCreate(data, req) ?? data
             }
+
+            // Process custom field types: validate then beforeSave
+            data = await processCustomFieldTypes(data, collection.fields, 'validate')
+            data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
 
             // Create parent record
             const record = await collection.model.create(data)
@@ -787,7 +1040,7 @@ export default class AdminCollectionsController {
 
             // Extract belongsToMany fields from data
             const belongsToManyFields = getBelongsToManyFields(collection.fields)
-            const belongsToManyData: Map<string, number[]> = new Map()
+            const belongsToManyData: Map<string, BelongsToManyInput> = new Map()
 
             for (const [fieldName] of belongsToManyFields) {
                 if (data[fieldName] !== undefined) {
@@ -800,6 +1053,10 @@ export default class AdminCollectionsController {
             if (resolvedHooks?.beforeUpdate) {
                 data = await resolvedHooks.beforeUpdate(record, data, req) ?? data
             }
+
+            // Process custom field types: validate then beforeSave
+            data = await processCustomFieldTypes(data, collection.fields, 'validate')
+            data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
 
             // Update parent record
             await record.update(data)
@@ -1155,6 +1412,331 @@ export default class AdminCollectionsController {
     }
 
     /**
+     * GET /admin/collections/:collection/search
+     * Search/autocomplete endpoint for a collection
+     */
+    @Get('/admin/collections/:collection/search')
+    @ShouldBeAuthenticated()
+    async search(
+        req: Request & { user: any; params: { collection: string }; query: any },
+        res: Response
+    ): Promise<any> {
+        const { collection: collectionName } = req.params
+        const adminLeaf = getAdminLeaf()
+
+        const collection = adminLeaf?.getCollection(collectionName)
+        if (!collection) {
+            return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
+        }
+
+        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, 'list')
+        if (!hasAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
+
+        try {
+            const { q = '', fields: fieldsParam, limit = 20 } = req.query
+            const listView = collection.views?.list
+
+            // Determine search fields
+            const searchFields: string[] = fieldsParam
+                ? String(fieldsParam).split(',').map((f: string) => f.trim())
+                : (listView?.search || [])
+
+            if (searchFields.length === 0 || !q) {
+                return (res as any).success?.({ status: 200, data: [] })
+            }
+
+            const where: any = {
+                [Op.or]: searchFields.map((field: string) => ({
+                    [field]: { [Op.iLike]: `%${q}%` }
+                }))
+            }
+
+            const cappedLimit = Math.min(Number(limit), 50)
+
+            const results = await collection.model.findAll({
+                where,
+                attributes: ['id', ...searchFields],
+                limit: cappedLimit,
+                order: [['id', 'ASC']]
+            })
+
+            const items = results.map((r: any) => {
+                const json = r.toJSON ? r.toJSON() : { ...r }
+                return json
+            })
+
+            return (res as any).success?.({ status: 200, data: items })
+        } catch (err: any) {
+            console.error(`[ETHAdminLeaf] Search error for ${collectionName}:`, err)
+            return (res as any).error?.({ status: 400, errors: [err.message] })
+        }
+    }
+
+    /**
+     * GET /admin/collections/:collection/export
+     * Export collection data as CSV or JSON
+     */
+    @Get('/admin/collections/:collection/export')
+    @ShouldBeAuthenticated()
+    async export(
+        req: Request & { user: any; params: { collection: string }; query: any },
+        res: Response
+    ): Promise<any> {
+        const { collection: collectionName } = req.params
+        const adminLeaf = getAdminLeaf()
+
+        const collection = adminLeaf?.getCollection(collectionName)
+        if (!collection) {
+            return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
+        }
+
+        if (!collection.exportable) {
+            return (res as any).error?.({ status: 403, errors: ['export_not_enabled'] })
+        }
+
+        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, 'list')
+        if (!hasAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
+
+        try {
+            const { format = 'csv', fields: fieldsParam, search, ...filters } = req.query
+            const listView = collection.views?.list
+
+            // Build where clause (reuse advanced filters)
+            const allowedFilters = listView?.filters || []
+            const where: any = parseAdvancedFilters(filters, allowedFilters)
+
+            // Build search clause
+            if (search && listView?.search && listView.search.length > 0) {
+                where[Op.or] = listView.search.map((field: string) => ({
+                    [field]: { [Op.iLike]: `%${search}%` }
+                }))
+            }
+
+            // Determine fields to export (exclude secure fields)
+            const secureFieldNames = new Set(
+                (collection.fields || []).filter(f => f.secure).map(f => f.name)
+            )
+            let exportFields: string[] | undefined
+            if (fieldsParam) {
+                exportFields = String(fieldsParam).split(',')
+                    .map(f => f.trim())
+                    .filter(f => !secureFieldNames.has(f))
+            } else {
+                exportFields = (collection.fields || [])
+                    .filter(f => !f.secure && f.type !== 'hasMany' && f.type !== 'belongsToMany')
+                    .map(f => f.name)
+            }
+
+            const MAX_EXPORT_ROWS = 10000
+            const rows = await collection.model.findAll({
+                where,
+                attributes: exportFields,
+                limit: MAX_EXPORT_ROWS,
+                order: [['id', 'ASC']],
+                raw: true
+            })
+
+            if (format === 'json') {
+                res.setHeader('Content-Type', 'application/json')
+                res.setHeader('Content-Disposition', `attachment; filename="${collectionName}_export.json"`)
+                return res.send(JSON.stringify(rows, null, 2))
+            }
+
+            // CSV format
+            if (!exportFields || exportFields.length === 0) {
+                exportFields = rows.length > 0 ? Object.keys(rows[0]) : []
+            }
+
+            const csvLines: string[] = []
+            csvLines.push(exportFields.map(escapeCsvValue).join(','))
+            for (const row of rows) {
+                csvLines.push(exportFields.map(field => escapeCsvValue((row as any)[field])).join(','))
+            }
+
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+            res.setHeader('Content-Disposition', `attachment; filename="${collectionName}_export.csv"`)
+            return res.send(csvLines.join('\n'))
+        } catch (err: any) {
+            console.error(`[ETHAdminLeaf] Export error for ${collectionName}:`, err)
+            return (res as any).error?.({ status: 400, errors: [err.message] })
+        }
+    }
+
+    /**
+     * POST /admin/collections/:collection/bulk
+     * Bulk operations on collection records
+     */
+    @Post('/admin/collections/:collection/bulk')
+    @ShouldBeAuthenticated()
+    async bulk(
+        req: Request & { user: any; params: { collection: string }; body: any },
+        res: Response
+    ): Promise<any> {
+        const { collection: collectionName } = req.params
+        const adminLeaf = getAdminLeaf()
+
+        const collection = adminLeaf?.getCollection(collectionName)
+        if (!collection) {
+            return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
+        }
+
+        const { action, ids, data } = req.body
+
+        if (!action || !ids || !Array.isArray(ids)) {
+            return (res as any).error?.({ status: 400, errors: ['action_and_ids_required'] })
+        }
+
+        if (ids.length > 100) {
+            return (res as any).error?.({ status: 400, errors: ['max_100_ids_per_request'] })
+        }
+
+        // Check appropriate access
+        const requiredAccess = action === 'delete' ? 'delete' : 'update'
+        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, requiredAccess)
+        if (!hasAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
+
+        try {
+            const resolvedHooks = adminLeaf.getResolvedHooks(collectionName)
+
+            if (action === 'delete') {
+                // If hooks are defined, run them per-record
+                if (resolvedHooks?.beforeDelete || resolvedHooks?.afterDelete) {
+                    const records = await collection.model.findAll({ where: { id: { [Op.in]: ids } } })
+                    let deleted = 0
+                    for (const record of records) {
+                        if (resolvedHooks?.beforeDelete) {
+                            const canDelete = await resolvedHooks.beforeDelete(record, req)
+                            if (canDelete === false) continue
+                        }
+                        await record.destroy()
+                        if (resolvedHooks?.afterDelete) {
+                            await resolvedHooks.afterDelete(record, req)
+                        }
+                        deleted++
+                    }
+                    return (res as any).success?.({ status: 200, data: { deleted } })
+                } else {
+                    const deleted = await collection.model.destroy({ where: { id: { [Op.in]: ids } } })
+                    return (res as any).success?.({ status: 200, data: { deleted } })
+                }
+            }
+
+            if (action === 'update') {
+                if (!data || typeof data !== 'object') {
+                    return (res as any).error?.({ status: 400, errors: ['data_required_for_update'] })
+                }
+                const [updated] = await collection.model.update(data, { where: { id: { [Op.in]: ids } } })
+                return (res as any).success?.({ status: 200, data: { updated } })
+            }
+
+            return (res as any).error?.({ status: 400, errors: ['invalid_action'] })
+        } catch (err: any) {
+            console.error(`[ETHAdminLeaf] Bulk error for ${collectionName}:`, err)
+            return (res as any).error?.({ status: 400, errors: [err.message] })
+        }
+    }
+
+    /**
+     * POST /admin/collections/:collection/:id/duplicate
+     * Duplicate a record
+     */
+    @Post('/admin/collections/:collection/:id(\\d+)/duplicate')
+    @ShouldBeAuthenticated()
+    async duplicate(
+        req: Request & { user: any; params: { collection: string; id: string } },
+        res: Response
+    ): Promise<any> {
+        const { collection: collectionName, id } = req.params
+        const adminLeaf = getAdminLeaf()
+
+        const collection = adminLeaf?.getCollection(collectionName)
+        if (!collection) {
+            return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
+        }
+
+        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, 'create')
+        if (!hasAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
+
+        try {
+            const record = await collection.model.findByPk(id)
+            if (!record) {
+                return (res as any).error?.({ status: 404, errors: ['not_found'] })
+            }
+
+            const data = record.toJSON ? record.toJSON() : { ...record }
+            // Strip auto-generated fields
+            delete data.id
+            delete data.created_at
+            delete data.updated_at
+            delete data.deleted_at
+            delete data.createdAt
+            delete data.updatedAt
+            delete data.deletedAt
+
+            const newRecord = await collection.model.create(data)
+
+            return (res as any).success?.({ status: 201, data: newRecord })
+        } catch (err: any) {
+            console.error(`[ETHAdminLeaf] Duplicate error for ${collectionName}:`, err)
+            return (res as any).error?.({ status: 400, errors: [err.message] })
+        }
+    }
+
+    /**
+     * POST /admin/collections/:collection/:id/restore
+     * Restore a soft-deleted record
+     */
+    @Post('/admin/collections/:collection/:id(\\d+)/restore')
+    @ShouldBeAuthenticated()
+    async restore(
+        req: Request & { user: any; params: { collection: string; id: string } },
+        res: Response
+    ): Promise<any> {
+        const { collection: collectionName, id } = req.params
+        const adminLeaf = getAdminLeaf()
+
+        const collection = adminLeaf?.getCollection(collectionName)
+        if (!collection) {
+            return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
+        }
+
+        if (!collection.softDelete?.enabled) {
+            return (res as any).error?.({ status: 400, errors: ['soft_delete_not_enabled'] })
+        }
+
+        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, 'update')
+        if (!hasAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
+
+        try {
+            const record = await collection.model.findByPk(id, { paranoid: false })
+            if (!record) {
+                return (res as any).error?.({ status: 404, errors: ['not_found'] })
+            }
+
+            if (typeof record.restore !== 'function') {
+                return (res as any).error?.({ status: 400, errors: ['model_does_not_support_restore'] })
+            }
+
+            await record.restore()
+
+            return (res as any).success?.({ status: 200, data: record })
+        } catch (err: any) {
+            console.error(`[ETHAdminLeaf] Restore error for ${collectionName}:`, err)
+            return (res as any).error?.({ status: 400, errors: [err.message] })
+        }
+    }
+
+    /**
      * GET /admin/collections/:collection/stats
      * Get stats for a collection
      *
@@ -1297,6 +1879,9 @@ export default class AdminCollectionsController {
 
 export const AvailableRouteMethods = [
     'list',
+    'search',
+    'export',
+    'bulk',
     'show',
     'subCollection',
     'showSubCollectionItem',
@@ -1306,6 +1891,8 @@ export const AvailableRouteMethods = [
     'create',
     'update',
     'delete',
+    'duplicate',
+    'restore',
     'executeAction',
     'stats'
 ] as const

@@ -132,38 +132,71 @@ function buildNestedIncludesForFields(fields) {
     return includes;
 }
 /**
- * Process belongsToMany relations after parent record is created/updated
- * Syncs the junction table with the provided IDs
+ * Check if BelongsToManyInput contains pivot data (object format)
  */
-function processBelongsToManyItems(record, fieldName, _config, // For future pivot fields support
-itemIds) {
+function hasPivotData(items) {
+    return items.length > 0 && typeof items[0] === 'object';
+}
+/**
+ * Process belongsToMany relations after parent record is created/updated
+ * Supports two formats (backward compatible):
+ * - Simple: [1, 2, 3] → uses Sequelize set()
+ * - With pivot: [{id: 5, through: {role: 2}}, {id: 8, through: {role: 1}}] → uses junction model directly
+ */
+function processBelongsToManyItems(record, fieldName, config, items) {
     return __awaiter(this, void 0, void 0, function* () {
         const stats = { added: 0, removed: 0 };
-        if (!itemIds || !Array.isArray(itemIds)) {
+        if (!items || !Array.isArray(items)) {
             return stats;
         }
         try {
-            // Use Sequelize's set method for the association
-            // This automatically handles the junction table
-            const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
-            if (typeof record[setMethodName] === 'function') {
-                // Get current associations to calculate stats
-                const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
-                const currentItems = typeof record[getMethodName] === 'function'
-                    ? yield record[getMethodName]()
-                    : [];
-                const currentIds = new Set(currentItems.map((item) => item.id));
-                // Set new associations
-                yield record[setMethodName](itemIds);
-                // Calculate stats
-                const newIds = new Set(itemIds);
-                for (const id of itemIds) {
-                    if (!currentIds.has(id))
-                        stats.added++;
+            if (items.length > 0 && hasPivotData(items)) {
+                // Format with pivot data — use junction model directly
+                const JunctionModel = typeof config.through === 'string' ? null : config.through;
+                if (!JunctionModel) {
+                    console.error(`[ETHAdminLeaf] Pivot fields require a junction model (not string) for ${fieldName}`);
+                    return stats;
                 }
-                for (const id of currentIds) {
-                    if (!newIds.has(id))
-                        stats.removed++;
+                // Get current associations for stats
+                const currentJunctions = yield JunctionModel.findAll({
+                    where: { [config.foreignKey]: record.id },
+                    raw: true
+                });
+                const currentOtherIds = new Set(currentJunctions.map((j) => j[config.otherKey]));
+                // Remove all existing junction rows
+                yield JunctionModel.destroy({ where: { [config.foreignKey]: record.id } });
+                stats.removed = currentJunctions.length;
+                // Create new junction rows with pivot data
+                for (const item of items) {
+                    yield JunctionModel.create(Object.assign({ [config.foreignKey]: record.id, [config.otherKey]: item.id }, (item.through || {})));
+                    if (!currentOtherIds.has(item.id)) {
+                        stats.added++;
+                    }
+                }
+                // Adjust stats: items that were re-created aren't truly "added"
+                stats.added = items.filter(item => !currentOtherIds.has(item.id)).length;
+                stats.removed = currentJunctions.filter((j) => !items.some(item => item.id === j[config.otherKey])).length;
+            }
+            else {
+                // Simple ID format — use Sequelize's set method
+                const itemIds = items;
+                const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
+                if (typeof record[setMethodName] === 'function') {
+                    const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
+                    const currentItems = typeof record[getMethodName] === 'function'
+                        ? yield record[getMethodName]()
+                        : [];
+                    const currentIds = new Set(currentItems.map((item) => item.id));
+                    yield record[setMethodName](itemIds);
+                    const newIds = new Set(itemIds);
+                    for (const id of itemIds) {
+                        if (!currentIds.has(id))
+                            stats.added++;
+                    }
+                    for (const id of currentIds) {
+                        if (!newIds.has(id))
+                            stats.removed++;
+                    }
                 }
             }
         }
@@ -262,6 +295,8 @@ function transformFields(items, fields) {
     // Build maps for transformations
     const optionsMap = {};
     const secureFields = new Set();
+    const jsonFields = new Set();
+    const relationFields = new Map();
     for (const field of fields) {
         // Collect enum options
         if (field.options && Array.isArray(field.options)) {
@@ -274,14 +309,20 @@ function transformFields(items, fields) {
         if (field.secure) {
             secureFields.add(field.name);
         }
-    }
-    // If no transformations needed, return items as-is
-    if (Object.keys(optionsMap).length === 0 && secureFields.size === 0) {
-        return items;
+        // Collect json fields
+        if (field.type === 'json') {
+            jsonFields.add(field.name);
+        }
+        // Collect relation fields
+        if (field.type === 'relation' && field.relation) {
+            relationFields.set(field.name, field.relation);
+        }
     }
     // Transform each item
     return items.map(item => {
-        const json = item.toJSON ? item.toJSON() : Object.assign({}, item);
+        let json = item.toJSON ? item.toJSON() : Object.assign({}, item);
+        // Apply custom field type afterRead hooks
+        json = applyAfterRead(json, fields);
         // Apply enum transformations
         for (const [fieldName, valueToLabel] of Object.entries(optionsMap)) {
             if (json[fieldName] !== undefined && valueToLabel[json[fieldName]]) {
@@ -292,6 +333,32 @@ function transformFields(items, fields) {
         for (const fieldName of secureFields) {
             if (json[fieldName] !== undefined) {
                 json[fieldName] = maskSecureValue(json[fieldName]);
+            }
+        }
+        // Format JSON fields for readable display
+        for (const fieldName of jsonFields) {
+            const val = json[fieldName];
+            if (val == null)
+                continue;
+            if (Array.isArray(val)) {
+                json[fieldName] = val.map((item) => {
+                    if (typeof item === 'object') {
+                        // Show most meaningful values: name, value, url, key
+                        return item.name || item.value || item.url || item.key || JSON.stringify(item);
+                    }
+                    return String(item);
+                });
+            }
+            else if (typeof val === 'object') {
+                json[fieldName] = JSON.stringify(val, null, 2);
+            }
+        }
+        // Resolve relation display fields (user_id: 5 → user_id: "email@test.com")
+        for (const [fieldName, relConfig] of relationFields) {
+            const associationName = fieldName.replace(/_id$/, '');
+            const related = json[associationName];
+            if (related && related[relConfig.displayField]) {
+                json[fieldName] = related[relConfig.displayField];
             }
         }
         return json;
@@ -353,6 +420,132 @@ function transformMediaUrls(data, cdnUrl) {
     return data;
 }
 /**
+ * Process custom field types for create/update operations
+ * Runs beforeSave and validate hooks for any fields that use custom types
+ */
+function processCustomFieldTypes(data, fields, phase) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!fields)
+            return data;
+        const adminLeaf = getAdminLeaf();
+        const result = Object.assign({}, data);
+        for (const field of fields) {
+            const customType = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCustomFieldType(field.type);
+            if (!customType)
+                continue;
+            const value = result[field.name];
+            if (value === undefined)
+                continue;
+            if (phase === 'beforeSave' && customType.beforeSave) {
+                result[field.name] = customType.beforeSave(value, field);
+            }
+            if (phase === 'validate' && customType.validate) {
+                yield customType.validate(value, field);
+            }
+        }
+        return result;
+    });
+}
+/**
+ * Apply afterRead hooks for custom field types
+ */
+function applyAfterRead(data, fields) {
+    if (!fields)
+        return data;
+    const adminLeaf = getAdminLeaf();
+    const result = Object.assign({}, data);
+    for (const field of fields) {
+        const customType = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCustomFieldType(field.type);
+        if (!(customType === null || customType === void 0 ? void 0 : customType.afterRead))
+            continue;
+        if (result[field.name] !== undefined) {
+            result[field.name] = customType.afterRead(result[field.name], field);
+        }
+    }
+    return result;
+}
+/**
+ * Parse advanced filters from query parameters
+ * Supports Django-style double-underscore operators:
+ * - field=value → exact match (backward compatible)
+ * - field__ne=value → not equal
+ * - field__gt, field__gte, field__lt, field__lte → comparisons
+ * - field__between=start,end → range
+ * - field__in=val1,val2,val3 → IN
+ * - field__null=true/false → IS NULL / IS NOT NULL
+ * - field__like=pattern → LIKE
+ */
+function parseAdvancedFilters(filters, allowedFilters) {
+    const where = {};
+    for (const [key, value] of Object.entries(filters)) {
+        if (value === undefined || value === '')
+            continue;
+        // Check for operator suffix
+        const parts = key.split('__');
+        const fieldName = parts[0];
+        const operator = parts[1];
+        // Whitelist check on the base field name
+        if (!allowedFilters.includes(fieldName))
+            continue;
+        if (!operator) {
+            // Simple exact match (backward compatible)
+            where[fieldName] = value;
+            continue;
+        }
+        switch (operator) {
+            case 'ne':
+                where[fieldName] = { [Op.ne]: value };
+                break;
+            case 'gt':
+                where[fieldName] = Object.assign(Object.assign({}, where[fieldName]), { [Op.gt]: value });
+                break;
+            case 'gte':
+                where[fieldName] = Object.assign(Object.assign({}, where[fieldName]), { [Op.gte]: value });
+                break;
+            case 'lt':
+                where[fieldName] = Object.assign(Object.assign({}, where[fieldName]), { [Op.lt]: value });
+                break;
+            case 'lte':
+                where[fieldName] = Object.assign(Object.assign({}, where[fieldName]), { [Op.lte]: value });
+                break;
+            case 'between': {
+                const [start, end] = String(value).split(',');
+                if (start && end) {
+                    where[fieldName] = { [Op.between]: [start.trim(), end.trim()] };
+                }
+                break;
+            }
+            case 'in': {
+                const values = String(value).split(',').map(v => v.trim());
+                where[fieldName] = { [Op.in]: values };
+                break;
+            }
+            case 'null':
+                where[fieldName] = String(value) === 'true' ? null : { [Op.ne]: null };
+                break;
+            case 'like':
+                where[fieldName] = { [Op.like]: value };
+                break;
+            default:
+                // Unknown operator, treat as exact match on full key
+                break;
+        }
+    }
+    return where;
+}
+/**
+ * Escape a value for CSV output
+ */
+function escapeCsvValue(value) {
+    if (value === null || value === undefined)
+        return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+}
+/**
  * Admin Collections Controller
  * Single controller handling all CRUD operations for all collections
  */
@@ -363,7 +556,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     list(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
             const { collection: collectionName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -376,19 +569,13 @@ let AdminCollectionsController = class AdminCollectionsController {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['forbidden'] });
             }
             try {
-                const _k = req.query, { limit = 25, offset = 0, sort, order, search } = _k, filters = __rest(_k, ["limit", "offset", "sort", "order", "search"]);
+                const _l = req.query, { limit = 25, offset = 0, sort, order, search, showDeleted } = _l, filters = __rest(_l, ["limit", "offset", "sort", "order", "search", "showDeleted"]);
                 const listView = (_e = collection.views) === null || _e === void 0 ? void 0 : _e.list;
-                // Build where clause from filters
-                const where = {};
+                // Build where clause from advanced filters
                 const allowedFilters = (listView === null || listView === void 0 ? void 0 : listView.filters) || [];
-                for (const [key, value] of Object.entries(filters)) {
-                    if (allowedFilters.includes(key) && value !== undefined && value !== '') {
-                        where[key] = value;
-                    }
-                }
+                const where = parseAdvancedFilters(filters, allowedFilters);
                 // Build search clause
                 if (search && (listView === null || listView === void 0 ? void 0 : listView.search) && listView.search.length > 0) {
-                    const { Op } = require('sequelize');
                     where[Op.or] = listView.search.map((field) => ({
                         [field]: { [Op.iLike]: `%${search}%` }
                     }));
@@ -404,26 +591,23 @@ let AdminCollectionsController = class AdminCollectionsController {
                 else {
                     orderClause = [['created_at', 'DESC']];
                 }
-                const result = yield collection.model.findAndCountAll({
-                    where,
-                    attributes: listView === null || listView === void 0 ? void 0 : listView.fields,
-                    include: (listView === null || listView === void 0 ? void 0 : listView.include) || [],
-                    order: orderClause,
-                    limit: Number(limit),
-                    offset: Number(offset)
-                });
+                // Soft delete: show deleted records if requested and collection supports it
+                const paranoidOption = ((_f = collection.softDelete) === null || _f === void 0 ? void 0 : _f.enabled) && showDeleted === 'true'
+                    ? { paranoid: false }
+                    : {};
+                const result = yield collection.model.findAndCountAll(Object.assign({ where, attributes: listView === null || listView === void 0 ? void 0 : listView.fields, include: (listView === null || listView === void 0 ? void 0 : listView.include) || [], order: orderClause, limit: Number(limit), offset: Number(offset) }, paranoidOption));
                 // Transform field values for admin display (enums, secure fields)
                 const transformedItems = transformFields(result.rows, collection.fields || []);
                 // Add CDN URLs to all media objects
                 const itemsWithUrls = transformMediaUrls(transformedItems);
-                return (_g = (_f = res).success) === null || _g === void 0 ? void 0 : _g.call(_f, {
+                return (_h = (_g = res).success) === null || _h === void 0 ? void 0 : _h.call(_g, {
                     status: 200,
                     data: { items: itemsWithUrls, total: result.count }
                 });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] List error for ${collectionName}:`, err);
-                return (_j = (_h = res).error) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 400, errors: [err.message] });
+                return (_k = (_j = res).error) === null || _k === void 0 ? void 0 : _k.call(_j, { status: 400, errors: [err.message] });
             }
         });
     }
@@ -433,8 +617,9 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     show(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
             const { collection: collectionName, id } = req.params;
+            const { raw } = req.query;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
             if (!collection) {
@@ -454,15 +639,21 @@ let AdminCollectionsController = class AdminCollectionsController {
                 if (!record) {
                     return (_g = (_f = res).error) === null || _g === void 0 ? void 0 : _g.call(_f, { status: 404, errors: ['not_found'] });
                 }
+                // raw=true: skip enum/secure transformations (used by edit forms to get raw values)
+                if (raw === 'true') {
+                    const rawData = record.toJSON ? record.toJSON() : Object.assign({}, record);
+                    const recordWithUrls = transformMediaUrls(rawData);
+                    return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 200, data: recordWithUrls });
+                }
                 // Transform field values for admin display (enums, secure fields)
                 const [transformedRecord] = transformFields([record], collection.fields || []);
                 // Add CDN URLs to all media objects
                 const recordWithUrls = transformMediaUrls(transformedRecord);
-                return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 200, data: recordWithUrls });
+                return (_l = (_k = res).success) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 200, data: recordWithUrls });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] Show error for ${collectionName}:`, err);
-                return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 400, errors: [err.message] });
+                return (_o = (_m = res).error) === null || _o === void 0 ? void 0 : _o.call(_m, { status: 400, errors: [err.message] });
             }
         });
     }
@@ -533,13 +724,37 @@ let AdminCollectionsController = class AdminCollectionsController {
                     }
                 }
                 const nestedIncludes = buildNestedIncludesForFields(fieldsForIncludes);
-                const items = yield subConfig.model.findAndCountAll({
-                    where: { [subConfig.foreignKey]: id },
-                    include: nestedIncludes,
-                    order,
-                    limit: Number(limit),
-                    offset: Number(offset)
-                });
+                // M:M: query via junction table, then fetch related model
+                let items;
+                if (subConfig.through && subConfig.otherKey) {
+                    const junctionRows = yield subConfig.through.findAll({
+                        where: { [subConfig.foreignKey]: id },
+                        attributes: [subConfig.otherKey],
+                        raw: true,
+                    });
+                    const relatedIds = junctionRows.map((r) => r[subConfig.otherKey]).filter(Boolean);
+                    if (relatedIds.length === 0) {
+                        items = { rows: [], count: 0 };
+                    }
+                    else {
+                        items = yield subConfig.model.findAndCountAll({
+                            where: { id: relatedIds },
+                            include: nestedIncludes,
+                            order,
+                            limit: Number(limit),
+                            offset: Number(offset),
+                        });
+                    }
+                }
+                else {
+                    items = yield subConfig.model.findAndCountAll({
+                        where: { [subConfig.foreignKey]: id },
+                        include: nestedIncludes,
+                        order,
+                        limit: Number(limit),
+                        offset: Number(offset)
+                    });
+                }
                 // Try to get the sub-collection's registered fields for transformation
                 const subCollection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(subName);
                 // Prefer collection fields, then hasMany fields if they're FieldDefinition[]
@@ -603,6 +818,9 @@ let AdminCollectionsController = class AdminCollectionsController {
                 if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeCreate) {
                     data = (_e = yield resolvedHooks.beforeCreate(data, req)) !== null && _e !== void 0 ? _e : data;
                 }
+                // Process custom field types: validate then beforeSave
+                data = yield processCustomFieldTypes(data, collection.fields, 'validate');
+                data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
                 // Create parent record
                 const record = yield collection.model.create(data);
                 // Create hasMany items
@@ -684,6 +902,9 @@ let AdminCollectionsController = class AdminCollectionsController {
                 if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeUpdate) {
                     data = (_g = yield resolvedHooks.beforeUpdate(record, data, req)) !== null && _g !== void 0 ? _g : data;
                 }
+                // Process custom field types: validate then beforeSave
+                data = yield processCustomFieldTypes(data, collection.fields, 'validate');
+                data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
                 // Update parent record
                 yield record.update(data);
                 // Sync hasMany items
@@ -972,6 +1193,278 @@ let AdminCollectionsController = class AdminCollectionsController {
         });
     }
     /**
+     * GET /admin/collections/:collection/search
+     * Search/autocomplete endpoint for a collection
+     */
+    search(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+            const { collection: collectionName } = req.params;
+            const adminLeaf = getAdminLeaf();
+            const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
+            if (!collection) {
+                return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 404, errors: ['collection_not_found'] });
+            }
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.checkAccess(req.user, collectionName, 'list'));
+            if (!hasAccess) {
+                return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['forbidden'] });
+            }
+            try {
+                const { q = '', fields: fieldsParam, limit = 20 } = req.query;
+                const listView = (_e = collection.views) === null || _e === void 0 ? void 0 : _e.list;
+                // Determine search fields
+                const searchFields = fieldsParam
+                    ? String(fieldsParam).split(',').map((f) => f.trim())
+                    : ((listView === null || listView === void 0 ? void 0 : listView.search) || []);
+                if (searchFields.length === 0 || !q) {
+                    return (_g = (_f = res).success) === null || _g === void 0 ? void 0 : _g.call(_f, { status: 200, data: [] });
+                }
+                const where = {
+                    [Op.or]: searchFields.map((field) => ({
+                        [field]: { [Op.iLike]: `%${q}%` }
+                    }))
+                };
+                const cappedLimit = Math.min(Number(limit), 50);
+                const results = yield collection.model.findAll({
+                    where,
+                    attributes: ['id', ...searchFields],
+                    limit: cappedLimit,
+                    order: [['id', 'ASC']]
+                });
+                const items = results.map((r) => {
+                    const json = r.toJSON ? r.toJSON() : Object.assign({}, r);
+                    return json;
+                });
+                return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 200, data: items });
+            }
+            catch (err) {
+                console.error(`[ETHAdminLeaf] Search error for ${collectionName}:`, err);
+                return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 400, errors: [err.message] });
+            }
+        });
+    }
+    /**
+     * GET /admin/collections/:collection/export
+     * Export collection data as CSV or JSON
+     */
+    export(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+            const { collection: collectionName } = req.params;
+            const adminLeaf = getAdminLeaf();
+            const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
+            if (!collection) {
+                return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 404, errors: ['collection_not_found'] });
+            }
+            if (!collection.exportable) {
+                return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['export_not_enabled'] });
+            }
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.checkAccess(req.user, collectionName, 'list'));
+            if (!hasAccess) {
+                return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 403, errors: ['forbidden'] });
+            }
+            try {
+                const _k = req.query, { format = 'csv', fields: fieldsParam, search } = _k, filters = __rest(_k, ["format", "fields", "search"]);
+                const listView = (_g = collection.views) === null || _g === void 0 ? void 0 : _g.list;
+                // Build where clause (reuse advanced filters)
+                const allowedFilters = (listView === null || listView === void 0 ? void 0 : listView.filters) || [];
+                const where = parseAdvancedFilters(filters, allowedFilters);
+                // Build search clause
+                if (search && (listView === null || listView === void 0 ? void 0 : listView.search) && listView.search.length > 0) {
+                    where[Op.or] = listView.search.map((field) => ({
+                        [field]: { [Op.iLike]: `%${search}%` }
+                    }));
+                }
+                // Determine fields to export (exclude secure fields)
+                const secureFieldNames = new Set((collection.fields || []).filter(f => f.secure).map(f => f.name));
+                let exportFields;
+                if (fieldsParam) {
+                    exportFields = String(fieldsParam).split(',')
+                        .map(f => f.trim())
+                        .filter(f => !secureFieldNames.has(f));
+                }
+                else {
+                    exportFields = (collection.fields || [])
+                        .filter(f => !f.secure && f.type !== 'hasMany' && f.type !== 'belongsToMany')
+                        .map(f => f.name);
+                }
+                const MAX_EXPORT_ROWS = 10000;
+                const rows = yield collection.model.findAll({
+                    where,
+                    attributes: exportFields,
+                    limit: MAX_EXPORT_ROWS,
+                    order: [['id', 'ASC']],
+                    raw: true
+                });
+                if (format === 'json') {
+                    res.setHeader('Content-Type', 'application/json');
+                    res.setHeader('Content-Disposition', `attachment; filename="${collectionName}_export.json"`);
+                    return res.send(JSON.stringify(rows, null, 2));
+                }
+                // CSV format
+                if (!exportFields || exportFields.length === 0) {
+                    exportFields = rows.length > 0 ? Object.keys(rows[0]) : [];
+                }
+                const csvLines = [];
+                csvLines.push(exportFields.map(escapeCsvValue).join(','));
+                for (const row of rows) {
+                    csvLines.push(exportFields.map(field => escapeCsvValue(row[field])).join(','));
+                }
+                res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+                res.setHeader('Content-Disposition', `attachment; filename="${collectionName}_export.csv"`);
+                return res.send(csvLines.join('\n'));
+            }
+            catch (err) {
+                console.error(`[ETHAdminLeaf] Export error for ${collectionName}:`, err);
+                return (_j = (_h = res).error) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 400, errors: [err.message] });
+            }
+        });
+    }
+    /**
+     * POST /admin/collections/:collection/bulk
+     * Bulk operations on collection records
+     */
+    bulk(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v;
+            const { collection: collectionName } = req.params;
+            const adminLeaf = getAdminLeaf();
+            const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
+            if (!collection) {
+                return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 404, errors: ['collection_not_found'] });
+            }
+            const { action, ids, data } = req.body;
+            if (!action || !ids || !Array.isArray(ids)) {
+                return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 400, errors: ['action_and_ids_required'] });
+            }
+            if (ids.length > 100) {
+                return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 400, errors: ['max_100_ids_per_request'] });
+            }
+            // Check appropriate access
+            const requiredAccess = action === 'delete' ? 'delete' : 'update';
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.checkAccess(req.user, collectionName, requiredAccess));
+            if (!hasAccess) {
+                return (_h = (_g = res).error) === null || _h === void 0 ? void 0 : _h.call(_g, { status: 403, errors: ['forbidden'] });
+            }
+            try {
+                const resolvedHooks = adminLeaf.getResolvedHooks(collectionName);
+                if (action === 'delete') {
+                    // If hooks are defined, run them per-record
+                    if ((resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeDelete) || (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterDelete)) {
+                        const records = yield collection.model.findAll({ where: { id: { [Op.in]: ids } } });
+                        let deleted = 0;
+                        for (const record of records) {
+                            if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeDelete) {
+                                const canDelete = yield resolvedHooks.beforeDelete(record, req);
+                                if (canDelete === false)
+                                    continue;
+                            }
+                            yield record.destroy();
+                            if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterDelete) {
+                                yield resolvedHooks.afterDelete(record, req);
+                            }
+                            deleted++;
+                        }
+                        return (_k = (_j = res).success) === null || _k === void 0 ? void 0 : _k.call(_j, { status: 200, data: { deleted } });
+                    }
+                    else {
+                        const deleted = yield collection.model.destroy({ where: { id: { [Op.in]: ids } } });
+                        return (_m = (_l = res).success) === null || _m === void 0 ? void 0 : _m.call(_l, { status: 200, data: { deleted } });
+                    }
+                }
+                if (action === 'update') {
+                    if (!data || typeof data !== 'object') {
+                        return (_p = (_o = res).error) === null || _p === void 0 ? void 0 : _p.call(_o, { status: 400, errors: ['data_required_for_update'] });
+                    }
+                    const [updated] = yield collection.model.update(data, { where: { id: { [Op.in]: ids } } });
+                    return (_r = (_q = res).success) === null || _r === void 0 ? void 0 : _r.call(_q, { status: 200, data: { updated } });
+                }
+                return (_t = (_s = res).error) === null || _t === void 0 ? void 0 : _t.call(_s, { status: 400, errors: ['invalid_action'] });
+            }
+            catch (err) {
+                console.error(`[ETHAdminLeaf] Bulk error for ${collectionName}:`, err);
+                return (_v = (_u = res).error) === null || _v === void 0 ? void 0 : _v.call(_u, { status: 400, errors: [err.message] });
+            }
+        });
+    }
+    /**
+     * POST /admin/collections/:collection/:id/duplicate
+     * Duplicate a record
+     */
+    duplicate(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+            const { collection: collectionName, id } = req.params;
+            const adminLeaf = getAdminLeaf();
+            const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
+            if (!collection) {
+                return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 404, errors: ['collection_not_found'] });
+            }
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.checkAccess(req.user, collectionName, 'create'));
+            if (!hasAccess) {
+                return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['forbidden'] });
+            }
+            try {
+                const record = yield collection.model.findByPk(id);
+                if (!record) {
+                    return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 404, errors: ['not_found'] });
+                }
+                const data = record.toJSON ? record.toJSON() : Object.assign({}, record);
+                // Strip auto-generated fields
+                delete data.id;
+                delete data.created_at;
+                delete data.updated_at;
+                delete data.deleted_at;
+                delete data.createdAt;
+                delete data.updatedAt;
+                delete data.deletedAt;
+                const newRecord = yield collection.model.create(data);
+                return (_h = (_g = res).success) === null || _h === void 0 ? void 0 : _h.call(_g, { status: 201, data: newRecord });
+            }
+            catch (err) {
+                console.error(`[ETHAdminLeaf] Duplicate error for ${collectionName}:`, err);
+                return (_k = (_j = res).error) === null || _k === void 0 ? void 0 : _k.call(_j, { status: 400, errors: [err.message] });
+            }
+        });
+    }
+    /**
+     * POST /admin/collections/:collection/:id/restore
+     * Restore a soft-deleted record
+     */
+    restore(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+            const { collection: collectionName, id } = req.params;
+            const adminLeaf = getAdminLeaf();
+            const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
+            if (!collection) {
+                return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 404, errors: ['collection_not_found'] });
+            }
+            if (!((_c = collection.softDelete) === null || _c === void 0 ? void 0 : _c.enabled)) {
+                return (_e = (_d = res).error) === null || _e === void 0 ? void 0 : _e.call(_d, { status: 400, errors: ['soft_delete_not_enabled'] });
+            }
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.checkAccess(req.user, collectionName, 'update'));
+            if (!hasAccess) {
+                return (_g = (_f = res).error) === null || _g === void 0 ? void 0 : _g.call(_f, { status: 403, errors: ['forbidden'] });
+            }
+            try {
+                const record = yield collection.model.findByPk(id, { paranoid: false });
+                if (!record) {
+                    return (_j = (_h = res).error) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 404, errors: ['not_found'] });
+                }
+                if (typeof record.restore !== 'function') {
+                    return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 400, errors: ['model_does_not_support_restore'] });
+                }
+                yield record.restore();
+                return (_o = (_m = res).success) === null || _o === void 0 ? void 0 : _o.call(_m, { status: 200, data: record });
+            }
+            catch (err) {
+                console.error(`[ETHAdminLeaf] Restore error for ${collectionName}:`, err);
+                return (_q = (_p = res).error) === null || _q === void 0 ? void 0 : _q.call(_p, { status: 400, errors: [err.message] });
+            }
+        });
+    }
+    /**
      * GET /admin/collections/:collection/stats
      * Get stats for a collection
      *
@@ -1171,6 +1664,41 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "executeAction", null);
 __decorate([
+    Get('/admin/collections/:collection/search'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminCollectionsController.prototype, "search", null);
+__decorate([
+    Get('/admin/collections/:collection/export'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminCollectionsController.prototype, "export", null);
+__decorate([
+    Post('/admin/collections/:collection/bulk'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminCollectionsController.prototype, "bulk", null);
+__decorate([
+    Post('/admin/collections/:collection/:id(\\d+)/duplicate'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminCollectionsController.prototype, "duplicate", null);
+__decorate([
+    Post('/admin/collections/:collection/:id(\\d+)/restore'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminCollectionsController.prototype, "restore", null);
+__decorate([
     Get('/admin/collections/:collection/stats'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
@@ -1183,6 +1711,9 @@ AdminCollectionsController = __decorate([
 export default AdminCollectionsController;
 export const AvailableRouteMethods = [
     'list',
+    'search',
+    'export',
+    'bulk',
     'show',
     'subCollection',
     'showSubCollectionItem',
@@ -1192,6 +1723,8 @@ export const AvailableRouteMethods = [
     'create',
     'update',
     'delete',
+    'duplicate',
+    'restore',
     'executeAction',
     'stats'
 ];

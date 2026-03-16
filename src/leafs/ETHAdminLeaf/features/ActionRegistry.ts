@@ -5,10 +5,12 @@ import * as yup from 'yup'
 // Field Types (generated from Yup)
 // ============================================
 
-export type FieldType =
+export type BuiltinFieldType =
     | 'string' | 'text' | 'number' | 'integer' | 'boolean' | 'date' | 'datetime'
     | 'email' | 'url' | 'phone' | 'select' | 'multiselect' | 'array' | 'relation'
     | 'media' | 'image' | 'file' | 'json' | 'hasMany' | 'belongsToMany'
+
+export type FieldType = BuiltinFieldType | (string & {})
 
 export interface FieldOption {
     value: string | number
@@ -185,6 +187,10 @@ export interface FieldBelongsToMany {
      */
     otherKey: string
     /**
+     * Collection name for frontend (used to fetch list of related items)
+     */
+    collection?: string
+    /**
      * Field(s) to display for each item (for select/display)
      */
     displayField: string
@@ -223,6 +229,22 @@ export interface FieldBelongsToMany {
     pivotFields?: FieldDefinition[]
 }
 
+/**
+ * Condition for showing/hiding a field based on another field's value
+ * Evaluated on the frontend only — no backend logic
+ */
+export interface FieldDependencyCondition {
+    field: string
+    operator?: 'eq' | 'ne' | 'in' | 'truthy' | 'falsy'
+    value?: any
+}
+
+/**
+ * Input format for belongsToMany relations
+ * Supports both simple ID arrays and pivot data
+ */
+export type BelongsToManyInput = number[] | Array<{ id: number; through?: Record<string, any> }>
+
 export interface FieldDefinition {
     name: string
     type: FieldType
@@ -252,6 +274,14 @@ export interface FieldDefinition {
      * Common values: 12 (full), 6 (half), 4 (third), 3 (quarter)
      */
     col?: number
+    /**
+     * Show this field only when the condition is met (frontend-only)
+     */
+    showIf?: FieldDependencyCondition
+    /**
+     * Hide this field when the condition is met (frontend-only)
+     */
+    hideIf?: FieldDependencyCondition
 }
 
 // ============================================
@@ -417,6 +447,17 @@ export function yupToForm(schema: yup.Schema<any>): FieldDefinition[] {
     }
 
     return fields
+}
+
+// ============================================
+// Custom Field Type Config
+// ============================================
+
+export interface CustomFieldTypeConfig {
+    name: string
+    beforeSave?: (value: any, field: FieldDefinition) => any
+    afterRead?: (value: any, field: FieldDefinition) => any
+    validate?: (value: any, field: FieldDefinition) => void | Promise<void>
 }
 
 // ============================================

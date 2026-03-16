@@ -3,9 +3,10 @@ import * as path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-import { ActionRegistry, SerializedAction } from './features/ActionRegistry.js'
+import { ActionRegistry, SerializedAction, CustomFieldTypeConfig, FieldDefinition } from './features/ActionRegistry.js'
 import { HookRegistry, ResolvedHooks } from './features/HookRegistry.js'
 import { CollectionConfig, SerializedCollection } from './features/CollectionConfig.js'
+import { PageConfig, SerializedPage } from './features/PageConfig.js'
 
 export type AccessChecker = (
     user: any,
@@ -46,6 +47,9 @@ export default class ETHAdminLeaf {
     private _config: ETHAdminLeafConfig
     private _collections: Map<string, CollectionConfig> = new Map()
     private _resolvedHooks: Map<string, ResolvedHooks> = new Map()
+    private _pages: Map<string, PageConfig> = new Map()
+    private _customFieldTypes: Map<string, CustomFieldTypeConfig> = new Map()
+    private _pageFormHandlers: Map<string, (data: any, req: any) => Promise<any>> = new Map()
     private _settings: AdminSettings = {}
     private _features: AdminFeatures = {}
 
@@ -140,6 +144,101 @@ export default class ETHAdminLeaf {
             const resolved = this._hooks.resolve(name)
             this._resolvedHooks.set(name, resolved)
         }
+    }
+
+    // ============================================
+    // Custom Pages
+    // ============================================
+
+    /**
+     * Register a custom page
+     */
+    registerPage(config: PageConfig): void {
+        if (this._pages.has(config.name)) {
+            console.warn(`[ETHAdminLeaf] Page "${config.name}" already registered, overwriting`)
+        }
+        this._pages.set(config.name, config)
+        console.log(`[ETHAdminLeaf] Registered page: ${config.name}`)
+    }
+
+    /**
+     * Get a registered page by name
+     */
+    getPage(name: string): PageConfig | undefined {
+        return this._pages.get(name)
+    }
+
+    /**
+     * Serialize all pages for frontend
+     */
+    serializePages(): SerializedPage[] {
+        const result: SerializedPage[] = []
+        for (const page of this._pages.values()) {
+            result.push({
+                name: page.name,
+                title: page.title,
+                icon: page.icon,
+                group: page.group,
+                order: page.order,
+                component: page.component,
+                showInMenu: page.showInMenu !== false,
+                form: page.form ? {
+                    fields: page.form.fields,
+                    submitEndpoint: page.form.submitEndpoint,
+                    submitLabel: page.form.submitLabel,
+                } : undefined,
+                meta: page.meta,
+            })
+        }
+        return result
+    }
+
+    // ============================================
+    // Custom Field Types
+    // ============================================
+
+    /**
+     * Register a custom field type with optional hooks
+     */
+    registerFieldType(name: string, config?: Omit<CustomFieldTypeConfig, 'name'>): void {
+        if (this._customFieldTypes.has(name)) {
+            console.warn(`[ETHAdminLeaf] Custom field type "${name}" already registered, overwriting`)
+        }
+        this._customFieldTypes.set(name, { name, ...config })
+        console.log(`[ETHAdminLeaf] Registered custom field type: ${name}`)
+    }
+
+    /**
+     * Get a custom field type config
+     */
+    getCustomFieldType(name: string): CustomFieldTypeConfig | undefined {
+        return this._customFieldTypes.get(name)
+    }
+
+    /**
+     * Get all custom field type names
+     */
+    getCustomFieldTypeNames(): string[] {
+        return Array.from(this._customFieldTypes.keys())
+    }
+
+    // ============================================
+    // Page Form Handlers
+    // ============================================
+
+    /**
+     * Register a handler for a page form submission
+     */
+    registerPageFormHandler(pageName: string, handler: (data: any, req: any) => Promise<any>): void {
+        this._pageFormHandlers.set(pageName, handler)
+        console.log(`[ETHAdminLeaf] Registered form handler for page: ${pageName}`)
+    }
+
+    /**
+     * Get a page form handler
+     */
+    getPageFormHandler(pageName: string): ((data: any, req: any) => Promise<any>) | undefined {
+        return this._pageFormHandlers.get(pageName)
     }
 
     /**
@@ -313,7 +412,9 @@ export default class ETHAdminLeaf {
             showInMenu,
             defaultRecordView,
             showInDashboard,
-            stats: collection.stats
+            stats: collection.stats,
+            exportable: collection.exportable,
+            softDelete: collection.softDelete
         }
     }
 
@@ -336,6 +437,8 @@ export default class ETHAdminLeaf {
         settings: AdminSettings
         features: AdminFeatures
         collections: SerializedCollection[]
+        pages: SerializedPage[]
+        customFieldTypes: string[]
         media?: {
             cdnUrl?: string
         }
@@ -358,6 +461,8 @@ export default class ETHAdminLeaf {
             settings: this._settings,
             features: this._features,
             collections: this.serializeCollections(),
+            pages: this.serializePages(),
+            customFieldTypes: this.getCustomFieldTypeNames(),
             media: mediaConfig
         }
     }
@@ -431,6 +536,9 @@ export default class ETHAdminLeaf {
             route: path.join(__dirname, 'routes/collections'),
             methods: [
                 'list',
+                'search',
+                'export',
+                'bulk',
                 'show',
                 'subCollection',
                 'showSubCollectionItem',
@@ -440,14 +548,24 @@ export default class ETHAdminLeaf {
                 'create',
                 'update',
                 'delete',
+                'duplicate',
+                'restore',
                 'executeAction',
                 'stats'
             ]
         })
 
+        // Register pages route
+        if (this._pages.size > 0) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/pages'),
+                methods: ['submitForm']
+            })
+        }
+
         http?.routes_leafs?.push(...this.routes)
 
-        console.log(`[ETHAdminLeaf] Initialized with ${this._collections.size} collections`)
+        console.log(`[ETHAdminLeaf] Initialized with ${this._collections.size} collections, ${this._pages.size} pages, ${this._customFieldTypes.size} custom field types`)
         console.log(`[ETHAdminLeaf] Actions: ${this._actions.list().join(', ') || 'none'}`)
         console.log(`[ETHAdminLeaf] Hooks: ${this._hooks.list().join(', ') || 'none'}`)
     }

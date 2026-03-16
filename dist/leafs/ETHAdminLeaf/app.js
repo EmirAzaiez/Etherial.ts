@@ -28,6 +28,9 @@ export default class ETHAdminLeaf {
         this.etherial_module_name = 'eth_admin_leaf';
         this._collections = new Map();
         this._resolvedHooks = new Map();
+        this._pages = new Map();
+        this._customFieldTypes = new Map();
+        this._pageFormHandlers = new Map();
         this._settings = {};
         this._features = {};
         this.routes = [];
@@ -103,6 +106,90 @@ export default class ETHAdminLeaf {
             const resolved = this._hooks.resolve(name);
             this._resolvedHooks.set(name, resolved);
         }
+    }
+    // ============================================
+    // Custom Pages
+    // ============================================
+    /**
+     * Register a custom page
+     */
+    registerPage(config) {
+        if (this._pages.has(config.name)) {
+            console.warn(`[ETHAdminLeaf] Page "${config.name}" already registered, overwriting`);
+        }
+        this._pages.set(config.name, config);
+        console.log(`[ETHAdminLeaf] Registered page: ${config.name}`);
+    }
+    /**
+     * Get a registered page by name
+     */
+    getPage(name) {
+        return this._pages.get(name);
+    }
+    /**
+     * Serialize all pages for frontend
+     */
+    serializePages() {
+        const result = [];
+        for (const page of this._pages.values()) {
+            result.push({
+                name: page.name,
+                title: page.title,
+                icon: page.icon,
+                group: page.group,
+                order: page.order,
+                component: page.component,
+                showInMenu: page.showInMenu !== false,
+                form: page.form ? {
+                    fields: page.form.fields,
+                    submitEndpoint: page.form.submitEndpoint,
+                    submitLabel: page.form.submitLabel,
+                } : undefined,
+                meta: page.meta,
+            });
+        }
+        return result;
+    }
+    // ============================================
+    // Custom Field Types
+    // ============================================
+    /**
+     * Register a custom field type with optional hooks
+     */
+    registerFieldType(name, config) {
+        if (this._customFieldTypes.has(name)) {
+            console.warn(`[ETHAdminLeaf] Custom field type "${name}" already registered, overwriting`);
+        }
+        this._customFieldTypes.set(name, Object.assign({ name }, config));
+        console.log(`[ETHAdminLeaf] Registered custom field type: ${name}`);
+    }
+    /**
+     * Get a custom field type config
+     */
+    getCustomFieldType(name) {
+        return this._customFieldTypes.get(name);
+    }
+    /**
+     * Get all custom field type names
+     */
+    getCustomFieldTypeNames() {
+        return Array.from(this._customFieldTypes.keys());
+    }
+    // ============================================
+    // Page Form Handlers
+    // ============================================
+    /**
+     * Register a handler for a page form submission
+     */
+    registerPageFormHandler(pageName, handler) {
+        this._pageFormHandlers.set(pageName, handler);
+        console.log(`[ETHAdminLeaf] Registered form handler for page: ${pageName}`);
+    }
+    /**
+     * Get a page form handler
+     */
+    getPageFormHandler(pageName) {
+        return this._pageFormHandlers.get(pageName);
     }
     /**
      * Get all registered collections
@@ -261,7 +348,9 @@ export default class ETHAdminLeaf {
             showInMenu,
             defaultRecordView,
             showInDashboard,
-            stats: collection.stats
+            stats: collection.stats,
+            exportable: collection.exportable,
+            softDelete: collection.softDelete
         };
     }
     /**
@@ -299,6 +388,8 @@ export default class ETHAdminLeaf {
             settings: this._settings,
             features: this._features,
             collections: this.serializeCollections(),
+            pages: this.serializePages(),
+            customFieldTypes: this.getCustomFieldTypeNames(),
             media: mediaConfig
         };
     }
@@ -366,6 +457,9 @@ export default class ETHAdminLeaf {
             route: path.join(__dirname, 'routes/collections'),
             methods: [
                 'list',
+                'search',
+                'export',
+                'bulk',
                 'show',
                 'subCollection',
                 'showSubCollectionItem',
@@ -375,12 +469,21 @@ export default class ETHAdminLeaf {
                 'create',
                 'update',
                 'delete',
+                'duplicate',
+                'restore',
                 'executeAction',
                 'stats'
             ]
         });
+        // Register pages route
+        if (this._pages.size > 0) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/pages'),
+                methods: ['submitForm']
+            });
+        }
         (_a = http === null || http === void 0 ? void 0 : http.routes_leafs) === null || _a === void 0 ? void 0 : _a.push(...this.routes);
-        console.log(`[ETHAdminLeaf] Initialized with ${this._collections.size} collections`);
+        console.log(`[ETHAdminLeaf] Initialized with ${this._collections.size} collections, ${this._pages.size} pages, ${this._customFieldTypes.size} custom field types`);
         console.log(`[ETHAdminLeaf] Actions: ${this._actions.list().join(', ') || 'none'}`);
         console.log(`[ETHAdminLeaf] Hooks: ${this._hooks.list().join(', ') || 'none'}`);
     }

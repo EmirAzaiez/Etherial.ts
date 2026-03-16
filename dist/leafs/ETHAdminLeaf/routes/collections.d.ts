@@ -25,6 +25,7 @@ export default class AdminCollectionsController {
             collection: string;
             id: string;
         };
+        query: any;
     }, res: Response): Promise<any>;
     /**
      * GET /admin/collections/:collection/:id/collections/:subName
@@ -141,6 +142,61 @@ export default class AdminCollectionsController {
         body: any;
     }, res: Response): Promise<any>;
     /**
+     * GET /admin/collections/:collection/search
+     * Search/autocomplete endpoint for a collection
+     */
+    search(req: Request & {
+        user: any;
+        params: {
+            collection: string;
+        };
+        query: any;
+    }, res: Response): Promise<any>;
+    /**
+     * GET /admin/collections/:collection/export
+     * Export collection data as CSV or JSON
+     */
+    export(req: Request & {
+        user: any;
+        params: {
+            collection: string;
+        };
+        query: any;
+    }, res: Response): Promise<any>;
+    /**
+     * POST /admin/collections/:collection/bulk
+     * Bulk operations on collection records
+     */
+    bulk(req: Request & {
+        user: any;
+        params: {
+            collection: string;
+        };
+        body: any;
+    }, res: Response): Promise<any>;
+    /**
+     * POST /admin/collections/:collection/:id/duplicate
+     * Duplicate a record
+     */
+    duplicate(req: Request & {
+        user: any;
+        params: {
+            collection: string;
+            id: string;
+        };
+    }, res: Response): Promise<any>;
+    /**
+     * POST /admin/collections/:collection/:id/restore
+     * Restore a soft-deleted record
+     */
+    restore(req: Request & {
+        user: any;
+        params: {
+            collection: string;
+            id: string;
+        };
+    }, res: Response): Promise<any>;
+    /**
      * GET /admin/collections/:collection/stats
      * Get stats for a collection
      *
@@ -162,4 +218,4 @@ export default class AdminCollectionsController {
      */
     private computeStat;
 }
-export declare const AvailableRouteMethods: readonly ["list", "show", "subCollection", "showSubCollectionItem", "updateSubCollectionItem", "deleteSubCollectionItem", "executeSubCollectionAction", "create", "update", "delete", "executeAction", "stats"];
+export declare const AvailableRouteMethods: readonly ["list", "search", "export", "bulk", "show", "subCollection", "showSubCollectionItem", "updateSubCollectionItem", "deleteSubCollectionItem", "executeSubCollectionAction", "create", "update", "delete", "duplicate", "restore", "executeAction", "stats"];

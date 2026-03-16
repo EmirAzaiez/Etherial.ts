@@ -299,7 +299,6 @@ let ReactiveController = class ReactiveController {
      */
     enrichConnections(connectedSockets) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
             const connections = [];
             const userIds = new Set();
             // Collect user IDs
@@ -312,16 +311,14 @@ let ReactiveController = class ReactiveController {
             let usersMap = new Map();
             if (userIds.size > 0) {
                 try {
-                    const sequelize = (_a = etherial.database) === null || _a === void 0 ? void 0 : _a.sequelize;
-                    const UserModel = (_b = sequelize === null || sequelize === void 0 ? void 0 : sequelize.models) === null || _b === void 0 ? void 0 : _b.User;
-                    if (UserModel) {
-                        const users = yield UserModel.findAll({
-                            where: { id: Array.from(userIds) },
-                            attributes: ['id', 'first_name', 'last_name', 'email', 'phone_number', 'role']
-                        });
-                        for (const user of users) {
-                            usersMap.set(user.id, user.toJSON());
-                        }
+                    const etherial = require('etherial').default;
+                    const User = etherial.database.sequelize.models.User;
+                    const users = yield User.findAll({
+                        where: { id: Array.from(userIds) },
+                        attributes: ['id', 'first_name', 'last_name', 'email', 'phone_number', 'role']
+                    });
+                    for (const user of users) {
+                        usersMap.set(user.id, user.toJSON());
                     }
                 }
                 catch (error) {

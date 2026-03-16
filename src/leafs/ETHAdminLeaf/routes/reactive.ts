@@ -365,16 +365,14 @@ export default class ReactiveController {
         let usersMap = new Map<number, any>()
         if (userIds.size > 0) {
             try {
-                const sequelize = (etherial as any).database?.sequelize
-                const UserModel = sequelize?.models?.User
-                if (UserModel) {
-                    const users = await UserModel.findAll({
-                        where: { id: Array.from(userIds) },
-                        attributes: ['id', 'first_name', 'last_name', 'email', 'phone_number', 'role']
-                    })
-                    for (const user of users) {
-                        usersMap.set(user.id, user.toJSON())
-                    }
+                const etherial = require('etherial').default
+                const User = etherial.database.sequelize.models.User
+                const users = await User.findAll({
+                    where: { id: Array.from(userIds) },
+                    attributes: ['id', 'first_name', 'last_name', 'email', 'phone_number', 'role']
+                })
+                for (const user of users) {
+                    usersMap.set(user.id, user.toJSON())
                 }
             } catch (error) {
                 console.error('[ReactiveController] Error fetching users:', error)

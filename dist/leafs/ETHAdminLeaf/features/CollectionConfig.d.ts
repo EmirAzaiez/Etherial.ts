@@ -10,6 +10,8 @@ export interface SubCollection {
     title?: string;
     model: any;
     foreignKey: string;
+    through?: any;
+    otherKey?: string;
     fields: string[];
     sort?: {
         field: string;
@@ -132,6 +134,19 @@ export interface CollectionConfig {
      * Displayed in the collection's stats page
      */
     stats?: CollectionStat[];
+    /**
+     * Enable CSV/JSON export for this collection
+     * Default: false
+     */
+    exportable?: boolean;
+    /**
+     * Enable soft delete (paranoid mode) for this collection
+     * Requires the Sequelize model to have `paranoid: true`
+     */
+    softDelete?: {
+        enabled: boolean;
+        deletedAtField?: string;
+    };
 }
 /**
  * Serialized sub-collection with FULL field definitions
@@ -246,4 +261,15 @@ export interface SerializedCollection {
      * Stats definitions for this collection
      */
     stats?: CollectionStat[];
+    /**
+     * Enable CSV/JSON export for this collection
+     */
+    exportable?: boolean;
+    /**
+     * Soft delete configuration
+     */
+    softDelete?: {
+        enabled: boolean;
+        deletedAtField?: string;
+    };
 }

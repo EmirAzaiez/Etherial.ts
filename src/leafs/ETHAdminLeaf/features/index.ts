@@ -6,9 +6,11 @@ export {
     ActionContext,
     ActionResult,
     SerializedAction,
+    BuiltinFieldType,
     FieldType,
     FieldDefinition,
     FieldOption,
+    CustomFieldTypeConfig,
     yupToForm
 } from './ActionRegistry.js'
 
@@ -27,3 +29,10 @@ export {
     CollectionViews,
     SerializedCollection
 } from './CollectionConfig.js'
+
+// Page Config
+export {
+    PageConfig,
+    SerializedPage,
+    CustomPageForm
+} from './PageConfig.js'

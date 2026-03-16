@@ -1,7 +1,8 @@
 import { Etherial } from 'etherial';
-import { ActionRegistry } from './features/ActionRegistry.js';
+import { ActionRegistry, CustomFieldTypeConfig } from './features/ActionRegistry.js';
 import { HookRegistry, ResolvedHooks } from './features/HookRegistry.js';
 import { CollectionConfig, SerializedCollection } from './features/CollectionConfig.js';
+import { PageConfig, SerializedPage } from './features/PageConfig.js';
 export type AccessChecker = (user: any, context: {
     route: string;
     method: string;
@@ -35,6 +36,9 @@ export default class ETHAdminLeaf {
     private _config;
     private _collections;
     private _resolvedHooks;
+    private _pages;
+    private _customFieldTypes;
+    private _pageFormHandlers;
     private _settings;
     private _features;
     private _actions;
@@ -66,6 +70,38 @@ export default class ETHAdminLeaf {
      */
     refreshHooks(): void;
     /**
+     * Register a custom page
+     */
+    registerPage(config: PageConfig): void;
+    /**
+     * Get a registered page by name
+     */
+    getPage(name: string): PageConfig | undefined;
+    /**
+     * Serialize all pages for frontend
+     */
+    serializePages(): SerializedPage[];
+    /**
+     * Register a custom field type with optional hooks
+     */
+    registerFieldType(name: string, config?: Omit<CustomFieldTypeConfig, 'name'>): void;
+    /**
+     * Get a custom field type config
+     */
+    getCustomFieldType(name: string): CustomFieldTypeConfig | undefined;
+    /**
+     * Get all custom field type names
+     */
+    getCustomFieldTypeNames(): string[];
+    /**
+     * Register a handler for a page form submission
+     */
+    registerPageFormHandler(pageName: string, handler: (data: any, req: any) => Promise<any>): void;
+    /**
+     * Get a page form handler
+     */
+    getPageFormHandler(pageName: string): ((data: any, req: any) => Promise<any>) | undefined;
+    /**
      * Get all registered collections
      */
     get collections(): CollectionConfig[];
@@ -84,6 +120,8 @@ export default class ETHAdminLeaf {
         settings: AdminSettings;
         features: AdminFeatures;
         collections: SerializedCollection[];
+        pages: SerializedPage[];
+        customFieldTypes: string[];
         media?: {
             cdnUrl?: string;
         };

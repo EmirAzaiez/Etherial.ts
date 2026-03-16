@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="<%= locale %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: <%= palette.text %>;
+            font-size: 13px;
+            line-height: 1.5;
+            background: #fff;
+        }
+        .container { max-width: 680px; margin: 0 auto; padding: 40px 0; }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 40px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid #e74c3c;
+        }
+        .header-left h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #e74c3c;
+            letter-spacing: -0.5px;
+        }
+        .header-left .credit-note-number {
+            font-size: 14px;
+            color: <%= palette.muted %>;
+            margin-top: 4px;
+        }
+        .header-right {
+            text-align: right;
+        }
+        .header-right .date {
+            font-size: 13px;
+            color: <%= palette.muted %>;
+        }
+        .company-logo {
+            max-height: 50px;
+            max-width: 160px;
+            margin-bottom: 8px;
+        }
+
+        /* Info blocks */
+        .info-grid {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 36px;
+            gap: 24px;
+        }
+        .info-block {
+            flex: 1;
+            background: <%= palette.bg %>;
+            border-radius: 8px;
+            padding: 16px 20px;
+        }
+        .info-block h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: <%= palette.muted %>;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .info-block p {
+            font-size: 13px;
+            margin-bottom: 2px;
+        }
+        .info-block .name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Reference */
+        .reference-block {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 32px;
+        }
+        .reference-block h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #e74c3c;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .reference-block p {
+            font-size: 13px;
+        }
+
+        /* Table */
+        .table-wrapper { margin-bottom: 32px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead th {
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: <%= palette.muted %>;
+            font-weight: 600;
+            padding: 10px 16px;
+            border-bottom: 2px solid <%= palette.border %>;
+        }
+        thead th:last-child { text-align: right; }
+        tbody td {
+            padding: 14px 16px;
+            border-bottom: 1px solid <%= palette.border %>;
+            font-size: 13px;
+        }
+        tbody td:last-child {
+            text-align: right;
+            font-weight: 600;
+        }
+
+        /* Total */
+        .total-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 36px;
+        }
+        .total-box {
+            background: #e74c3c;
+            color: #fff;
+            border-radius: 8px;
+            padding: 16px 28px;
+            text-align: right;
+            min-width: 200px;
+        }
+        .total-box .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.8;
+        }
+        .total-box .amount {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        /* Status badge */
+        .status-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: <%= palette.bg %>;
+            border-radius: 8px;
+            margin-bottom: 36px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #fff5f5;
+            color: #e74c3c;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 11px;
+            color: <%= palette.muted %>;
+            padding-top: 24px;
+            border-top: 1px solid <%= palette.border %>;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1><%= locale === 'fr' ? 'AVOIR' : 'CREDIT NOTE' %></h1>
+                <div class="credit-note-number"><%= credit_note_number %></div>
+            </div>
+            <div class="header-right">
+                <% if (company && company.logo_url) { %>
+                    <img src="<%= company.logo_url %>" class="company-logo" alt="Logo">
+                <% } %>
+                <div class="date"><%= formattedDate %></div>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <% if (company && (company.name || company.address)) { %>
+            <div class="info-block">
+                <h3><%= locale === 'fr' ? 'Emetteur' : 'From' %></h3>
+                <% if (company.name) { %><p class="name"><%= company.name %></p><% } %>
+                <% if (company.address) { %><p><%= company.address %></p><% } %>
+                <% if (company.tax_id) { %><p><%= locale === 'fr' ? 'N° TVA' : 'Tax ID' %>: <%= company.tax_id %></p><% } %>
+            </div>
+            <% } %>
+            <div class="info-block">
+                <h3><%= locale === 'fr' ? 'Client' : 'Customer' %></h3>
+                <% if (customer_name) { %><p class="name"><%= customer_name %></p><% } %>
+                <p><%= customer_email %></p>
+            </div>
+        </div>
+
+        <% if (typeof original_invoice_number !== 'undefined' && original_invoice_number) { %>
+        <div class="reference-block">
+            <h3><%= locale === 'fr' ? 'Facture de référence' : 'Original invoice' %></h3>
+            <p><%= original_invoice_number %></p>
+        </div>
+        <% } %>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th><%= locale === 'fr' ? 'Montant' : 'Amount' %></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <%= locale === 'fr' ? 'Remboursement' : 'Refund' %> — <%= provider %>
+                            <% if (typeof reason !== 'undefined' && reason) { %>
+                                <br><span style="font-size: 11px; color: <%= palette.muted %>;"><%= locale === 'fr' ? 'Raison' : 'Reason' %>: <%= reason %></span>
+                            <% } %>
+                        </td>
+                        <td>-<%= formattedAmount %></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="total-section">
+            <div class="total-box">
+                <div class="label"><%= locale === 'fr' ? 'Total remboursé' : 'Total refunded' %></div>
+                <div class="amount">-<%= formattedAmount %></div>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <div>
+                <span class="badge"><%= locale === 'fr' ? 'Remboursé' : 'Refunded' %></span>
+                <span style="margin-left: 12px; font-size: 12px; color: <%= palette.muted %>;">
+                    <%= formattedDate %>
+                </span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><%= locale === 'fr' ? 'Document généré automatiquement' : 'Automatically generated document' %></p>
+            <% if (company && company.name) { %>
+                <p>&copy; <%= new Date().getFullYear() %> <%= company.name %></p>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

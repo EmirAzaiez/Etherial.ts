@@ -15,6 +15,8 @@ export interface SubCollection {
     title?: string
     model: any
     foreignKey: string           // e.g., 'user_id'
+    through?: any                // Junction model for M:M (e.g., UserProperty)
+    otherKey?: string            // Other FK in junction table (e.g., 'property_id')
     fields: string[]             // Field names to display (will lookup from registered collection)
     sort?: { field: string; direction: 'asc' | 'desc' }
     limit?: number               // Default items to show
@@ -144,6 +146,16 @@ export interface CollectionConfig {
      * Displayed in the collection's stats page
      */
     stats?: CollectionStat[]
+    /**
+     * Enable CSV/JSON export for this collection
+     * Default: false
+     */
+    exportable?: boolean
+    /**
+     * Enable soft delete (paranoid mode) for this collection
+     * Requires the Sequelize model to have `paranoid: true`
+     */
+    softDelete?: { enabled: boolean; deletedAtField?: string }
 }
 
 // ============================================
@@ -258,4 +270,12 @@ export interface SerializedCollection {
      * Stats definitions for this collection
      */
     stats?: CollectionStat[]
+    /**
+     * Enable CSV/JSON export for this collection
+     */
+    exportable?: boolean
+    /**
+     * Soft delete configuration
+     */
+    softDelete?: { enabled: boolean; deletedAtField?: string }
 }
