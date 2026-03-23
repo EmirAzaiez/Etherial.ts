@@ -16,7 +16,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { Column, Model, DataType, Default, PrimaryKey, AutoIncrement, AllowNull, Unique } from 'etherial/components/database/provider';
+import { Column, Model, DataType, Default, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt } from 'etherial/components/database/provider';
 export var DevicePlatform;
 (function (DevicePlatform) {
     DevicePlatform[DevicePlatform["WEB"] = 1] = "WEB";
@@ -57,7 +57,7 @@ export class BaseDevice extends Model {
             var _b, _c, _d, _e, _f;
             const platformValue = (_b = form.platform) !== null && _b !== void 0 ? _b : DevicePlatform.WEB;
             let device = yield this.findOne({
-                where: { device: form.device }
+                where: { device: form.device },
             });
             let pushObject = {};
             if (form.push_token) {
@@ -159,9 +159,17 @@ __decorate([
 __decorate([
     AllowNull(true),
     Column,
+    __metadata("design:type", Date)
+], BaseDevice.prototype, "last_activity", void 0);
+__decorate([
+    CreatedAt,
+    __metadata("design:type", Date)
+], BaseDevice.prototype, "created_at", void 0);
+__decorate([
+    UpdatedAt,
     __metadata("design:type", Date
     // user_id is defined in the child class with @ForeignKey
     )
-], BaseDevice.prototype, "last_activity", void 0);
+], BaseDevice.prototype, "updated_at", void 0);
 // Alias for backwards compatibility
 export { BaseDevice as Device };

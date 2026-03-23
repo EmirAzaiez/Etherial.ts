@@ -54,6 +54,8 @@ export declare class BaseDevice extends Model<BaseDevice> {
     user_agent: string;
     status: boolean;
     last_activity: Date;
+    created_at: Date;
+    updated_at: Date;
     user_id: number;
     static registerOrUpdateDevice(this: typeof BaseDevice, { form, user_agent, user_id }: {
         form: RegisterDeviceFormType;

@@ -1,4 +1,4 @@
-import { Column, Model, DataType, Default, PrimaryKey, AutoIncrement, AllowNull, Unique } from 'etherial/components/database/provider'
+import { Column, Model, DataType, Default, PrimaryKey, AutoIncrement, AllowNull, Unique, CreatedAt, UpdatedAt } from 'etherial/components/database/provider'
 import { RegisterDeviceFormType } from '../forms/device_form.js'
 
 export enum DevicePlatform {
@@ -113,17 +113,20 @@ export class BaseDevice extends Model<BaseDevice> {
     @Column
     last_activity: Date
 
+    @CreatedAt
+    created_at: Date
+
+    @UpdatedAt
+    updated_at: Date
+
     // user_id is defined in the child class with @ForeignKey
     declare user_id: number
 
-    static async registerOrUpdateDevice(
-        this: typeof BaseDevice,
-        { form, user_agent, user_id }: { form: RegisterDeviceFormType; user_agent: string; user_id: number }
-    ) {
+    static async registerOrUpdateDevice(this: typeof BaseDevice, { form, user_agent, user_id }: { form: RegisterDeviceFormType; user_agent: string; user_id: number }) {
         const platformValue = (form.platform as DevicePlatform) ?? DevicePlatform.WEB
 
         let device = await this.findOne({
-            where: { device: form.device }
+            where: { device: form.device },
         })
 
         let pushObject = {}
