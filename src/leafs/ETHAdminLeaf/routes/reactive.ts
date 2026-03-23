@@ -1,9 +1,6 @@
 import etherial from 'etherial'
 import { Request, Response } from 'etherial/components/http/provider'
-import {
-    Controller,
-    Get
-} from 'etherial/components/http/provider'
+import { Controller, Get } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 import { Reactive } from 'etherial/components/reactive/index'
 
@@ -61,7 +58,7 @@ export default class ReactiveController {
                 engineClientsCount: io.engine?.clientsCount ?? 0,
                 socketsSize: io.sockets?.sockets?.size ?? 0,
                 rooms: adapter?.rooms ? Array.from(adapter.rooms.keys()) : [],
-                roomsSizes: {} as Record<string, number>
+                roomsSizes: {} as Record<string, number>,
             }
             // Get size of each room
             if (adapter?.rooms) {
@@ -73,16 +70,18 @@ export default class ReactiveController {
 
         // Get connectedSockets from reactive
         const connectedSockets = reactive?.getConnectedSockets?.()
-        const connectedSocketsInfo = connectedSockets ? {
-            size: connectedSockets.size,
-            sockets: Array.from(connectedSockets.entries()).map(([id, info]) => ({
-                socketId: id,
-                userId: info.userId,
-                rooms: Array.from(info.rooms),
-                connectedAt: info.connectedAt,
-                lastActivity: info.lastActivity
-            }))
-        } : null
+        const connectedSocketsInfo = connectedSockets
+            ? {
+                  size: connectedSockets.size,
+                  sockets: Array.from(connectedSockets.entries()).map(([id, info]) => ({
+                      socketId: id,
+                      userId: info.userId,
+                      rooms: Array.from(info.rooms),
+                      connectedAt: info.connectedAt,
+                      lastActivity: info.lastActivity,
+                  })),
+              }
+            : null
 
         return (res as any).success?.({
             status: 200,
@@ -93,8 +92,8 @@ export default class ReactiveController {
                 reactiveHasIo: reactive?.io ? true : false,
                 ioDetails,
                 connectedSockets: connectedSocketsInfo,
-                reactiveMethods: reactive ? Object.getOwnPropertyNames(Object.getPrototypeOf(reactive)).filter(m => m !== 'constructor') : []
-            }
+                reactiveMethods: reactive ? Object.getOwnPropertyNames(Object.getPrototypeOf(reactive)).filter((m) => m !== 'constructor') : [],
+            },
         })
     }
 
@@ -118,7 +117,7 @@ export default class ReactiveController {
             return (res as any).error?.({
                 status: 500,
                 errors: ['reactive_not_initialized'],
-                debug: { availableModules: Object.keys(etherial) }
+                debug: { availableModules: Object.keys(etherial) },
             })
         }
 
@@ -130,13 +129,13 @@ export default class ReactiveController {
             rooms: {
                 all: reactive.getRoomSize('all'),
                 guests: reactive.getRoomSize('guests'),
-                users: reactive.getRoomSize('users')
-            }
+                users: reactive.getRoomSize('users'),
+            },
         }
 
         return (res as any).success?.({
             status: 200,
-            data: stats
+            data: stats,
         })
     }
 
@@ -167,8 +166,8 @@ export default class ReactiveController {
             status: 200,
             data: {
                 total: connections.length,
-                connections
-            }
+                connections,
+            },
         })
     }
 
@@ -196,18 +195,21 @@ export default class ReactiveController {
         const allConnections = await this.enrichConnections(connectedSockets)
 
         // Filter only authenticated users
-        const authenticatedConnections = allConnections.filter(c => c.isAuthenticated)
+        const authenticatedConnections = allConnections.filter((c) => c.isAuthenticated)
 
         // Group by userId to show unique users with their socket count
-        const userMap = new Map<string | number, {
-            user: ConnectedUserInfo['user']
-            sockets: Array<{
-                socketId: string
-                connectedAt: Date
-                lastActivity: Date
-                rooms: string[]
-            }>
-        }>()
+        const userMap = new Map<
+            string | number,
+            {
+                user: ConnectedUserInfo['user']
+                sockets: Array<{
+                    socketId: string
+                    connectedAt: Date
+                    lastActivity: Date
+                    rooms: string[]
+                }>
+            }
+        >()
 
         for (const conn of authenticatedConnections) {
             if (conn.userId) {
@@ -217,17 +219,19 @@ export default class ReactiveController {
                         socketId: conn.socketId,
                         connectedAt: conn.connectedAt,
                         lastActivity: conn.lastActivity,
-                        rooms: conn.rooms
+                        rooms: conn.rooms,
                     })
                 } else {
                     userMap.set(conn.userId, {
                         user: conn.user,
-                        sockets: [{
-                            socketId: conn.socketId,
-                            connectedAt: conn.connectedAt,
-                            lastActivity: conn.lastActivity,
-                            rooms: conn.rooms
-                        }]
+                        sockets: [
+                            {
+                                socketId: conn.socketId,
+                                connectedAt: conn.connectedAt,
+                                lastActivity: conn.lastActivity,
+                                rooms: conn.rooms,
+                            },
+                        ],
                     })
                 }
             }
@@ -237,7 +241,7 @@ export default class ReactiveController {
             userId,
             user: data.user,
             socketCount: data.sockets.length,
-            sockets: data.sockets
+            sockets: data.sockets,
         }))
 
         return (res as any).success?.({
@@ -245,8 +249,8 @@ export default class ReactiveController {
             data: {
                 uniqueUsers: users.length,
                 totalSockets: authenticatedConnections.length,
-                users
-            }
+                users,
+            },
         })
     }
 
@@ -274,19 +278,19 @@ export default class ReactiveController {
         const allConnections = await this.enrichConnections(connectedSockets)
 
         // Filter only guests (non-authenticated)
-        const guestConnections = allConnections.filter(c => !c.isAuthenticated)
+        const guestConnections = allConnections.filter((c) => !c.isAuthenticated)
 
         return (res as any).success?.({
             status: 200,
             data: {
                 total: guestConnections.length,
-                guests: guestConnections.map(g => ({
+                guests: guestConnections.map((g) => ({
                     socketId: g.socketId,
                     rooms: g.rooms,
                     connectedAt: g.connectedAt,
-                    lastActivity: g.lastActivity
-                }))
-            }
+                    lastActivity: g.lastActivity,
+                })),
+            },
         })
     }
 
@@ -322,7 +326,7 @@ export default class ReactiveController {
                         socketId: info.socketId,
                         rooms: Array.from(info.rooms),
                         connectedAt: info.connectedAt,
-                        lastActivity: info.lastActivity
+                        lastActivity: info.lastActivity,
                     })
                 }
             }
@@ -334,8 +338,8 @@ export default class ReactiveController {
                 userId,
                 isOnline,
                 socketCount: sockets.length,
-                sockets
-            }
+                sockets,
+            },
         })
     }
 
@@ -343,13 +347,16 @@ export default class ReactiveController {
      * Enrich socket connections with user data from database
      */
     private async enrichConnections(
-        connectedSockets: Map<string, {
-            socketId: string
-            userId?: string | number
-            rooms: Set<string>
-            connectedAt: Date
-            lastActivity: Date
-        }>
+        connectedSockets: Map<
+            string,
+            {
+                socketId: string
+                userId?: string | number
+                rooms: Set<string>
+                connectedAt: Date
+                lastActivity: Date
+            }
+        >,
     ): Promise<ConnectedUserInfo[]> {
         const connections: ConnectedUserInfo[] = []
         const userIds = new Set<number>()
@@ -365,11 +372,10 @@ export default class ReactiveController {
         let usersMap = new Map<number, any>()
         if (userIds.size > 0) {
             try {
-                const etherial = require('etherial').default
                 const User = etherial.database.sequelize.models.User
                 const rawAttrs = Object.keys(User.rawAttributes || {})
 
-                const pick = (options: string[]) => options.find(attr => rawAttrs.includes(attr))
+                const pick = (options: string[]) => options.find((attr) => rawAttrs.includes(attr))
 
                 const attributes = [
                     'id',
@@ -402,7 +408,7 @@ export default class ReactiveController {
                 rooms: Array.from(info.rooms),
                 connectedAt: info.connectedAt,
                 lastActivity: info.lastActivity,
-                isAuthenticated
+                isAuthenticated,
             })
         }
 
@@ -410,11 +416,4 @@ export default class ReactiveController {
     }
 }
 
-export const AvailableRouteMethods = [
-    'debug',
-    'getStats',
-    'getConnections',
-    'getAuthenticatedUsers',
-    'getGuests',
-    'getUserStatus'
-] as const
+export const AvailableRouteMethods = ['debug', 'getStats', 'getConnections', 'getAuthenticatedUsers', 'getGuests', 'getUserStatus'] as const

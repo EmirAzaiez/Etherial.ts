@@ -51,7 +51,7 @@ let ReactiveController = class ReactiveController {
                     engineClientsCount: (_e = (_d = io.engine) === null || _d === void 0 ? void 0 : _d.clientsCount) !== null && _e !== void 0 ? _e : 0,
                     socketsSize: (_h = (_g = (_f = io.sockets) === null || _f === void 0 ? void 0 : _f.sockets) === null || _g === void 0 ? void 0 : _g.size) !== null && _h !== void 0 ? _h : 0,
                     rooms: (adapter === null || adapter === void 0 ? void 0 : adapter.rooms) ? Array.from(adapter.rooms.keys()) : [],
-                    roomsSizes: {}
+                    roomsSizes: {},
                 };
                 // Get size of each room
                 if (adapter === null || adapter === void 0 ? void 0 : adapter.rooms) {
@@ -62,16 +62,18 @@ let ReactiveController = class ReactiveController {
             }
             // Get connectedSockets from reactive
             const connectedSockets = (_j = reactive === null || reactive === void 0 ? void 0 : reactive.getConnectedSockets) === null || _j === void 0 ? void 0 : _j.call(reactive);
-            const connectedSocketsInfo = connectedSockets ? {
-                size: connectedSockets.size,
-                sockets: Array.from(connectedSockets.entries()).map(([id, info]) => ({
-                    socketId: id,
-                    userId: info.userId,
-                    rooms: Array.from(info.rooms),
-                    connectedAt: info.connectedAt,
-                    lastActivity: info.lastActivity
-                }))
-            } : null;
+            const connectedSocketsInfo = connectedSockets
+                ? {
+                    size: connectedSockets.size,
+                    sockets: Array.from(connectedSockets.entries()).map(([id, info]) => ({
+                        socketId: id,
+                        userId: info.userId,
+                        rooms: Array.from(info.rooms),
+                        connectedAt: info.connectedAt,
+                        lastActivity: info.lastActivity,
+                    })),
+                }
+                : null;
             return (_l = (_k = res).success) === null || _l === void 0 ? void 0 : _l.call(_k, {
                 status: 200,
                 data: {
@@ -81,8 +83,8 @@ let ReactiveController = class ReactiveController {
                     reactiveHasIo: (reactive === null || reactive === void 0 ? void 0 : reactive.io) ? true : false,
                     ioDetails,
                     connectedSockets: connectedSocketsInfo,
-                    reactiveMethods: reactive ? Object.getOwnPropertyNames(Object.getPrototypeOf(reactive)).filter(m => m !== 'constructor') : []
-                }
+                    reactiveMethods: reactive ? Object.getOwnPropertyNames(Object.getPrototypeOf(reactive)).filter((m) => m !== 'constructor') : [],
+                },
             });
         });
     }
@@ -104,7 +106,7 @@ let ReactiveController = class ReactiveController {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, {
                     status: 500,
                     errors: ['reactive_not_initialized'],
-                    debug: { availableModules: Object.keys(etherial) }
+                    debug: { availableModules: Object.keys(etherial) },
                 });
             }
             const stats = {
@@ -115,12 +117,12 @@ let ReactiveController = class ReactiveController {
                 rooms: {
                     all: reactive.getRoomSize('all'),
                     guests: reactive.getRoomSize('guests'),
-                    users: reactive.getRoomSize('users')
-                }
+                    users: reactive.getRoomSize('users'),
+                },
             };
             return (_f = (_e = res).success) === null || _f === void 0 ? void 0 : _f.call(_e, {
                 status: 200,
-                data: stats
+                data: stats,
             });
         });
     }
@@ -147,8 +149,8 @@ let ReactiveController = class ReactiveController {
                 status: 200,
                 data: {
                     total: connections.length,
-                    connections
-                }
+                    connections,
+                },
             });
         });
     }
@@ -172,7 +174,7 @@ let ReactiveController = class ReactiveController {
             const connectedSockets = reactive.getConnectedSockets();
             const allConnections = yield this.enrichConnections(connectedSockets);
             // Filter only authenticated users
-            const authenticatedConnections = allConnections.filter(c => c.isAuthenticated);
+            const authenticatedConnections = allConnections.filter((c) => c.isAuthenticated);
             // Group by userId to show unique users with their socket count
             const userMap = new Map();
             for (const conn of authenticatedConnections) {
@@ -183,18 +185,20 @@ let ReactiveController = class ReactiveController {
                             socketId: conn.socketId,
                             connectedAt: conn.connectedAt,
                             lastActivity: conn.lastActivity,
-                            rooms: conn.rooms
+                            rooms: conn.rooms,
                         });
                     }
                     else {
                         userMap.set(conn.userId, {
                             user: conn.user,
-                            sockets: [{
+                            sockets: [
+                                {
                                     socketId: conn.socketId,
                                     connectedAt: conn.connectedAt,
                                     lastActivity: conn.lastActivity,
-                                    rooms: conn.rooms
-                                }]
+                                    rooms: conn.rooms,
+                                },
+                            ],
                         });
                     }
                 }
@@ -203,15 +207,15 @@ let ReactiveController = class ReactiveController {
                 userId,
                 user: data.user,
                 socketCount: data.sockets.length,
-                sockets: data.sockets
+                sockets: data.sockets,
             }));
             return (_f = (_e = res).success) === null || _f === void 0 ? void 0 : _f.call(_e, {
                 status: 200,
                 data: {
                     uniqueUsers: users.length,
                     totalSockets: authenticatedConnections.length,
-                    users
-                }
+                    users,
+                },
             });
         });
     }
@@ -235,18 +239,18 @@ let ReactiveController = class ReactiveController {
             const connectedSockets = reactive.getConnectedSockets();
             const allConnections = yield this.enrichConnections(connectedSockets);
             // Filter only guests (non-authenticated)
-            const guestConnections = allConnections.filter(c => !c.isAuthenticated);
+            const guestConnections = allConnections.filter((c) => !c.isAuthenticated);
             return (_f = (_e = res).success) === null || _f === void 0 ? void 0 : _f.call(_e, {
                 status: 200,
                 data: {
                     total: guestConnections.length,
-                    guests: guestConnections.map(g => ({
+                    guests: guestConnections.map((g) => ({
                         socketId: g.socketId,
                         rooms: g.rooms,
                         connectedAt: g.connectedAt,
-                        lastActivity: g.lastActivity
-                    }))
-                }
+                        lastActivity: g.lastActivity,
+                    })),
+                },
             });
         });
     }
@@ -278,7 +282,7 @@ let ReactiveController = class ReactiveController {
                             socketId: info.socketId,
                             rooms: Array.from(info.rooms),
                             connectedAt: info.connectedAt,
-                            lastActivity: info.lastActivity
+                            lastActivity: info.lastActivity,
                         });
                     }
                 }
@@ -289,8 +293,8 @@ let ReactiveController = class ReactiveController {
                     userId,
                     isOnline,
                     socketCount: sockets.length,
-                    sockets
-                }
+                    sockets,
+                },
             });
         });
     }
@@ -311,10 +315,9 @@ let ReactiveController = class ReactiveController {
             let usersMap = new Map();
             if (userIds.size > 0) {
                 try {
-                    const etherial = require('etherial').default;
                     const User = etherial.database.sequelize.models.User;
                     const rawAttrs = Object.keys(User.rawAttributes || {});
-                    const pick = (options) => options.find(attr => rawAttrs.includes(attr));
+                    const pick = (options) => options.find((attr) => rawAttrs.includes(attr));
                     const attributes = [
                         'id',
                         pick(['first_name', 'firstname']),
@@ -345,7 +348,7 @@ let ReactiveController = class ReactiveController {
                     rooms: Array.from(info.rooms),
                     connectedAt: info.connectedAt,
                     lastActivity: info.lastActivity,
-                    isAuthenticated
+                    isAuthenticated,
                 });
             }
             return connections;
@@ -398,11 +401,4 @@ ReactiveController = __decorate([
     Controller()
 ], ReactiveController);
 export default ReactiveController;
-export const AvailableRouteMethods = [
-    'debug',
-    'getStats',
-    'getConnections',
-    'getAuthenticatedUsers',
-    'getGuests',
-    'getUserStatus'
-];
+export const AvailableRouteMethods = ['debug', 'getStats', 'getConnections', 'getAuthenticatedUsers', 'getGuests', 'getUserStatus'];
