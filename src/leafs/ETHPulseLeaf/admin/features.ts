@@ -1,11 +1,18 @@
 import * as yup from 'yup'
 import { Action, ActionResult } from '../../ETHAdminLeaf/features/ActionRegistry.js'
 import { Hook } from '../../ETHAdminLeaf/features/HookRegistry.js'
-import { Device, DevicePushTokenStatus } from '../models/Device.js'
-import { MessageLog } from '../models/MessageLog.js'
-import { NotificationCampaign } from '../models/NotificationCampaign.js'
+import { DevicePushTokenStatus } from '../models/Device.js'
 import { Op } from 'sequelize'
 import etherial from 'etherial'
+
+const getModels = () => {
+    const models = etherial.database!.sequelize.models
+    return {
+        Device: models.Device as any,
+        MessageLog: models.MessageLog as any,
+        NotificationCampaign: models.NotificationCampaign as any,
+    }
+}
 
 const getPulseLeaf = () => (etherial as any).eth_pulse_leaf
 
@@ -36,6 +43,7 @@ export const pulseActions: Record<string, Omit<Action, 'name'>> = {
         handler: async (record, data, _req, _context): Promise<ActionResult> => {
             const { title, message, url } = data
 
+            const { Device } = getModels()
             const devices = await Device.findAll({
                 where: {
                     user_id: record.id,
@@ -157,6 +165,7 @@ export const pulseActions: Record<string, Omit<Action, 'name'>> = {
             }
         },
         handler: async (record, _data, _req, _context): Promise<ActionResult> => {
+            const { Device } = getModels()
             const [count] = await Device.update(
                 { status: false, push_token_status: DevicePushTokenStatus.DISABLED },
                 { where: { user_id: record.id } }
@@ -175,7 +184,7 @@ export const pulseHooks: Record<string, Omit<Hook, 'name'>> = {
     'pulse:send-campaign': {
         collection: 'campaigns',
         description: 'Auto-send push notifications when campaign is created',
-        afterCreate: async (campaign: NotificationCampaign, _req) => {
+        afterCreate: async (campaign: any, _req) => {
             try {
                 const { message, url, data, target_logged_user, target_not_logged_user } = campaign
 
@@ -196,6 +205,7 @@ export const pulseHooks: Record<string, Omit<Hook, 'name'>> = {
                     whereConditions.user_id = null
                 }
 
+                const { Device } = getModels()
                 const devices = await Device.findAll({ where: whereConditions })
                 await campaign.update({ devices_count: devices.length })
 

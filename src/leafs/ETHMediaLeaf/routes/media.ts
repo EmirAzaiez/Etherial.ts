@@ -5,7 +5,7 @@ import { Controller, Post, Get, Delete, Request, Response } from '../../../compo
 import { ShouldValidateYupForm } from '../../../components/http/yup.validator.js'
 import { ShouldBeAuthenticated } from '../../../components/http.auth/provider.js'
 
-import { BaseMedia, MediaStatus } from '../models/Media.js'
+import { MediaStatus } from '../models/Media.js'
 import { Model } from '../../../components/database/provider.js'
 
 import {
@@ -20,7 +20,7 @@ const getModels = () => {
     const models = etherial.database!.sequelize.models
     return {
         User: models.User as unknown as typeof Model,
-        Media: models.Media as unknown as typeof BaseMedia,
+        Media: models.Media as any,
     }
 }
 import { PutObjectCommand } from '@aws-sdk/client-s3'

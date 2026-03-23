@@ -1,6 +1,14 @@
 import { IPushProvider, PushResult, PushMessage, PushOptions } from '../providers/push/IPushProvider.js'
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js'
-import { Device } from '../models/Device.js'
+import { MessageType, MessageStatus } from '../models/MessageLog.js'
+import etherial from 'etherial'
+
+const getModels = () => {
+    const models = etherial.database!.sequelize.models
+    return {
+        MessageLog: models.MessageLog as any,
+        Device: models.Device as any,
+    }
+}
 
 export class PushService {
     private providers: Map<string, IPushProvider> = new Map()
@@ -84,7 +92,7 @@ export class PushService {
      * Send push notification to a Device model instance
      */
     async sendToDevice(
-        device: Device,
+        device: any,
         message: PushMessage,
         options?: PushOptions & { providerName?: string }
     ): Promise<PushResult> {
@@ -102,7 +110,7 @@ export class PushService {
      * Send push notification to multiple Device model instances
      */
     async sendToDevices(
-        devices: Device[],
+        devices: any[],
         message: PushMessage,
         options?: PushOptions & { providerName?: string }
     ): Promise<PushResult[]> {
@@ -136,6 +144,7 @@ export class PushService {
         userId?: number
     }): Promise<void> {
         try {
+            const { MessageLog } = getModels()
             await MessageLog.logMessage({
                 type: MessageType.PUSH,
                 ...data,

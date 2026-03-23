@@ -7,7 +7,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js';
+import { MessageType, MessageStatus } from '../models/MessageLog.js';
+import etherial from 'etherial';
+const getModels = () => {
+    const models = etherial.database.sequelize.models;
+    return {
+        MessageLog: models.MessageLog,
+    };
+};
 export class EmailService {
     constructor(providers, defaultProvider) {
         this.providers = new Map();
@@ -72,6 +79,7 @@ export class EmailService {
     logMessage(data) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                const { MessageLog } = getModels();
                 yield MessageLog.logMessage(Object.assign({ type: MessageType.EMAIL }, data));
             }
             catch (error) {

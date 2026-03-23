@@ -1,5 +1,13 @@
 import { ISmsProvider, SmsResult, SmsOptions } from '../providers/sms/ISmsProvider.js'
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js'
+import { MessageType, MessageStatus } from '../models/MessageLog.js'
+import etherial from 'etherial'
+
+const getModels = () => {
+    const models = etherial.database!.sequelize.models
+    return {
+        MessageLog: models.MessageLog as any,
+    }
+}
 
 export class SmsService {
     private providers: Map<string, ISmsProvider> = new Map()
@@ -86,6 +94,7 @@ export class SmsService {
         userId?: number
     }): Promise<void> {
         try {
+            const { MessageLog } = getModels()
             await MessageLog.logMessage({
                 type: MessageType.SMS,
                 ...data,

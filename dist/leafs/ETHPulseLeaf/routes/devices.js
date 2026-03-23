@@ -20,8 +20,13 @@ import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import { RegisterDeviceForm, RevokeDeviceForm } from '../forms/device_form.js';
-import { Device } from '../models/Device.js';
 import etherial from 'etherial';
+const getModels = () => {
+    const models = etherial.database.sequelize.models;
+    return {
+        Device: models.Device,
+    };
+};
 let ETHPulseDevicesController = class ETHPulseDevicesController {
     registerDevice(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -30,6 +35,7 @@ let ETHPulseDevicesController = class ETHPulseDevicesController {
                 const decoded = etherial.http_auth.decodeToken(req.headers['authorization'].replace('Bearer ', ''));
                 user_id = decoded.user_id;
             }
+            const { Device } = getModels();
             yield Device.registerOrUpdateDevice({
                 user_id: user_id,
                 form: req.form,
@@ -44,6 +50,7 @@ let ETHPulseDevicesController = class ETHPulseDevicesController {
     revokeDevice(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             const decoded = etherial.http_auth.decodeToken(req.headers['authorization'].replace('Bearer ', ''));
+            const { Device } = getModels();
             if (req.form.device === decoded.device) {
                 yield Device.update({
                     user_id: null,

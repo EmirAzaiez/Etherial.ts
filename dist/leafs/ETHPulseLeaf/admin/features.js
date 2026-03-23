@@ -8,9 +8,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import * as yup from 'yup';
-import { Device, DevicePushTokenStatus } from '../models/Device.js';
+import { DevicePushTokenStatus } from '../models/Device.js';
 import { Op } from 'sequelize';
 import etherial from 'etherial';
+const getModels = () => {
+    const models = etherial.database.sequelize.models;
+    return {
+        Device: models.Device,
+        MessageLog: models.MessageLog,
+        NotificationCampaign: models.NotificationCampaign,
+    };
+};
 const getPulseLeaf = () => etherial.eth_pulse_leaf;
 // ============================================
 // ACTIONS (User-triggered, buttons in UI)
@@ -38,6 +46,7 @@ export const pulseActions = {
         handler: (record, data, _req, _context) => __awaiter(void 0, void 0, void 0, function* () {
             var _a, _b;
             const { title, message, url } = data;
+            const { Device } = getModels();
             const devices = yield Device.findAll({
                 where: {
                     user_id: record.id,
@@ -147,6 +156,7 @@ export const pulseActions = {
             }
         },
         handler: (record, _data, _req, _context) => __awaiter(void 0, void 0, void 0, function* () {
+            const { Device } = getModels();
             const [count] = yield Device.update({ status: false, push_token_status: DevicePushTokenStatus.DISABLED }, { where: { user_id: record.id } });
             return { success: true, data: { revoked_count: count } };
         })
@@ -178,6 +188,7 @@ export const pulseHooks = {
                 else if (!target_logged_user && target_not_logged_user) {
                     whereConditions.user_id = null;
                 }
+                const { Device } = getModels();
                 const devices = yield Device.findAll({ where: whereConditions });
                 yield campaign.update({ devices_count: devices.length });
                 if (devices.length === 0) {

@@ -25,7 +25,7 @@ export function applyPulseMixin(Base) {
                     console.warn('[PulseMixin.sendPushNotification] ETHPulseLeaf is not configured');
                     return [];
                 }
-                const { Device } = yield import('../models/Device.js');
+                const Device = etherial.database.sequelize.models.Device;
                 const devices = yield Device.findAll({
                     where: {
                         user_id: this.id,

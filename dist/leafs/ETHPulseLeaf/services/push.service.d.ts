@@ -1,5 +1,4 @@
 import { IPushProvider, PushResult, PushMessage, PushOptions } from '../providers/push/IPushProvider.js';
-import { Device } from '../models/Device.js';
 export declare class PushService {
     private providers;
     private defaultProvider;
@@ -25,13 +24,13 @@ export declare class PushService {
     /**
      * Send push notification to a Device model instance
      */
-    sendToDevice(device: Device, message: PushMessage, options?: PushOptions & {
+    sendToDevice(device: any, message: PushMessage, options?: PushOptions & {
         providerName?: string;
     }): Promise<PushResult>;
     /**
      * Send push notification to multiple Device model instances
      */
-    sendToDevices(devices: Device[], message: PushMessage, options?: PushOptions & {
+    sendToDevices(devices: any[], message: PushMessage, options?: PushOptions & {
         providerName?: string;
     }): Promise<PushResult[]>;
     /**

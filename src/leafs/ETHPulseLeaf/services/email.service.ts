@@ -4,7 +4,15 @@ import {
     EmailOptions,
     TransactionalContent,
 } from '../providers/email/IEmailProvider.js'
-import { MessageLog, MessageType, MessageStatus } from '../models/MessageLog.js'
+import { MessageType, MessageStatus } from '../models/MessageLog.js'
+import etherial from 'etherial'
+
+const getModels = () => {
+    const models = etherial.database!.sequelize.models
+    return {
+        MessageLog: models.MessageLog as any,
+    }
+}
 
 export class EmailService {
     private providers: Map<string, IEmailProvider> = new Map()
@@ -101,6 +109,7 @@ export class EmailService {
         userId?: number
     }): Promise<void> {
         try {
+            const { MessageLog } = getModels()
             await MessageLog.logMessage({
                 type: MessageType.EMAIL,
                 ...data,

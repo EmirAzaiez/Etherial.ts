@@ -97,7 +97,7 @@ export function applyPulseMixin<TBase extends Constructor<Model<any> & UserLike>
                 return []
             }
 
-            const { Device } = await import('../models/Device.js')
+            const Device = etherial.database!.sequelize.models.Device as any
 
             const devices = await Device.findAll({
                 where: {

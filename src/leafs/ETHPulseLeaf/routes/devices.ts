@@ -3,9 +3,14 @@ import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import { RegisterDeviceForm, RegisterDeviceFormType, RevokeDeviceForm, RevokeDeviceFormType } from '../forms/device_form.js'
-import { Device } from '../models/Device.js'
-
 import etherial from 'etherial'
+
+const getModels = () => {
+    const models = etherial.database!.sequelize.models
+    return {
+        Device: models.Device as any,
+    }
+}
 
 @Controller()
 export default class ETHPulseDevicesController {
@@ -18,6 +23,8 @@ export default class ETHPulseDevicesController {
             const decoded = etherial.http_auth.decodeToken(req.headers['authorization'].replace('Bearer ', '') as string)
             user_id = decoded.user_id
         }
+
+        const { Device } = getModels()
 
         await Device.registerOrUpdateDevice({
             user_id: user_id,
@@ -36,6 +43,8 @@ export default class ETHPulseDevicesController {
     @ShouldBeAuthenticated()
     public async revokeDevice(req: Request & { user: any; form: RevokeDeviceFormType }, res: Response): Promise<any> {
         const decoded = etherial.http_auth.decodeToken(req.headers['authorization'].replace('Bearer ', '') as string)
+
+        const { Device } = getModels()
 
         if (req.form.device === decoded.device) {
             await Device.update(
