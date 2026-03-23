@@ -139,7 +139,7 @@ export const pulseActions: Record<string, Omit<Action, 'name'>> = {
                 subject: data.subject,
                 content: {
                     title: data.subject,
-                    greeting: `Hello ${record.first_name || ''}`.trim(),
+                    greeting: `Hello ${record.first_name || record.firstname || ''}`.trim(),
                     body: data.body
                 }
             })

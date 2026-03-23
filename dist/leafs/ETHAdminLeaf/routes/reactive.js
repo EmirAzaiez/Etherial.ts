@@ -313,9 +313,19 @@ let ReactiveController = class ReactiveController {
                 try {
                     const etherial = require('etherial').default;
                     const User = etherial.database.sequelize.models.User;
+                    const rawAttrs = Object.keys(User.rawAttributes || {});
+                    const pick = (options) => options.find(attr => rawAttrs.includes(attr));
+                    const attributes = [
+                        'id',
+                        pick(['first_name', 'firstname']),
+                        pick(['last_name', 'lastname']),
+                        pick(['email']),
+                        pick(['phone_number', 'phone']),
+                        pick(['role']),
+                    ].filter(Boolean);
                     const users = yield User.findAll({
                         where: { id: Array.from(userIds) },
-                        attributes: ['id', 'first_name', 'last_name', 'email', 'phone_number', 'role']
+                        attributes,
                     });
                     for (const user of users) {
                         usersMap.set(user.id, user.toJSON());
