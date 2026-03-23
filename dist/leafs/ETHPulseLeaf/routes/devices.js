@@ -33,7 +33,7 @@ let ETHPulseDevicesController = class ETHPulseDevicesController {
             let user_id = null;
             if (req.headers['authorization']) {
                 const decoded = etherial.http_auth.decodeToken(req.headers['authorization'].replace('Bearer ', ''));
-                user_id = decoded.user_id;
+                user_id = decoded.user_id || decoded.id;
             }
             const { Device } = getModels();
             yield Device.registerOrUpdateDevice({
@@ -51,11 +51,13 @@ let ETHPulseDevicesController = class ETHPulseDevicesController {
         return __awaiter(this, void 0, void 0, function* () {
             const decoded = etherial.http_auth.decodeToken(req.headers['authorization'].replace('Bearer ', ''));
             const { Device } = getModels();
-            if (req.form.device === decoded.device) {
+            let user_id = decoded.user_id || decoded.id;
+            if (req.form.device) {
                 yield Device.update({
                     user_id: null,
                 }, {
                     where: {
+                        user_id: user_id,
                         device: req.form.device,
                     },
                 });

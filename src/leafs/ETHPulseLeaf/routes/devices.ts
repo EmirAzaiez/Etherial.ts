@@ -21,7 +21,7 @@ export default class ETHPulseDevicesController {
 
         if (req.headers['authorization']) {
             const decoded = etherial.http_auth.decodeToken(req.headers['authorization'].replace('Bearer ', '') as string)
-            user_id = decoded.user_id
+            user_id = decoded.user_id || decoded.id
         }
 
         const { Device } = getModels()
@@ -46,16 +46,19 @@ export default class ETHPulseDevicesController {
 
         const { Device } = getModels()
 
-        if (req.form.device === decoded.device) {
+        let user_id = decoded.user_id || decoded.id
+
+        if (req.form.device) {
             await Device.update(
                 {
                     user_id: null,
                 },
                 {
                     where: {
+                        user_id: user_id,
                         device: req.form.device,
                     },
-                }
+                },
             )
 
             res.success({
