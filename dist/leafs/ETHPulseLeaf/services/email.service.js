@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { MessageType, MessageStatus } from '../models/MessageLog.js';
+import { BaseEmailTemplate } from '../models/EmailTemplate.js';
 import etherial from 'etherial';
 const getModels = () => {
     const models = etherial.database.sequelize.models;
@@ -71,6 +72,46 @@ export class EmailService {
                 metadata: { type: 'transactional' },
             })));
             return result;
+        });
+    }
+    /**
+     * Send email using a template stored in the database.
+     *
+     * ```typescript
+     * await emailService.sendFromTemplate('password_reset', {
+     *     to: 'john@example.com',
+     *     locale: 'fr',
+     *     variables: { firstname: 'John', token: 'abc123', resetUrl: 'https://app.com/reset/abc123' }
+     * })
+     * ```
+     */
+    sendFromTemplate(key, params, providerName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const locale = params.locale || 'en';
+            const template = yield BaseEmailTemplate.findByKey(key, locale);
+            if (!template) {
+                const errorMsg = `Email template "${key}" not found for locale "${locale}"`;
+                console.error(`[EmailService] ${errorMsg}`);
+                return {
+                    success: false,
+                    error: errorMsg,
+                    provider: providerName || this.defaultProvider,
+                    timestamp: new Date(),
+                };
+            }
+            const resolved = template.resolve(params.variables || {});
+            return this.sendTransactional({
+                email: params.to,
+                subject: resolved.subject,
+                content: {
+                    title: resolved.title,
+                    greeting: resolved.greeting,
+                    body: resolved.body,
+                    buttonText: resolved.buttonText,
+                    buttonUrl: resolved.buttonUrl,
+                    additionalContent: resolved.additionalContent,
+                },
+            }, providerName);
         });
     }
     /**

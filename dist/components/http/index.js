@@ -186,7 +186,7 @@ export class Http {
                     }
                     else if (result && typeof result.then === 'function') {
                         const resolved = yield result;
-                        if (resolved !== undefined && resolved !== null) {
+                        if (resolved !== undefined && resolved !== null && !res.headersSent) {
                             if (resolved instanceof Array) {
                                 res.success({ status: 200, data: resolved });
                             }

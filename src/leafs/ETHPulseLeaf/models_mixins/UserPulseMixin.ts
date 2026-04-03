@@ -5,25 +5,26 @@ import type { PushResult } from '../providers/push/index.js'
 
 /**
  * ETHPulseLeaf User Mixin
- * 
+ *
  * This mixin provides messaging methods (push, sms, email) to any User model.
- * 
+ *
  * Usage in your project's User.ts:
  * ```typescript
  * import { UserLeafBase } from './ETHUserLeaf/models/User.js'
  * import { applyPulseMixin, PulseUserMethods } from './ETHPulseLeaf/models_mixins/UserPulseMixin.js'
- * 
+ *
  * @Table({ tableName: 'users' })
  * export class User extends applyPulseMixin(UserLeafBase) {
  *     // Your custom fields and methods
  * }
  * ```
- * 
+ *
  * Then you can use:
  * ```typescript
  * await user.sendPushNotification('Hello', 'World')
  * await user.sendSms('Your code is 1234')
  * await user.sendEmail('Welcome!', { title: 'Welcome', body: '<p>Hi!</p>' })
+ * await user.sendEmailFromTemplate('password_reset', { locale: 'fr', variables: { token: '...' } })
  * ```
  */
 
@@ -60,6 +61,19 @@ export interface PulseUserMethods {
      * @param providerName - Optional provider name (defaults to configured default)
      */
     sendEmail(params: { subject: string; content: { title?: string; greeting?: string; body: string; footer?: string } }, providerName?: string): Promise<PulseResult>
+
+    /**
+     * Send email using a database template
+     * Auto-injects user's email and basic variables (firstname, lastname, email)
+     *
+     * ```typescript
+     * await user.sendEmailFromTemplate('password_reset', {
+     *     locale: 'fr',
+     *     variables: { token: resetToken, resetUrl: 'https://app.com/reset' }
+     * })
+     * ```
+     */
+    sendEmailFromTemplate(key: string, options?: { locale?: string; variables?: Record<string, string> }, providerName?: string): Promise<PulseResult>
 }
 
 // Type for classes that can receive the mixin
@@ -74,7 +88,7 @@ interface UserLike {
 
 /**
  * Apply the Pulse mixin to a User model class
- * This adds sendPushNotification, sendSms, and sendEmail methods
+ * This adds sendPushNotification, sendSms, sendEmail, and sendEmailFromTemplate methods
  */
 export function applyPulseMixin<TBase extends Constructor<Model<any> & UserLike>>(Base: TBase) {
     return class extends Base implements PulseUserMethods {
@@ -160,6 +174,42 @@ export function applyPulseMixin<TBase extends Constructor<Model<any> & UserLike>
                 email: this.email,
                 subject: params.subject,
                 content: params.content
+            })
+        }
+
+        /**
+         * Send email using a database template
+         * Auto-injects user email and merges user info into variables
+         */
+        async sendEmailFromTemplate(
+            key: string,
+            options?: {
+                locale?: string
+                variables?: Record<string, string>
+            },
+            providerName?: string
+        ): Promise<PulseResult> {
+            const etherial = (await import('etherial')).default as any
+
+            if (!etherial.eth_pulse_leaf) {
+                console.warn('[PulseMixin.sendEmailFromTemplate] ETHPulseLeaf is not configured')
+                return { success: false, error: 'ETHPulseLeaf not configured' }
+            }
+
+            if (!this.email) {
+                return { success: false, error: 'User has no email' }
+            }
+
+            const userVars: Record<string, string> = {
+                firstname: (this as any).firstname || (this as any).first_name || '',
+                lastname: (this as any).lastname || (this as any).last_name || '',
+                email: this.email,
+            }
+
+            return etherial.eth_pulse_leaf.email(providerName).sendFromTemplate(key, {
+                to: this.email,
+                locale: options?.locale,
+                variables: { ...userVars, ...options?.variables },
             })
         }
     }

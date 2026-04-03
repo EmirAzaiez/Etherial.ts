@@ -331,6 +331,7 @@ let ReactiveController = class ReactiveController {
                         attributes,
                     });
                     for (const user of users) {
+                        //@ts-ignore
                         usersMap.set(user.id, user.toJSON());
                     }
                 }

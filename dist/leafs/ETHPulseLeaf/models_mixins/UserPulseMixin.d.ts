@@ -21,6 +21,7 @@ import type { PushResult } from '../providers/push/index.js';
  * await user.sendPushNotification('Hello', 'World')
  * await user.sendSms('Your code is 1234')
  * await user.sendEmail('Welcome!', { title: 'Welcome', body: '<p>Hi!</p>' })
+ * await user.sendEmailFromTemplate('password_reset', { locale: 'fr', variables: { token: '...' } })
  * ```
  */
 export interface PulseResult {
@@ -65,6 +66,21 @@ export interface PulseUserMethods {
             footer?: string;
         };
     }, providerName?: string): Promise<PulseResult>;
+    /**
+     * Send email using a database template
+     * Auto-injects user's email and basic variables (firstname, lastname, email)
+     *
+     * ```typescript
+     * await user.sendEmailFromTemplate('password_reset', {
+     *     locale: 'fr',
+     *     variables: { token: resetToken, resetUrl: 'https://app.com/reset' }
+     * })
+     * ```
+     */
+    sendEmailFromTemplate(key: string, options?: {
+        locale?: string;
+        variables?: Record<string, string>;
+    }, providerName?: string): Promise<PulseResult>;
 }
 type Constructor<T = {}> = new (...args: any[]) => T;
 interface UserLike {
@@ -74,7 +90,7 @@ interface UserLike {
 }
 /**
  * Apply the Pulse mixin to a User model class
- * This adds sendPushNotification, sendSms, and sendEmail methods
+ * This adds sendPushNotification, sendSms, sendEmail, and sendEmailFromTemplate methods
  */
 export declare function applyPulseMixin<TBase extends Constructor<Model<any> & UserLike>>(Base: TBase): {
     new (...args: any[]): {
@@ -103,6 +119,14 @@ export declare function applyPulseMixin<TBase extends Constructor<Model<any> & U
                 body: string;
                 footer?: string;
             };
+        }, providerName?: string): Promise<PulseResult>;
+        /**
+         * Send email using a database template
+         * Auto-injects user email and merges user info into variables
+         */
+        sendEmailFromTemplate(key: string, options?: {
+            locale?: string;
+            variables?: Record<string, string>;
         }, providerName?: string): Promise<PulseResult>;
         id?: number | any;
         createdAt?: Date | any;

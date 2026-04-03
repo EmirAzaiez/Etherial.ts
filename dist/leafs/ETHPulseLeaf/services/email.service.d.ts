@@ -20,6 +20,22 @@ export declare class EmailService {
         content: TransactionalContent;
     }, providerName?: string): Promise<EmailResult>;
     /**
+     * Send email using a template stored in the database.
+     *
+     * ```typescript
+     * await emailService.sendFromTemplate('password_reset', {
+     *     to: 'john@example.com',
+     *     locale: 'fr',
+     *     variables: { firstname: 'John', token: 'abc123', resetUrl: 'https://app.com/reset/abc123' }
+     * })
+     * ```
+     */
+    sendFromTemplate(key: string, params: {
+        to: string | string[];
+        locale?: string;
+        variables?: Record<string, string>;
+    }, providerName?: string): Promise<EmailResult>;
+    /**
      * Log message to database
      */
     private logMessage;

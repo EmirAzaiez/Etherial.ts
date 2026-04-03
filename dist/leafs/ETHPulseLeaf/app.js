@@ -19,8 +19,8 @@ import { ExpoProvider } from './providers/push/index.js';
 import { SmsService } from './services/sms.service.js';
 import { EmailService } from './services/email.service.js';
 import { PushService } from './services/push.service.js';
-// Templates
-import { defaultTemplateConfig } from './templates/TemplateEngine.js';
+// Seeds
+import { getDefaultContent } from './seeds/email-template-defaults.js';
 import { UnifonicProvider } from './providers/sms/UnifonicProvider.js';
 /**
  * ETHPulseLeaf - Unified Messaging System
@@ -29,16 +29,15 @@ import { UnifonicProvider } from './providers/sms/UnifonicProvider.js';
  */
 export default class ETHPulseLeaf {
     constructor(config) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
         this.etherial_module_name = 'eth_pulse_leaf';
         this.smsProviders = new Map();
         this.emailProviders = new Map();
         this.pushProviders = new Map();
         this.routes = [];
         this.config = config;
-        this.templateConfig = Object.assign(Object.assign({}, defaultTemplateConfig), (_b = (_a = config.email) === null || _a === void 0 ? void 0 : _a.template) === null || _b === void 0 ? void 0 : _b.config);
         // Initialize SMS providers
-        if ((_c = config.sms) === null || _c === void 0 ? void 0 : _c.providers) {
+        if ((_a = config.sms) === null || _a === void 0 ? void 0 : _a.providers) {
             for (const [name, providerConfig] of Object.entries(config.sms.providers)) {
                 if (name === 'twilio') {
                     this.smsProviders.set(name, new TwilioProvider(providerConfig));
@@ -50,8 +49,8 @@ export default class ETHPulseLeaf {
             }
         }
         // Initialize Email providers
-        if ((_d = config.email) === null || _d === void 0 ? void 0 : _d.providers) {
-            if (!((_e = config.email.template) === null || _e === void 0 ? void 0 : _e.path)) {
+        if ((_b = config.email) === null || _b === void 0 ? void 0 : _b.providers) {
+            if (!((_c = config.email.template) === null || _c === void 0 ? void 0 : _c.path)) {
                 throw new Error(`[ETHPulseLeaf] email.template.path is required when email providers are configured. ` +
                     `Run 'etherial cmd eth_pulse_leaf:install-templates' to set up email templates, ` +
                     `then set email.template.path to the templates directory (e.g., path.join(process.cwd(), 'resources/emails')).`);
@@ -68,7 +67,7 @@ export default class ETHPulseLeaf {
             }
         }
         // Initialize Push providers
-        if ((_f = config.push) === null || _f === void 0 ? void 0 : _f.providers) {
+        if ((_d = config.push) === null || _d === void 0 ? void 0 : _d.providers) {
             for (const [name, providerConfig] of Object.entries(config.push.providers)) {
                 if (name === 'expo') {
                     this.pushProviders.set(name, new ExpoProvider(providerConfig));
@@ -78,20 +77,27 @@ export default class ETHPulseLeaf {
         }
         // Initialize services
         if (this.smsProviders.size > 0) {
-            const defaultSmsProvider = ((_g = config.sms) === null || _g === void 0 ? void 0 : _g.default) || this.smsProviders.keys().next().value;
+            const defaultSmsProvider = ((_e = config.sms) === null || _e === void 0 ? void 0 : _e.default) || this.smsProviders.keys().next().value;
             this._smsService = new SmsService(this.smsProviders, defaultSmsProvider);
         }
         if (this.emailProviders.size > 0) {
-            const defaultEmailProvider = ((_h = config.email) === null || _h === void 0 ? void 0 : _h.default) || this.emailProviders.keys().next().value;
+            const defaultEmailProvider = ((_f = config.email) === null || _f === void 0 ? void 0 : _f.default) || this.emailProviders.keys().next().value;
             this._emailService = new EmailService(this.emailProviders, defaultEmailProvider);
         }
         if (this.pushProviders.size > 0) {
-            const defaultPushProvider = ((_j = config.push) === null || _j === void 0 ? void 0 : _j.default) || this.pushProviders.keys().next().value;
+            const defaultPushProvider = ((_g = config.push) === null || _g === void 0 ? void 0 : _g.default) || this.pushProviders.keys().next().value;
             this._pushService = new PushService(this.pushProviders, defaultPushProvider);
         }
         // Initialize device routes
-        if (((_k = config.routes) === null || _k === void 0 ? void 0 : _k.devices) && config.routes.devices.length > 0) {
+        if (((_h = config.routes) === null || _h === void 0 ? void 0 : _h.devices) && config.routes.devices.length > 0) {
             this.routes.push({ route: path.join(__dirname, 'routes/devices'), methods: config.routes.devices });
+        }
+        // Register email template sync route (always available when templates are configured)
+        if ((_j = config.email) === null || _j === void 0 ? void 0 : _j.templates) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/email-templates-sync'),
+                methods: ['getSync', 'createMissing', 'removeOrphan'],
+            });
         }
     }
     /**
@@ -200,8 +206,10 @@ export default class ETHPulseLeaf {
         return [
             {
                 command: 'install-templates',
-                description: 'Copy default email templates to your project (resources/emails/)',
+                description: 'Install email templates: copy EJS files + seed database with declared templates for all configured locales',
                 action: () => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b;
+                    // ── Step 1: Copy EJS template files ──
                     const sourceDir = this.getTemplatesSourcePath();
                     const targetDir = path.join(process.cwd(), 'resources', 'emails');
                     if (!fs.existsSync(sourceDir)) {
@@ -209,8 +217,7 @@ export default class ETHPulseLeaf {
                         return { success: false, message: 'Source templates not found' };
                     }
                     if (fs.existsSync(targetDir)) {
-                        console.log(`[ETHPulseLeaf] Templates directory already exists at: ${targetDir}`);
-                        console.log(`[ETHPulseLeaf] Overwriting with default templates...`);
+                        console.log(`[ETHPulseLeaf] Templates directory already exists — overwriting...`);
                     }
                     this.copyDirSync(sourceDir, targetDir);
                     const files = [];
@@ -226,13 +233,61 @@ export default class ETHPulseLeaf {
                         }
                     };
                     listFiles(targetDir);
-                    console.log(`[ETHPulseLeaf] Email templates installed to: ${targetDir}`);
-                    console.log(`  Files copied:`);
+                    console.log(`[ETHPulseLeaf] EJS templates installed to: ${targetDir}`);
                     for (const f of files) {
-                        console.log(`    - ${f}`);
+                        console.log(`    ${f}`);
                     }
-                    console.log(`\n  Set your config: email.template.path = path.join(process.cwd(), 'resources/emails')`);
-                    return { success: true, message: `Installed ${files.length} template files` };
+                    // ── Step 2: Seed database with email templates ──
+                    const templatesConfig = (_a = this.config.email) === null || _a === void 0 ? void 0 : _a.templates;
+                    if (!templatesConfig || Object.keys(templatesConfig.emails).length === 0) {
+                        console.log('\n[ETHPulseLeaf] No email templates declared in config — skipping database seed.');
+                        console.log('  Set your config: email.template.path = path.join(process.cwd(), \'resources/emails\')');
+                        return { success: true, message: `Installed ${files.length} template files (no DB seed)` };
+                    }
+                    const etherial_import = (yield import('etherial')).default;
+                    const EmailTemplate = (_b = etherial_import.database) === null || _b === void 0 ? void 0 : _b.sequelize.models.EmailTemplate;
+                    if (!EmailTemplate) {
+                        console.log('\n[ETHPulseLeaf] EmailTemplate model not found — skipping database seed.');
+                        console.log('  Make sure you have an EmailTemplate model extending BaseEmailTemplate.');
+                        return { success: true, message: `Installed ${files.length} template files (no DB seed)` };
+                    }
+                    const locales = templatesConfig.locales;
+                    const keys = Object.keys(templatesConfig.emails);
+                    let created = 0;
+                    let skipped = 0;
+                    console.log(`\n[ETHPulseLeaf] Seeding email templates (${locales.join(', ')})...\n`);
+                    for (const key of keys) {
+                        const expectedVars = templatesConfig.emails[key];
+                        for (const locale of locales) {
+                            const existing = yield EmailTemplate.findOne({ where: { key, locale } });
+                            if (existing) {
+                                console.log(`  [skip] ${key} (${locale}) — already exists`);
+                                skipped++;
+                                continue;
+                            }
+                            const content = getDefaultContent(key, locale);
+                            yield EmailTemplate.create({
+                                key,
+                                locale,
+                                subject: content.subject,
+                                title: content.title || null,
+                                greeting: content.greeting || null,
+                                body: content.body,
+                                button_text: content.button_text || null,
+                                button_url: content.button_url || null,
+                                footer: content.footer || null,
+                                enabled: true,
+                            });
+                            console.log(`  [created] ${key} (${locale})`);
+                            if (expectedVars.length > 0) {
+                                console.log(`            variables: {{${expectedVars.join('}}, {{')}}}`);
+                            }
+                            created++;
+                        }
+                    }
+                    console.log(`\n[ETHPulseLeaf] Done: ${files.length} files, ${created} templates created, ${skipped} skipped`);
+                    console.log(`  Customize content from the admin panel (Email Templates) or directly in the database.`);
+                    return { success: true, message: `${files.length} files, ${created} created, ${skipped} skipped` };
                 }),
             },
             {
@@ -324,3 +379,5 @@ export const AvailableRouteMethods = {
 export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js';
 export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus } from './models/Device.js';
 export { ETHPulseLeafNotificationBaseModel } from './models/Notification.js';
+export { BaseEmailTemplate, EmailTemplate } from './models/EmailTemplate.js';
+export { registerPulseCollections } from './admin/features.js';

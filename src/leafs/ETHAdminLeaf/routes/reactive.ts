@@ -72,15 +72,15 @@ export default class ReactiveController {
         const connectedSockets = reactive?.getConnectedSockets?.()
         const connectedSocketsInfo = connectedSockets
             ? {
-                  size: connectedSockets.size,
-                  sockets: Array.from(connectedSockets.entries()).map(([id, info]) => ({
-                      socketId: id,
-                      userId: info.userId,
-                      rooms: Array.from(info.rooms),
-                      connectedAt: info.connectedAt,
-                      lastActivity: info.lastActivity,
-                  })),
-              }
+                size: connectedSockets.size,
+                sockets: Array.from(connectedSockets.entries()).map(([id, info]) => ({
+                    socketId: id,
+                    userId: info.userId,
+                    rooms: Array.from(info.rooms),
+                    connectedAt: info.connectedAt,
+                    lastActivity: info.lastActivity,
+                })),
+            }
             : null
 
         return (res as any).success?.({
@@ -391,6 +391,7 @@ export default class ReactiveController {
                     attributes,
                 })
                 for (const user of users) {
+                    //@ts-ignore
                     usersMap.set(user.id, user.toJSON())
                 }
             } catch (error) {

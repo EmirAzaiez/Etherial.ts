@@ -235,6 +235,109 @@ export const pulseHooks: Record<string, Omit<Hook, 'name'>> = {
 }
 
 // ============================================
+// COLLECTIONS (Admin panel data management)
+// ============================================
+
+export function registerPulseCollections(adminLeaf: { registerCollection: (config: any) => void }) {
+    const EmailTemplate = etherial.database!.sequelize.models.EmailTemplate as any
+    if (!EmailTemplate) {
+        console.warn('[ETHPulseLeaf] EmailTemplate model not registered — skipping admin collection')
+        return
+    }
+
+    // Build key field options from template definitions in config
+    const pulseLeaf = getPulseLeaf()
+    const definitions = pulseLeaf?.config?.email?.templates?.emails
+    const keyOptions = definitions
+        ? Object.entries(definitions).map(([key, vars]) => ({
+            value: key,
+            label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            helpText: `Variables: ${(vars as string[]).join(', ')}`,
+        }))
+        : undefined
+
+    const keyField: any = {
+        name: 'key',
+        label: 'Template Key',
+        required: true,
+        searchable: true,
+        sortable: true,
+        filterable: true,
+    }
+
+    if (keyOptions && keyOptions.length > 0) {
+        keyField.type = 'select'
+        keyField.options = keyOptions
+        keyField.helpText = 'Select a declared email template'
+    } else {
+        keyField.type = 'string'
+        keyField.helpText = 'Template identifier (e.g. password_reset)'
+    }
+
+    adminLeaf.registerCollection({
+        name: 'email_templates',
+        model: EmailTemplate,
+        crud: ['list', 'show', 'create', 'update', 'delete'],
+        meta: {
+            label: 'Email Template',
+            labelPlural: 'Email Templates',
+            icon: 'mail',
+            description: 'Manage email templates and translations',
+            group: 'Messaging',
+            order: 10,
+        },
+        exportable: true,
+        fields: [
+            { name: 'id', type: 'number', readonly: true, hidden: true },
+            keyField,
+            { name: 'locale', type: 'string', label: 'Locale', required: true, sortable: true, filterable: true, helpText: 'Language code (e.g. en, fr, ar)', defaultValue: 'en' },
+            { name: 'subject', type: 'string', label: 'Subject', required: true, searchable: true, helpText: 'Supports {{variable}} placeholders' },
+            { name: 'title', type: 'string', label: 'Header Title', helpText: 'Displayed in the email header section' },
+            { name: 'greeting', type: 'string', label: 'Greeting', helpText: 'e.g. Hello {{firstname}}' },
+            { name: 'body', type: 'text', label: 'Body (HTML)', required: true, col: 12, helpText: 'HTML content with {{variable}} placeholders' },
+            { name: 'button_text', type: 'string', label: 'Button Text' },
+            { name: 'button_url', type: 'string', label: 'Button URL', helpText: 'e.g. {{baseUrl}}/reset/{{token}}' },
+            { name: 'additional_content', type: 'text', label: 'Additional Content', col: 12 },
+            { name: 'footer', type: 'string', label: 'Footer Text' },
+            { name: 'enabled', type: 'boolean', label: 'Enabled', defaultValue: true, filterable: true },
+            { name: 'created_at', type: 'datetime', readonly: true },
+            { name: 'updated_at', type: 'datetime', readonly: true },
+        ],
+        views: {
+            list: {
+                fields: ['key', 'locale', 'subject', 'enabled', 'updated_at'],
+                search: ['key', 'subject'],
+                filters: ['key', 'locale', 'enabled'],
+                sort: { field: 'key', direction: 'asc' },
+            },
+            show: {
+                layout: 'sections',
+                sections: [
+                    { title: 'Identification', fields: ['key', 'locale', 'enabled'] },
+                    { title: 'Content', fields: ['subject', 'title', 'greeting', 'body', 'button_text', 'button_url', 'additional_content', 'footer'] },
+                ],
+            },
+            create: {
+                layout: 'sections',
+                sections: [
+                    { title: 'Identification', fields: ['key', 'locale', 'enabled'] },
+                    { title: 'Content', fields: ['subject', 'title', 'greeting', 'body', 'button_text', 'button_url', 'additional_content', 'footer'] },
+                ],
+            },
+            edit: {
+                layout: 'sections',
+                sections: [
+                    { title: 'Identification', fields: ['key', 'locale', 'enabled'] },
+                    { title: 'Content', fields: ['subject', 'title', 'greeting', 'body', 'button_text', 'button_url', 'additional_content', 'footer'] },
+                ],
+            },
+        },
+    })
+
+    console.log('[ETHPulseLeaf] Collection: email_templates')
+}
+
+// ============================================
 // Registration
 // ============================================
 

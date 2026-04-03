@@ -21,7 +21,6 @@ export default class ETHPulseLeaf {
     private _emailService?;
     private _pushService?;
     config: ETHPulseLeafConfig;
-    private templateConfig;
     private routes;
     constructor(config: ETHPulseLeafConfig);
     /**
@@ -87,6 +86,32 @@ export declare const AvailableRouteMethods: {
     readonly devices: readonly ["registerDevice", "revokeDevice"];
 };
 export type DevicesMethods = (typeof AvailableRouteMethods.devices)[number];
+/**
+ * Declares available email template keys and the variables they expect.
+ */
+export type EmailTemplateDefinitions = Record<string, string[]>;
+/**
+ * Email templates configuration.
+ *
+ * ```typescript
+ * email: {
+ *     templates: {
+ *         locales: ['fr', 'en', 'ar'],
+ *         emails: {
+ *             password_reset: ['firstname', 'token', 'resetUrl'],
+ *             email_verification: ['firstname', 'verifyUrl'],
+ *             welcome: ['firstname'],
+ *         }
+ *     }
+ * }
+ * ```
+ */
+export interface EmailTemplatesConfig {
+    /** Supported locales. First one is the default. */
+    locales: string[];
+    /** Declared email template keys and their expected variables */
+    emails: EmailTemplateDefinitions;
+}
 export interface ETHPulseLeafConfig {
     last_app_build?: string;
     sms?: {
@@ -100,6 +125,7 @@ export interface ETHPulseLeafConfig {
             path: string;
             config?: TemplateConfig;
         };
+        templates?: EmailTemplatesConfig;
     };
     push?: {
         default: keyof PushProviderConfig;
@@ -117,3 +143,5 @@ export { TemplateConfig } from './templates/TemplateEngine.js';
 export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js';
 export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus, DeviceAttributes } from './models/Device.js';
 export { ETHPulseLeafNotificationBaseModel } from './models/Notification.js';
+export { BaseEmailTemplate, EmailTemplate, EmailTemplateAttributes } from './models/EmailTemplate.js';
+export { registerPulseCollections } from './admin/features.js';

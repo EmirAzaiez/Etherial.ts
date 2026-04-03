@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 /**
  * Apply the Pulse mixin to a User model class
- * This adds sendPushNotification, sendSms, and sendEmail methods
+ * This adds sendPushNotification, sendSms, sendEmail, and sendEmailFromTemplate methods
  */
 export function applyPulseMixin(Base) {
     return class extends Base {
@@ -75,6 +75,32 @@ export function applyPulseMixin(Base) {
                     email: this.email,
                     subject: params.subject,
                     content: params.content
+                });
+            });
+        }
+        /**
+         * Send email using a database template
+         * Auto-injects user email and merges user info into variables
+         */
+        sendEmailFromTemplate(key, options, providerName) {
+            return __awaiter(this, void 0, void 0, function* () {
+                const etherial = (yield import('etherial')).default;
+                if (!etherial.eth_pulse_leaf) {
+                    console.warn('[PulseMixin.sendEmailFromTemplate] ETHPulseLeaf is not configured');
+                    return { success: false, error: 'ETHPulseLeaf not configured' };
+                }
+                if (!this.email) {
+                    return { success: false, error: 'User has no email' };
+                }
+                const userVars = {
+                    firstname: this.firstname || this.first_name || '',
+                    lastname: this.lastname || this.last_name || '',
+                    email: this.email,
+                };
+                return etherial.eth_pulse_leaf.email(providerName).sendFromTemplate(key, {
+                    to: this.email,
+                    locale: options === null || options === void 0 ? void 0 : options.locale,
+                    variables: Object.assign(Object.assign({}, userVars), options === null || options === void 0 ? void 0 : options.variables),
                 });
             });
         }
