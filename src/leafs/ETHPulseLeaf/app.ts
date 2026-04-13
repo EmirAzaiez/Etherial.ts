@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Providers
 import { ISmsProvider, TwilioProvider, TwilioConfig } from './providers/sms/index.js'
-import { IEmailProvider, NodemailerProvider, NodemailerConfig } from './providers/email/index.js'
+import { IEmailProvider, NodemailerProvider, NodemailerConfig, GmailOAuthProvider, GmailOAuthConfig } from './providers/email/index.js'
 import { IPushProvider, ExpoProvider, ExpoConfig } from './providers/push/index.js'
 
 // Services
@@ -81,6 +81,14 @@ export default class ETHPulseLeaf {
                         name,
                         new NodemailerProvider(
                             providerConfig as NodemailerConfig,
+                            config.email.template
+                        )
+                    )
+                } else if (name === 'gmail_oauth') {
+                    this.emailProviders.set(
+                        name,
+                        new GmailOAuthProvider(
+                            providerConfig as GmailOAuthConfig,
                             config.email.template
                         )
                     )
@@ -445,6 +453,7 @@ export interface SmsProviderConfig {
 
 export interface EmailProviderConfig {
     nodemailer?: NodemailerConfig
+    gmail_oauth?: GmailOAuthConfig
     // Add more Email providers here
 }
 
@@ -514,7 +523,7 @@ export interface ETHPulseLeafConfig {
 
 // Re-export types for external use
 export { ISmsProvider, SmsResult, SmsOptions } from './providers/sms/index.js'
-export { IEmailProvider, EmailResult, EmailOptions, TransactionalContent } from './providers/email/index.js'
+export { IEmailProvider, EmailResult, EmailOptions, TransactionalContent, GmailOAuthConfig } from './providers/email/index.js'
 export { IPushProvider, PushResult, PushMessage, PushOptions } from './providers/push/index.js'
 export { TemplateConfig } from './templates/TemplateEngine.js'
 export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js'

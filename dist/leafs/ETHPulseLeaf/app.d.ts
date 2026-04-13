@@ -1,6 +1,6 @@
 import { Etherial } from 'etherial';
 import { TwilioConfig } from './providers/sms/index.js';
-import { NodemailerConfig } from './providers/email/index.js';
+import { NodemailerConfig, GmailOAuthConfig } from './providers/email/index.js';
 import { ExpoConfig } from './providers/push/index.js';
 import { SmsService } from './services/sms.service.js';
 import { EmailService } from './services/email.service.js';
@@ -78,6 +78,7 @@ export interface SmsProviderConfig {
 }
 export interface EmailProviderConfig {
     nodemailer?: NodemailerConfig;
+    gmail_oauth?: GmailOAuthConfig;
 }
 export interface PushProviderConfig {
     expo?: ExpoConfig;
@@ -137,7 +138,7 @@ export interface ETHPulseLeafConfig {
     };
 }
 export { ISmsProvider, SmsResult, SmsOptions } from './providers/sms/index.js';
-export { IEmailProvider, EmailResult, EmailOptions, TransactionalContent } from './providers/email/index.js';
+export { IEmailProvider, EmailResult, EmailOptions, TransactionalContent, GmailOAuthConfig } from './providers/email/index.js';
 export { IPushProvider, PushResult, PushMessage, PushOptions } from './providers/push/index.js';
 export { TemplateConfig } from './templates/TemplateEngine.js';
 export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js';

@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Providers
 import { TwilioProvider } from './providers/sms/index.js';
-import { NodemailerProvider } from './providers/email/index.js';
+import { NodemailerProvider, GmailOAuthProvider } from './providers/email/index.js';
 import { ExpoProvider } from './providers/push/index.js';
 // Services
 import { SmsService } from './services/sms.service.js';
@@ -62,6 +62,9 @@ export default class ETHPulseLeaf {
             for (const [name, providerConfig] of Object.entries(config.email.providers)) {
                 if (name === 'nodemailer') {
                     this.emailProviders.set(name, new NodemailerProvider(providerConfig, config.email.template));
+                }
+                else if (name === 'gmail_oauth') {
+                    this.emailProviders.set(name, new GmailOAuthProvider(providerConfig, config.email.template));
                 }
                 // Add more Email providers here as needed
             }
