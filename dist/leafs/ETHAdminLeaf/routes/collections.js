@@ -556,7 +556,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     list(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
             const { collection: collectionName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -569,8 +569,12 @@ let AdminCollectionsController = class AdminCollectionsController {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['forbidden'] });
             }
             try {
-                const _l = req.query, { limit = 25, offset = 0, sort, order, search, showDeleted } = _l, filters = __rest(_l, ["limit", "offset", "sort", "order", "search", "showDeleted"]);
-                const listView = (_e = collection.views) === null || _e === void 0 ? void 0 : _e.list;
+                const _m = req.query, { limit, offset, page, perPage, sort, order, search, showDeleted } = _m, filters = __rest(_m, ["limit", "offset", "page", "perPage", "sort", "order", "search", "showDeleted"]);
+                const effectiveLimit = Number((_e = perPage !== null && perPage !== void 0 ? perPage : limit) !== null && _e !== void 0 ? _e : 25);
+                const effectiveOffset = page != null
+                    ? Math.max(0, (Math.max(1, Number(page)) - 1) * effectiveLimit)
+                    : Number(offset !== null && offset !== void 0 ? offset : 0);
+                const listView = (_f = collection.views) === null || _f === void 0 ? void 0 : _f.list;
                 // Build where clause from advanced filters
                 const allowedFilters = (listView === null || listView === void 0 ? void 0 : listView.filters) || [];
                 const where = parseAdvancedFilters(filters, allowedFilters);
@@ -592,22 +596,22 @@ let AdminCollectionsController = class AdminCollectionsController {
                     orderClause = [['created_at', 'DESC']];
                 }
                 // Soft delete: show deleted records if requested and collection supports it
-                const paranoidOption = ((_f = collection.softDelete) === null || _f === void 0 ? void 0 : _f.enabled) && showDeleted === 'true'
+                const paranoidOption = ((_g = collection.softDelete) === null || _g === void 0 ? void 0 : _g.enabled) && showDeleted === 'true'
                     ? { paranoid: false }
                     : {};
-                const result = yield collection.model.findAndCountAll(Object.assign({ where, attributes: listView === null || listView === void 0 ? void 0 : listView.fields, include: (listView === null || listView === void 0 ? void 0 : listView.include) || [], order: orderClause, limit: Number(limit), offset: Number(offset) }, paranoidOption));
+                const result = yield collection.model.findAndCountAll(Object.assign({ where, attributes: listView === null || listView === void 0 ? void 0 : listView.fields, include: (listView === null || listView === void 0 ? void 0 : listView.include) || [], order: orderClause, limit: effectiveLimit, offset: effectiveOffset }, paranoidOption));
                 // Transform field values for admin display (enums, secure fields)
                 const transformedItems = transformFields(result.rows, collection.fields || []);
                 // Add CDN URLs to all media objects
                 const itemsWithUrls = transformMediaUrls(transformedItems);
-                return (_h = (_g = res).success) === null || _h === void 0 ? void 0 : _h.call(_g, {
+                return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, {
                     status: 200,
                     data: { items: itemsWithUrls, total: result.count }
                 });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] List error for ${collectionName}:`, err);
-                return (_k = (_j = res).error) === null || _k === void 0 ? void 0 : _k.call(_j, { status: 400, errors: [err.message] });
+                return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 400, errors: [err.message] });
             }
         });
     }
@@ -664,7 +668,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     subCollection(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
             const { collection: collectionName, id, subName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -709,7 +713,11 @@ let AdminCollectionsController = class AdminCollectionsController {
                 return (_j = (_h = res).error) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 404, errors: ['sub_collection_not_found'] });
             }
             try {
-                const { limit = subConfig.limit || 25, offset = 0 } = req.query;
+                const { limit, offset, page, perPage } = req.query;
+                const effectiveLimit = Number((_l = (_k = perPage !== null && perPage !== void 0 ? perPage : limit) !== null && _k !== void 0 ? _k : subConfig.limit) !== null && _l !== void 0 ? _l : 25);
+                const effectiveOffset = page != null
+                    ? Math.max(0, (Math.max(1, Number(page)) - 1) * effectiveLimit)
+                    : Number(offset !== null && offset !== void 0 ? offset : 0);
                 const order = subConfig.sort
                     ? [[subConfig.sort.field, subConfig.sort.direction.toUpperCase()]]
                     : [['created_at', 'DESC']];
@@ -741,8 +749,8 @@ let AdminCollectionsController = class AdminCollectionsController {
                             where: { id: relatedIds },
                             include: nestedIncludes,
                             order,
-                            limit: Number(limit),
-                            offset: Number(offset),
+                            limit: effectiveLimit,
+                            offset: effectiveOffset,
                         });
                     }
                 }
@@ -751,8 +759,8 @@ let AdminCollectionsController = class AdminCollectionsController {
                         where: { [subConfig.foreignKey]: id },
                         include: nestedIncludes,
                         order,
-                        limit: Number(limit),
-                        offset: Number(offset)
+                        limit: effectiveLimit,
+                        offset: effectiveOffset
                     });
                 }
                 // Try to get the sub-collection's registered fields for transformation
@@ -765,14 +773,14 @@ let AdminCollectionsController = class AdminCollectionsController {
                 const transformedItems = transformFields(items.rows, subFields);
                 // Add CDN URLs to all media objects
                 const itemsWithUrls = transformMediaUrls(transformedItems);
-                return (_l = (_k = res).success) === null || _l === void 0 ? void 0 : _l.call(_k, {
+                return (_o = (_m = res).success) === null || _o === void 0 ? void 0 : _o.call(_m, {
                     status: 200,
                     data: { items: itemsWithUrls, total: items.count }
                 });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] SubCollection error:`, err);
-                return (_o = (_m = res).error) === null || _o === void 0 ? void 0 : _o.call(_m, { status: 400, errors: [err.message] });
+                return (_q = (_p = res).error) === null || _q === void 0 ? void 0 : _q.call(_p, { status: 400, errors: [err.message] });
             }
         });
     }

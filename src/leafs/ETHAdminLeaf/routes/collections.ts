@@ -655,7 +655,11 @@ export default class AdminCollectionsController {
         }
 
         try {
-            const { limit = 25, offset = 0, sort, order, search, showDeleted, ...filters } = req.query
+            const { limit, offset, page, perPage, sort, order, search, showDeleted, ...filters } = req.query
+            const effectiveLimit = Number(perPage ?? limit ?? 25)
+            const effectiveOffset = page != null
+                ? Math.max(0, (Math.max(1, Number(page)) - 1) * effectiveLimit)
+                : Number(offset ?? 0)
             const listView = collection.views?.list
 
             // Build where clause from advanced filters
@@ -689,8 +693,8 @@ export default class AdminCollectionsController {
                 attributes: listView?.fields,
                 include: listView?.include || [],
                 order: orderClause,
-                limit: Number(limit),
-                offset: Number(offset),
+                limit: effectiveLimit,
+                offset: effectiveOffset,
                 ...paranoidOption
             })
 
@@ -828,7 +832,11 @@ export default class AdminCollectionsController {
         }
 
         try {
-            const { limit = subConfig.limit || 25, offset = 0 } = req.query
+            const { limit, offset, page, perPage } = req.query
+            const effectiveLimit = Number(perPage ?? limit ?? subConfig.limit ?? 25)
+            const effectiveOffset = page != null
+                ? Math.max(0, (Math.max(1, Number(page)) - 1) * effectiveLimit)
+                : Number(offset ?? 0)
             const order: [string, 'ASC' | 'DESC'][] = subConfig.sort
                 ? [[subConfig.sort.field, subConfig.sort.direction.toUpperCase() as 'ASC' | 'DESC']]
                 : [['created_at', 'DESC']]
@@ -863,8 +871,8 @@ export default class AdminCollectionsController {
                         where: { id: relatedIds },
                         include: nestedIncludes,
                         order,
-                        limit: Number(limit),
-                        offset: Number(offset),
+                        limit: effectiveLimit,
+                        offset: effectiveOffset,
                     })
                 }
             } else {
@@ -872,8 +880,8 @@ export default class AdminCollectionsController {
                     where: { [subConfig.foreignKey]: id },
                     include: nestedIncludes,
                     order,
-                    limit: Number(limit),
-                    offset: Number(offset)
+                    limit: effectiveLimit,
+                    offset: effectiveOffset
                 })
             }
 
