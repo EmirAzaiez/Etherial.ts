@@ -16,6 +16,9 @@ export interface PageConfig {
     showInMenu?: boolean   // default true
     form?: CustomPageForm  // if present, auto-rendered form
     meta?: Record<string, any>
+    // Optional per-page authorization on top of canAccessAdmin.
+    // Return false to forbid; throw to forbid with a custom message.
+    canAccess?: (user: any) => boolean | Promise<boolean>
 }
 
 export interface SerializedPage {

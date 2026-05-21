@@ -230,6 +230,28 @@ export type BelongsToManyInput = number[] | Array<{
     id: number;
     through?: Record<string, any>;
 }>;
+/**
+ * Configuration for the `map-picker` custom field type.
+ * Lets the user pick a geographic point; the picked lat/lng (and optionally
+ * a reverse-geocoded address) are written back to sibling fields.
+ */
+export interface FieldMap {
+    /** Sibling field name that holds the latitude (number) */
+    latField: string;
+    /** Sibling field name that holds the longitude (number) */
+    lngField: string;
+    /** Optional sibling field name that holds the address (string) */
+    addressField?: string;
+    /** Default center of the map when no value is set */
+    defaultCenter?: {
+        lat: number;
+        lng: number;
+    };
+    /** Default zoom level when no value is set */
+    defaultZoom?: number;
+    /** Map height in pixels (default: 400) */
+    height?: number;
+}
 export interface FieldDefinition {
     name: string;
     type: FieldType;
@@ -253,6 +275,7 @@ export interface FieldDefinition {
     media?: FieldMedia;
     hasMany?: FieldHasMany;
     belongsToMany?: FieldBelongsToMany;
+    map?: FieldMap;
     /**
      * Column span in a 12-column grid system (1-12)
      * Default: 12 (full width)

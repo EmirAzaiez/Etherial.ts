@@ -7,6 +7,7 @@ declare module 'yup' {
         shouldNotExistInModel(model: any, column: string, message?: string): StringSchema
         shouldExistInModel(model: any, column: string, message?: string): StringSchema
         shouldMatchField(fieldName: string, message?: string): StringSchema
+        shouldBeStrongPassword(message?: string): StringSchema
     }
 
     interface NumberSchema {

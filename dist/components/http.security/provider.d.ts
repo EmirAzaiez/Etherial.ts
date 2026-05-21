@@ -1,4 +1,4 @@
-import { RateLimitConfig, IPFilterConfig, BruteForceConfig } from './index.js';
+import { RateLimitConfig, IPFilterConfig, BruteForceProtectionConfig } from './index.js';
 /**
  * Apply rate limiting to a specific route
  *
@@ -86,7 +86,7 @@ declare function ShouldFilterIPs(config: IPFilterConfig): MethodDecorator;
  * login() {}
  * ```
  */
-declare function ShouldProtectBruteForce(config?: BruteForceConfig): MethodDecorator;
+declare function ShouldProtectBruteForce(config?: BruteForceProtectionConfig): MethodDecorator;
 /**
  * Strict brute force protection (3 attempts, longer wait times)
  *

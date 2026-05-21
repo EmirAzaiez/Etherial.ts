@@ -2,6 +2,7 @@ import etherial from 'etherial'
 import { Controller, Post, Request, Response } from 'etherial/components/http/provider'
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
+import { ShouldProtectBruteForce, ShouldUseLimiter } from 'etherial/components/http.security/provider'
 import { UserLeafBase } from '../models/User.js'
 import { PhoneValidationConfirmForm, PhoneValidationConfirmFormType, PhoneValidationSendForm, PhoneValidationSendFormType } from '../forms/user_phone_form.js'
 import * as crypto from 'crypto'
@@ -62,8 +63,9 @@ export default class ETHUserLeafPhoneController {
      * }
      */
     @Post('/users/me/phone/send')
-    @ShouldValidateYupForm(PhoneValidationSendForm)
     @ShouldBeAuthenticated()
+    @ShouldUseLimiter({ windowMs: 60_000, max: 5 })
+    @ShouldValidateYupForm(PhoneValidationSendForm)
     public async sendPhoneValidation(req: Request & { form: PhoneValidationSendFormType; user: UserLeafBase }, res: Response): Promise<any> {
         try {
             const { User } = getModels()
@@ -101,11 +103,14 @@ export default class ETHUserLeafPhoneController {
                 return res.error({ status: 429, errors: ['api.phone.validation_too_frequent'] })
             }
 
-            // Generate secure random code and update user
+            // 6-digit code (SMS constraint) — stored hashed and capped by attempt counter.
             const confirmationCode = crypto.randomInt(100000, 1000000).toString()
+            const confirmationCodeHash = (User as typeof UserLeafBase).hashToken(confirmationCode)
 
             await user.update({
-                phone_verification_token: confirmationCode,
+                phone_verification_token: confirmationCodeHash,
+                phone_verification_expires_at: new Date(Date.now() + 10 * 60 * 1000),
+                phone_verification_attempts: 0,
                 phone_verified_at: new Date(),
                 phone_verified: false,
                 ...(req.form.phone && { phone_temporary: req.form.phone })
@@ -175,6 +180,14 @@ export default class ETHUserLeafPhoneController {
      */
     @Post('/users/me/phone/confirm')
     @ShouldBeAuthenticated()
+    @ShouldUseLimiter({ windowMs: 60_000, max: 10 })
+    @ShouldProtectBruteForce({
+        freeRetries: 5,
+        minWait: 1_000,
+        maxWait: 15 * 60_000,
+        lifetime: 60 * 60,
+        keyGenerator: (req: any) => `phone_confirm:${req.user?.id || 'anon'}`
+    })
     @ShouldValidateYupForm(PhoneValidationConfirmForm)
     public async confirmPhoneValidation(req: Request & { form: PhoneValidationConfirmFormType; user: UserLeafBase }, res: Response): Promise<any> {
         try {
@@ -189,6 +202,7 @@ export default class ETHUserLeafPhoneController {
             }
 
             if (!user.isConfirmationTokenValid(req.form.token, 'phone')) {
+                await user.increment('phone_verification_attempts')
                 return res.error({ status: 400, errors: ['api.phone.confirmation_token_invalid'] })
             }
 
@@ -209,8 +223,12 @@ export default class ETHUserLeafPhoneController {
                 phone_verified: true,
                 phone_verified_at: new Date(),
                 phone_verification_token: null,
+                phone_verification_expires_at: null,
+                phone_verification_attempts: 0,
                 phone_temporary: null
             })
+
+            ;(req as any).resetBruteForce?.()
 
             await user.reload()
 

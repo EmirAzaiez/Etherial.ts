@@ -10,16 +10,28 @@ export type AuthChecker = (payload: JWTPayload) => Promise<any>;
 export type RoleChecker = (user: any, requiredRole: any) => Promise<boolean>;
 export interface HttpAuthConfig {
     secret: string;
+    /**
+     * Default expiration for tokens issued via generateToken (e.g. '15m', '1h', 3600).
+     * Tokens MUST expire — leaked tokens are otherwise permanently valid.
+     * Override per-call via generateToken(payload, { expiresIn }).
+     */
+    defaultExpiresIn?: string | number;
+}
+export interface GenerateTokenOptions {
+    expiresIn?: string | number;
 }
 export declare class HttpAuth implements IEtherialModule {
     private secret;
+    private defaultExpiresIn;
     private authChecker?;
     private roleChecker?;
-    constructor({ secret }: HttpAuthConfig);
+    constructor({ secret, defaultExpiresIn }: HttpAuthConfig);
     /**
-     * Generate a JWT token from payload data
+     * Generate a JWT token from payload data.
+     * Includes an expiration by default (see defaultExpiresIn in HttpAuthConfig).
+     * Embed `tv` (token version) in the payload to enable per-user revocation.
      */
-    generateToken(payload: JWTPayload): string;
+    generateToken(payload: JWTPayload, options?: GenerateTokenOptions): string;
     /**
      * Verify and decode a JWT token (checks signature!)
      */

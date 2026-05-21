@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import jwt from 'jsonwebtoken';
 export class HttpAuth {
-    constructor({ secret }) {
+    constructor({ secret, defaultExpiresIn }) {
         /**
          * Set the custom authentication checker
          * @deprecated Use setAuthChecker instead
@@ -41,6 +41,17 @@ export class HttpAuth {
                 const user = yield this.authChecker(payload);
                 if (!user) {
                     res.status(401).json({ errors: ['unauthorized'] });
+                    return;
+                }
+                // Per-user revocation: if both the token and the user carry a `tv`
+                // (token_version), they must match. Bump user.token_version to
+                // invalidate every outstanding token (password reset, logout-all, etc.).
+                const tokenVersion = payload.tv;
+                const userVersion = user.token_version;
+                if (tokenVersion !== undefined &&
+                    userVersion !== undefined &&
+                    tokenVersion !== userVersion) {
+                    res.status(401).json({ errors: ['token_revoked'] });
                     return;
                 }
                 req.user = user;
@@ -138,13 +149,19 @@ export class HttpAuth {
             throw new Error('etherial:http.auth ERROR - No secret defined in your config.');
         }
         this.secret = secret;
+        this.defaultExpiresIn = defaultExpiresIn !== null && defaultExpiresIn !== void 0 ? defaultExpiresIn : '15m';
     }
     /**
-     * Generate a JWT token from payload data
+     * Generate a JWT token from payload data.
+     * Includes an expiration by default (see defaultExpiresIn in HttpAuthConfig).
+     * Embed `tv` (token version) in the payload to enable per-user revocation.
      */
-    generateToken(payload) {
-        const options = {};
-        return jwt.sign(payload, this.secret, options);
+    generateToken(payload, options = {}) {
+        var _a;
+        const signOptions = {
+            expiresIn: ((_a = options.expiresIn) !== null && _a !== void 0 ? _a : this.defaultExpiresIn)
+        };
+        return jwt.sign(payload, this.secret, signOptions);
     }
     /**
      * Verify and decode a JWT token (checks signature!)

@@ -423,8 +423,7 @@ function transformFields(items: any[], fields: any[]): any[] {
  */
 function getCdnUrl(): string | undefined {
     try {
-        const etherial = require('etherial').default
-        return etherial?.eth_media_leaf?.config?.cdn_url
+        return (etherial as any)?.eth_media_leaf?.config?.cdn_url
     } catch {
         return undefined
     }
@@ -852,6 +851,15 @@ export default class AdminCollectionsController {
                     fieldsForIncludes = hasManyConfig.fields as FieldDefinition[]
                 }
             }
+            // Fallback: use the registered sub-collection's fields so media/relation
+            // associations are still eager-loaded when hasMany.fields is omitted.
+            if (fieldsForIncludes.length === 0) {
+                const refName = hasManyConfig?.collection || subName
+                const refCollection = adminLeaf?.getCollection(refName)
+                if (refCollection?.fields) {
+                    fieldsForIncludes = refCollection.fields
+                }
+            }
             const nestedIncludes = buildNestedIncludesForFields(fieldsForIncludes)
 
             // M:M: query via junction table, then fetch related model
@@ -886,7 +894,8 @@ export default class AdminCollectionsController {
             }
 
             // Try to get the sub-collection's registered fields for transformation
-            const subCollection = adminLeaf?.getCollection(subName)
+            const subRefName = hasManyConfig?.collection || subName
+            const subCollection = adminLeaf?.getCollection(subRefName)
             // Prefer collection fields, then hasMany fields if they're FieldDefinition[]
             let subFields: FieldDefinition[] = subCollection?.fields || []
             if (subFields.length === 0 && fieldsForIncludes.length > 0) {

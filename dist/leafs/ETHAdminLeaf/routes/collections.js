@@ -370,7 +370,6 @@ function transformFields(items, fields) {
 function getCdnUrl() {
     var _a, _b;
     try {
-        const etherial = require('etherial').default;
         return (_b = (_a = etherial === null || etherial === void 0 ? void 0 : etherial.eth_media_leaf) === null || _a === void 0 ? void 0 : _a.config) === null || _b === void 0 ? void 0 : _b.cdn_url;
     }
     catch (_c) {
@@ -731,6 +730,15 @@ let AdminCollectionsController = class AdminCollectionsController {
                         fieldsForIncludes = hasManyConfig.fields;
                     }
                 }
+                // Fallback: use the registered sub-collection's fields so media/relation
+                // associations are still eager-loaded when hasMany.fields is omitted.
+                if (fieldsForIncludes.length === 0) {
+                    const refName = (hasManyConfig === null || hasManyConfig === void 0 ? void 0 : hasManyConfig.collection) || subName;
+                    const refCollection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(refName);
+                    if (refCollection === null || refCollection === void 0 ? void 0 : refCollection.fields) {
+                        fieldsForIncludes = refCollection.fields;
+                    }
+                }
                 const nestedIncludes = buildNestedIncludesForFields(fieldsForIncludes);
                 // M:M: query via junction table, then fetch related model
                 let items;
@@ -764,7 +772,8 @@ let AdminCollectionsController = class AdminCollectionsController {
                     });
                 }
                 // Try to get the sub-collection's registered fields for transformation
-                const subCollection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(subName);
+                const subRefName = (hasManyConfig === null || hasManyConfig === void 0 ? void 0 : hasManyConfig.collection) || subName;
+                const subCollection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(subRefName);
                 // Prefer collection fields, then hasMany fields if they're FieldDefinition[]
                 let subFields = (subCollection === null || subCollection === void 0 ? void 0 : subCollection.fields) || [];
                 if (subFields.length === 0 && fieldsForIncludes.length > 0) {

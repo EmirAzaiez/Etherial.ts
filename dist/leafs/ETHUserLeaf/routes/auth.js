@@ -19,6 +19,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
+import { ShouldProtectBruteForce, ShouldUseLimiter } from 'etherial/components/http.security/provider';
 import { AuthFormEmail, AuthFormUsername } from '../forms/auth_form.js';
 import * as bcrypt from 'bcrypt';
 const getModels = () => {
@@ -30,39 +31,38 @@ const getModels = () => {
 let ETHUserLeafAuthController = class ETHUserLeafAuthController {
     authEmail(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             const { User } = getModels();
-            let user = yield User.unscoped().findOne({
+            const user = yield User.unscoped().findOne({
                 where: {
                     email: req.form.email.toLowerCase()
                 }
             });
-            if (user) {
-                if (bcrypt.compareSync(req.form.password, user.password)) {
-                    res.success({
-                        status: 200,
-                        data: {
-                            token: etherial.http_auth.generateToken({
-                                user_id: user.id,
-                                device: req.form.device
-                            })
-                        }
-                    });
-                    user.insertAuditLog({
-                        req: req,
-                        action: 'USER_LOGIN_EMAIL',
-                        status: 'Success',
-                        resource: 'auth',
-                        metadata: {
+            // Constant-ish work either way: dummy compare to avoid user-enumeration timing.
+            const passwordOk = user && user.password
+                ? yield bcrypt.compare(req.form.password, user.password)
+                : yield bcrypt.compare(req.form.password, '$2b$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalid.');
+            if (user && passwordOk) {
+                (_b = (_a = req).resetBruteForce) === null || _b === void 0 ? void 0 : _b.call(_a);
+                res.success({
+                    status: 200,
+                    data: {
+                        token: etherial.http_auth.generateToken({
+                            user_id: user.id,
+                            tv: user.token_version,
                             device: req.form.device
-                        }
-                    });
-                }
-                else {
-                    res.error({
-                        status: 400,
-                        errors: ['api.form.errors.invalid_login']
-                    });
-                }
+                        })
+                    }
+                });
+                user.insertAuditLog({
+                    req: req,
+                    action: 'USER_LOGIN_EMAIL',
+                    status: 'Success',
+                    resource: 'auth',
+                    metadata: {
+                        device: req.form.device
+                    }
+                });
             }
             else {
                 res.error({
@@ -74,39 +74,37 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
     }
     authUsername(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             const { User } = getModels();
-            let user = yield User.unscoped().findOne({
+            const user = yield User.unscoped().findOne({
                 where: {
                     username: req.form.username
                 }
             });
-            if (user) {
-                if (bcrypt.compareSync(req.form.password, user.password)) {
-                    res.success({
-                        status: 200,
-                        data: {
-                            token: etherial.http_auth.generateToken({
-                                user_id: user.id,
-                                device: req.form.device
-                            })
-                        }
-                    });
-                    user.insertAuditLog({
-                        req: req,
-                        action: 'USER_LOGIN_USERNAME',
-                        status: 'Success',
-                        resource: 'auth',
-                        metadata: {
+            const passwordOk = user && user.password
+                ? yield bcrypt.compare(req.form.password, user.password)
+                : yield bcrypt.compare(req.form.password, '$2b$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalid.');
+            if (user && passwordOk) {
+                (_b = (_a = req).resetBruteForce) === null || _b === void 0 ? void 0 : _b.call(_a);
+                res.success({
+                    status: 200,
+                    data: {
+                        token: etherial.http_auth.generateToken({
+                            user_id: user.id,
+                            tv: user.token_version,
                             device: req.form.device
-                        }
-                    });
-                }
-                else {
-                    res.error({
-                        status: 400,
-                        errors: ['api.form.errors.invalid_login']
-                    });
-                }
+                        })
+                    }
+                });
+                user.insertAuditLog({
+                    req: req,
+                    action: 'USER_LOGIN_USERNAME',
+                    status: 'Success',
+                    resource: 'auth',
+                    metadata: {
+                        device: req.form.device
+                    }
+                });
             }
             else {
                 res.error({
@@ -119,6 +117,18 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
 };
 __decorate([
     Post('/auth/email'),
+    ShouldUseLimiter({ windowMs: 60000, max: 10 }),
+    ShouldProtectBruteForce({
+        freeRetries: 5,
+        minWait: 1000,
+        maxWait: 15 * 60000,
+        lifetime: 60 * 60,
+        keyGenerator: (req) => {
+            var _a, _b;
+            const email = ((_b = (_a = req.body) === null || _a === void 0 ? void 0 : _a.email) === null || _b === void 0 ? void 0 : _b.toString().toLowerCase()) || 'unknown';
+            return `email:${email}`;
+        }
+    }),
     ShouldValidateYupForm(AuthFormEmail),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
@@ -126,6 +136,18 @@ __decorate([
 ], ETHUserLeafAuthController.prototype, "authEmail", null);
 __decorate([
     Post('/auth/username'),
+    ShouldUseLimiter({ windowMs: 60000, max: 10 }),
+    ShouldProtectBruteForce({
+        freeRetries: 5,
+        minWait: 1000,
+        maxWait: 15 * 60000,
+        lifetime: 60 * 60,
+        keyGenerator: (req) => {
+            var _a, _b;
+            const username = ((_b = (_a = req.body) === null || _a === void 0 ? void 0 : _a.username) === null || _b === void 0 ? void 0 : _b.toString().toLowerCase()) || 'unknown';
+            return `username:${username}`;
+        }
+    }),
     ShouldValidateYupForm(AuthFormUsername),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),

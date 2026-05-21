@@ -17,6 +17,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, Unique, Default, CreatedAt, UpdatedAt, DataType, } from 'etherial/components/database/provider';
+import * as crypto from 'crypto';
 export const USER_EXCLUDE_ATTRIBUTES_DEFAULT_SCOPE = [
     'password',
     'google_id',
@@ -46,14 +47,60 @@ export class UserLeafBase extends Model {
     getFullName() {
         return `${this.firstname} ${this.lastname}`.trim();
     }
-    isConfirmationTokenValid(token, type) {
-        if (type === 'phone') {
-            return this.phone_verification_token === token && !this.phone_verified;
+    /**
+     * Constant-time comparison of a candidate token against a stored hash.
+     * Returns false safely on shape mismatch.
+     */
+    static verifyTokenHash(candidate, storedHash) {
+        if (!candidate || !storedHash) {
+            return false;
         }
-        return this.email_confirmation_token === token && !this.email_confirmed;
+        const candidateHash = crypto.createHash('sha256').update(candidate).digest();
+        let storedBuf;
+        try {
+            storedBuf = Buffer.from(storedHash, 'hex');
+        }
+        catch (_a) {
+            return false;
+        }
+        if (storedBuf.length !== candidateHash.length) {
+            return false;
+        }
+        return crypto.timingSafeEqual(candidateHash, storedBuf);
+    }
+    /**
+     * Hash a token for at-rest storage. Confirmation/reset tokens are
+     * short-lived secrets — store only the SHA-256 hash so a DB leak does not
+     * grant attackers usable tokens.
+     */
+    static hashToken(token) {
+        return crypto.createHash('sha256').update(token).digest('hex');
+    }
+    isConfirmationTokenValid(token, type) {
+        const ctor = this.constructor;
+        if (type === 'phone') {
+            if (this.phone_verified)
+                return false;
+            if (!this.phone_verification_expires_at || this.phone_verification_expires_at <= new Date())
+                return false;
+            if (this.phone_verification_attempts >= ctor.CONFIRMATION_MAX_ATTEMPTS)
+                return false;
+            return ctor.verifyTokenHash(token, this.phone_verification_token);
+        }
+        if (this.email_confirmed)
+            return false;
+        if (!this.email_confirmation_expires_at || this.email_confirmation_expires_at <= new Date())
+            return false;
+        if (this.email_confirmation_attempts >= ctor.CONFIRMATION_MAX_ATTEMPTS)
+            return false;
+        return ctor.verifyTokenHash(token, this.email_confirmation_token);
     }
     isPasswordResetTokenValid(token) {
-        return this.password_reset_token === token && this.password_reset_expires_at && this.password_reset_expires_at > new Date();
+        if (!this.password_reset_expires_at || this.password_reset_expires_at <= new Date()) {
+            return false;
+        }
+        const ctor = this.constructor;
+        return ctor.verifyTokenHash(token, this.password_reset_token);
     }
     sendEmailForPasswordReset(resetToken) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -98,6 +145,11 @@ export class UserLeafBase extends Model {
         });
     }
 }
+/**
+ * Maximum failed confirmation attempts before a token is burned.
+ * Override in your User model if you need a different limit.
+ */
+UserLeafBase.CONFIRMATION_MAX_ATTEMPTS = 5;
 __decorate([
     AutoIncrement,
     PrimaryKey,
@@ -165,6 +217,17 @@ __decorate([
     __metadata("design:type", String)
 ], UserLeafBase.prototype, "email_confirmation_token", void 0);
 __decorate([
+    AllowNull(true),
+    Column,
+    __metadata("design:type", Date)
+], UserLeafBase.prototype, "email_confirmation_expires_at", void 0);
+__decorate([
+    Default(0),
+    AllowNull(false),
+    Column,
+    __metadata("design:type", Number)
+], UserLeafBase.prototype, "email_confirmation_attempts", void 0);
+__decorate([
     Default(false),
     AllowNull(false),
     Column,
@@ -227,8 +290,20 @@ __decorate([
 __decorate([
     AllowNull(true),
     Column,
-    __metadata("design:type", Date)
+    __metadata("design:type", Date
+    /**
+     * Monotonic version of issued JWTs. Embedded as `tv` in the payload at sign time
+     * and verified in authMiddleware. Bump this to revoke every outstanding token
+     * (password reset, "log out everywhere", role downgrade, etc.).
+     */
+    )
 ], UserLeafBase.prototype, "last_failed_login", void 0);
+__decorate([
+    Default(0),
+    AllowNull(false),
+    Column,
+    __metadata("design:type", Number)
+], UserLeafBase.prototype, "token_version", void 0);
 __decorate([
     Unique,
     AllowNull(true),
@@ -251,6 +326,17 @@ __decorate([
     Column,
     __metadata("design:type", String)
 ], UserLeafBase.prototype, "phone_verification_token", void 0);
+__decorate([
+    AllowNull(true),
+    Column,
+    __metadata("design:type", Date)
+], UserLeafBase.prototype, "phone_verification_expires_at", void 0);
+__decorate([
+    Default(0),
+    AllowNull(false),
+    Column,
+    __metadata("design:type", Number)
+], UserLeafBase.prototype, "phone_verification_attempts", void 0);
 __decorate([
     AllowNull(true),
     Column,

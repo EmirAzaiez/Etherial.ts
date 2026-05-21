@@ -73,9 +73,20 @@ export type UsersEmailMethods = (typeof AvailableRouteMethods.users_email)[numbe
 export type UsersPasswordMethods = (typeof AvailableRouteMethods.users_password)[number]
 export type UsersPhoneMethods = (typeof AvailableRouteMethods.users_phone)[number]
 
+export interface AppleAuthConfig {
+    /**
+     * Accepted Apple `aud` value(s). Set to your Service ID for web flows
+     * (e.g. "com.example.web") and/or your iOS bundle ID for native sign in.
+     * REQUIRED for /auth/apple to function — without it the route refuses
+     * to verify tokens rather than fall back to trusting unsigned claims.
+     */
+    audience: string | string[]
+}
+
 export interface ETHUserLeafConfig {
     default_avatar: string
     avatar_s3_folder: string
+    apple?: AppleAuthConfig
     routes: {
         auth: AuthMethods[]
         auth_google: AuthGoogleMethods[]

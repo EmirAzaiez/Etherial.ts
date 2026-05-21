@@ -14,6 +14,7 @@ export interface PageConfig {
     showInMenu?: boolean;
     form?: CustomPageForm;
     meta?: Record<string, any>;
+    canAccess?: (user: any) => boolean | Promise<boolean>;
 }
 export interface SerializedPage {
     name: string;

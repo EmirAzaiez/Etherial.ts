@@ -20,6 +20,7 @@ import etherial from 'etherial';
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
+import { ShouldProtectBruteForce, ShouldUseLimiter } from 'etherial/components/http.security/provider';
 import { PhoneValidationConfirmForm, PhoneValidationSendForm } from '../forms/user_phone_form.js';
 import * as crypto from 'crypto';
 import { Op } from 'sequelize';
@@ -105,9 +106,10 @@ let ETHUserLeafPhoneController = class ETHUserLeafPhoneController {
                 if (user.phone && user.phone_verified_at > oneMinuteAgo) {
                     return res.error({ status: 429, errors: ['api.phone.validation_too_frequent'] });
                 }
-                // Generate secure random code and update user
+                // 6-digit code (SMS constraint) — stored hashed and capped by attempt counter.
                 const confirmationCode = crypto.randomInt(100000, 1000000).toString();
-                yield user.update(Object.assign({ phone_verification_token: confirmationCode, phone_verified_at: new Date(), phone_verified: false }, (req.form.phone && { phone_temporary: req.form.phone })));
+                const confirmationCodeHash = User.hashToken(confirmationCode);
+                yield user.update(Object.assign({ phone_verification_token: confirmationCodeHash, phone_verification_expires_at: new Date(Date.now() + 10 * 60 * 1000), phone_verification_attempts: 0, phone_verified_at: new Date(), phone_verified: false }, (req.form.phone && { phone_temporary: req.form.phone })));
                 yield user.sendSmsForPhoneVerification(confirmationCode);
                 return res.success({
                     status: 200,
@@ -172,6 +174,7 @@ let ETHUserLeafPhoneController = class ETHUserLeafPhoneController {
      */
     confirmPhoneValidation(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             try {
                 const { User } = getModels();
                 const user = yield User.unscoped().findByPk(req.user.id);
@@ -182,6 +185,7 @@ let ETHUserLeafPhoneController = class ETHUserLeafPhoneController {
                     return res.error({ status: 400, errors: ['api.phone.already_confirmed'] });
                 }
                 if (!user.isConfirmationTokenValid(req.form.token, 'phone')) {
+                    yield user.increment('phone_verification_attempts');
                     return res.error({ status: 400, errors: ['api.phone.confirmation_token_invalid'] });
                 }
                 // Check if another user already owns this phone
@@ -199,8 +203,11 @@ let ETHUserLeafPhoneController = class ETHUserLeafPhoneController {
                     phone_verified: true,
                     phone_verified_at: new Date(),
                     phone_verification_token: null,
+                    phone_verification_expires_at: null,
+                    phone_verification_attempts: 0,
                     phone_temporary: null
                 });
+                (_b = (_a = req).resetBruteForce) === null || _b === void 0 ? void 0 : _b.call(_a);
                 yield user.reload();
                 // Remove temp phones from others
                 yield User.unscoped().update({ phone_temporary: null }, { where: { phone_temporary: user.phone } });
@@ -221,8 +228,9 @@ let ETHUserLeafPhoneController = class ETHUserLeafPhoneController {
 };
 __decorate([
     Post('/users/me/phone/send'),
-    ShouldValidateYupForm(PhoneValidationSendForm),
     ShouldBeAuthenticated(),
+    ShouldUseLimiter({ windowMs: 60000, max: 5 }),
+    ShouldValidateYupForm(PhoneValidationSendForm),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
@@ -230,6 +238,14 @@ __decorate([
 __decorate([
     Post('/users/me/phone/confirm'),
     ShouldBeAuthenticated(),
+    ShouldUseLimiter({ windowMs: 60000, max: 10 }),
+    ShouldProtectBruteForce({
+        freeRetries: 5,
+        minWait: 1000,
+        maxWait: 15 * 60000,
+        lifetime: 60 * 60,
+        keyGenerator: (req) => { var _a; return `phone_confirm:${((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) || 'anon'}`; }
+    }),
     ShouldValidateYupForm(PhoneValidationConfirmForm),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),

@@ -21,12 +21,16 @@ export interface IPFilterConfig {
     blacklist?: string[];
     trustProxy?: boolean;
 }
+export interface BruteForceProtectionConfig extends BruteForceConfig {
+    keyGenerator?: (req: Request) => string;
+}
 export interface HttpSecurityConfig {
     rateLimit?: RateLimitConfig | false;
     ipFilter?: IPFilterConfig;
     bruteForce?: BruteForceConfig | false;
     maxRequestSize?: number;
     logging?: boolean | ((event: SecurityEvent) => void);
+    trustProxy?: boolean;
 }
 export interface SecurityEvent {
     type: 'rate_limit' | 'ip_blocked' | 'brute_force';
@@ -49,7 +53,7 @@ export declare class HttpSecurity implements IEtherialModule {
     get rateLimitMiddleware(): RequestHandler;
     createIPFilter(config: IPFilterConfig): RequestHandler;
     get ipFilterMiddleware(): RequestHandler;
-    createBruteForceProtection(config?: BruteForceConfig): RequestHandler;
+    createBruteForceProtection(config?: BruteForceProtectionConfig): RequestHandler;
     get bruteForceMiddleware(): RequestHandler;
     createSizeLimitMiddleware(maxSize: number): RequestHandler;
     get sizeLimitMiddleware(): RequestHandler;

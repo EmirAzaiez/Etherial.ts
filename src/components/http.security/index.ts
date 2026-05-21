@@ -30,6 +30,10 @@ export interface IPFilterConfig {
     trustProxy?: boolean
 }
 
+export interface BruteForceProtectionConfig extends BruteForceConfig {
+    keyGenerator?: (req: Request) => string
+}
+
 export interface HttpSecurityConfig {
     // Rate Limiting
     rateLimit?: RateLimitConfig | false
@@ -45,6 +49,11 @@ export interface HttpSecurityConfig {
 
     // Log security events
     logging?: boolean | ((event: SecurityEvent) => void)
+
+    // Honor X-Forwarded-For only when set (app is behind a trusted reverse proxy).
+    // When false (default), the raw socket address is used and XFF is ignored to
+    // prevent attackers from rotating the header to bypass rate/brute-force counters.
+    trustProxy?: boolean
 }
 
 export interface SecurityEvent {
@@ -81,7 +90,8 @@ export class HttpSecurity implements IEtherialModule {
             ipFilter: config.ipFilter,
             bruteForce: config.bruteForce,
             maxRequestSize: config.maxRequestSize,
-            logging: config.logging
+            logging: config.logging,
+            trustProxy: config.trustProxy ?? false
         }
 
         this.log = this.setupLogging(config.logging)
@@ -104,21 +114,33 @@ export class HttpSecurity implements IEtherialModule {
 
     private cleanupExpiredEntries(): void {
         const now = Date.now()
+        const idleThresholdMs = 3600000
 
         for (const [key, entry] of this.bruteForceStore) {
-            if (entry.blockedUntil < now && (now - entry.lastAttempt) > 3600000) {
+            // Entry currently blocked: drop only after the block has expired AND it has been idle long enough.
+            // Entry never blocked (blockedUntil=0): drop only after the idle threshold — otherwise we'd
+            // wipe the in-progress attempt counter on every sweep and the brute-force gate never triggers.
+            const idle = now - entry.lastAttempt
+            const blockExpired = entry.blockedUntil === 0 || entry.blockedUntil < now
+
+            if (blockExpired && idle > idleThresholdMs) {
                 this.bruteForceStore.delete(key)
             }
         }
     }
 
     private getClientIP(req: Request): string {
-        const forwarded = req.headers['x-forwarded-for']
-        if (forwarded) {
-            const ips = (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')
-            return ips[0].trim()
+        if (this.config.trustProxy) {
+            const forwarded = req.headers['x-forwarded-for']
+            if (forwarded) {
+                const ips = (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')
+                const candidate = ips[0]?.trim()
+                if (candidate) {
+                    return candidate
+                }
+            }
         }
-        return req.ip || req.socket.remoteAddress || 'unknown'
+        return req.socket.remoteAddress || req.ip || 'unknown'
     }
 
     private logEvent(type: SecurityEvent['type'], req: Request, details?: Record<string, any>): void {
@@ -234,16 +256,20 @@ export class HttpSecurity implements IEtherialModule {
     // Brute Force Protection
     // ============================================
 
-    createBruteForceProtection(config: BruteForceConfig = {}): RequestHandler {
+    createBruteForceProtection(config: BruteForceProtectionConfig = {}): RequestHandler {
         const {
             freeRetries = 5,
             minWait = 500,
             maxWait = 60000,
-            lifetime = 3600
+            lifetime = 3600,
+            keyGenerator
         } = config
 
         return (req: Request, res: Response, next: NextFunction): void => {
-            const key = `${this.getClientIP(req)}:${req.path}`
+            const customKey = keyGenerator ? keyGenerator(req) : null
+            const key = customKey
+                ? `${customKey}:${req.path}`
+                : `${this.getClientIP(req)}:${req.path}`
             const now = Date.now()
             let entry = this.bruteForceStore.get(key)
 

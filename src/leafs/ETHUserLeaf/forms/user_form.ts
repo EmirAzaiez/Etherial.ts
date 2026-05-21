@@ -3,7 +3,7 @@ import { InferType } from 'yup'
 
 export const UpdatePasswordForm = EtherialYup.object({
     current_password: EtherialYup.string().required(),
-    new_password: EtherialYup.string().required(),
+    new_password: EtherialYup.string().shouldBeStrongPassword().required(),
 }).required()
 
 export const PasswordResetRequestForm = EtherialYup.object({
@@ -13,7 +13,7 @@ export const PasswordResetRequestForm = EtherialYup.object({
 export const PasswordResetConfirmForm = EtherialYup.object({
     email: EtherialYup.string().email().required(),
     token: EtherialYup.string().required(),
-    new_password: EtherialYup.string().required(),
+    new_password: EtherialYup.string().shouldBeStrongPassword().required(),
 }).required()
 
 export const EmailValidationSendForm = EtherialYup.object({}).required()
@@ -27,7 +27,7 @@ export const UpdateBioForm = EtherialYup.object({
 }).required()
 
 export const CreatePasswordForm = EtherialYup.object({
-    password: EtherialYup.string().required(),
+    password: EtherialYup.string().shouldBeStrongPassword().required(),
 }).required()
 
 export const UpdateAvatarForm = EtherialYup.object({

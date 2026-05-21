@@ -15,29 +15,45 @@ export type RoleChecker = (user: any, requiredRole: any) => Promise<boolean>
 
 export interface HttpAuthConfig {
     secret: string
+    /**
+     * Default expiration for tokens issued via generateToken (e.g. '15m', '1h', 3600).
+     * Tokens MUST expire — leaked tokens are otherwise permanently valid.
+     * Override per-call via generateToken(payload, { expiresIn }).
+     */
+    defaultExpiresIn?: string | number
+}
+
+export interface GenerateTokenOptions {
+    expiresIn?: string | number
 }
 
 export class HttpAuth implements IEtherialModule {
     private secret: string
+    private defaultExpiresIn: string | number
 
     private authChecker?: AuthChecker
     private roleChecker?: RoleChecker
 
-    constructor({ secret }: HttpAuthConfig) {
+    constructor({ secret, defaultExpiresIn }: HttpAuthConfig) {
         if (!secret) {
             throw new Error('etherial:http.auth ERROR - No secret defined in your config.')
         }
 
         this.secret = secret
+        this.defaultExpiresIn = defaultExpiresIn ?? '15m'
     }
 
     /**
-     * Generate a JWT token from payload data
+     * Generate a JWT token from payload data.
+     * Includes an expiration by default (see defaultExpiresIn in HttpAuthConfig).
+     * Embed `tv` (token version) in the payload to enable per-user revocation.
      */
-    generateToken(payload: JWTPayload): string {
-        const options: jwt.SignOptions = {}
+    generateToken(payload: JWTPayload, options: GenerateTokenOptions = {}): string {
+        const signOptions: jwt.SignOptions = {
+            expiresIn: (options.expiresIn ?? this.defaultExpiresIn) as any
+        }
 
-        return jwt.sign(payload, this.secret, options)
+        return jwt.sign(payload, this.secret, signOptions)
     }
 
     /**
@@ -115,6 +131,20 @@ export class HttpAuth implements IEtherialModule {
 
             if (!user) {
                 res.status(401).json({ errors: ['unauthorized'] })
+                return
+            }
+
+            // Per-user revocation: if both the token and the user carry a `tv`
+            // (token_version), they must match. Bump user.token_version to
+            // invalidate every outstanding token (password reset, logout-all, etc.).
+            const tokenVersion = (payload as any).tv
+            const userVersion = (user as any).token_version
+            if (
+                tokenVersion !== undefined &&
+                userVersion !== undefined &&
+                tokenVersion !== userVersion
+            ) {
+                res.status(401).json({ errors: ['token_revoked'] })
                 return
             }
 

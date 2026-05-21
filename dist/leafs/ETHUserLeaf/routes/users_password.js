@@ -20,6 +20,7 @@ import etherial from 'etherial';
 import { Controller, Post, Put } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
+import { ShouldProtectBruteForce, ShouldUseLimiter } from 'etherial/components/http.security/provider';
 import { UpdatePasswordForm, PasswordResetRequestForm, PasswordResetConfirmForm, CreatePasswordForm, } from '../forms/user_form.js';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -165,6 +166,8 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                                 password: hashedNewPassword,
                                 credentials_expired: false,
                                 credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+                                // Revoke every outstanding JWT — a password change should sign other sessions out.
+                                token_version: (user.token_version || 0) + 1,
                             });
                             yield user.sendEmailForPasswordNotification('update');
                             yield user.insertAuditLog({
@@ -256,12 +259,13 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                 if (user) {
                     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
                     if (!user.password_reset_requested_at || user.password_reset_requested_at <= oneMinuteAgo) {
-                        // Generate secure random token
-                        const resetToken = crypto.randomInt(100000, 1000000).toString();
-                        // Set expiration to 1 hour from now
-                        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+                        // 32 random bytes (256 bits) — sent to the user, never stored in plaintext.
+                        const resetToken = crypto.randomBytes(32).toString('hex');
+                        const resetTokenHash = User.hashToken(resetToken);
+                        // Shorter window than before — 15 minutes is the standard for reset links.
+                        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
                         yield user.update({
-                            password_reset_token: resetToken,
+                            password_reset_token: resetTokenHash,
                             password_reset_requested_at: new Date(),
                             password_reset_expires_at: expiresAt,
                         });
@@ -343,46 +347,46 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
      */
     confirmPasswordReset(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             try {
                 const { User } = getModels();
                 const user = yield User.unscoped().findOne({
                     where: { email: req.form.email },
                 });
-                if (user && user.isPasswordResetTokenValid(req.form.token)) {
-                    const hashedNewPassword = yield bcrypt.hash(req.form.new_password, 10);
-                    yield user.update({
-                        password: hashedNewPassword,
-                        password_reset_token: null,
-                        password_reset_requested_at: null,
-                        password_reset_expires_at: null,
-                        credentials_expired: false,
-                        credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-                    });
-                    user.insertAuditLog({
-                        req: req,
-                        action: 'USER_PASSWORD_RESET_CONFIRMED',
-                        status: 'Success',
-                        resource: 'user',
-                    });
-                    res.success({
-                        status: 200,
-                        data: {
-                            message: 'Password has been reset successfully',
-                        },
-                    });
-                }
-                else if (!user) {
-                    res.error({
-                        status: 404,
-                        errors: ['api.user.not_found'],
-                    });
-                }
-                else {
+                // Avoid distinguishing "user not found" from "wrong token" — both must return
+                // the same opaque error so attackers can't enumerate emails or know when to
+                // stop guessing.
+                if (!user || !user.isPasswordResetTokenValid(req.form.token)) {
                     res.error({
                         status: 400,
                         errors: ['api.password.reset_token_invalid'],
                     });
+                    return;
                 }
+                const hashedNewPassword = yield bcrypt.hash(req.form.new_password, 10);
+                yield user.update({
+                    password: hashedNewPassword,
+                    password_reset_token: null,
+                    password_reset_requested_at: null,
+                    password_reset_expires_at: null,
+                    credentials_expired: false,
+                    credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+                    // Invalidate every outstanding JWT for this user.
+                    token_version: (user.token_version || 0) + 1,
+                });
+                user.insertAuditLog({
+                    req: req,
+                    action: 'USER_PASSWORD_RESET_CONFIRMED',
+                    status: 'Success',
+                    resource: 'user',
+                });
+                (_b = (_a = req).resetBruteForce) === null || _b === void 0 ? void 0 : _b.call(_a);
+                res.success({
+                    status: 200,
+                    data: {
+                        message: 'Password has been reset successfully',
+                    },
+                });
             }
             catch (error) {
                 console.error('Error during password reset confirmation:', error);
@@ -412,6 +416,18 @@ __decorate([
 ], ETHUserLeafAuthController.prototype, "userUpdatePassword", null);
 __decorate([
     Post('/users/password/reset/request'),
+    ShouldUseLimiter({ windowMs: 60000, max: 5 }),
+    ShouldProtectBruteForce({
+        freeRetries: 3,
+        minWait: 1000,
+        maxWait: 15 * 60000,
+        lifetime: 60 * 60,
+        keyGenerator: (req) => {
+            var _a, _b;
+            const email = ((_b = (_a = req.body) === null || _a === void 0 ? void 0 : _a.email) === null || _b === void 0 ? void 0 : _b.toString().toLowerCase()) || 'unknown';
+            return `pwreset_request:${email}`;
+        }
+    }),
     ShouldValidateYupForm(PasswordResetRequestForm),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
@@ -419,6 +435,18 @@ __decorate([
 ], ETHUserLeafAuthController.prototype, "requestPasswordReset", null);
 __decorate([
     Post('/users/password/reset/confirm'),
+    ShouldUseLimiter({ windowMs: 60000, max: 10 }),
+    ShouldProtectBruteForce({
+        freeRetries: 5,
+        minWait: 1000,
+        maxWait: 15 * 60000,
+        lifetime: 60 * 60,
+        keyGenerator: (req) => {
+            var _a, _b;
+            const email = ((_b = (_a = req.body) === null || _a === void 0 ? void 0 : _a.email) === null || _b === void 0 ? void 0 : _b.toString().toLowerCase()) || 'unknown';
+            return `pwreset_confirm:${email}`;
+        }
+    }),
     ShouldValidateYupForm(PasswordResetConfirmForm),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),

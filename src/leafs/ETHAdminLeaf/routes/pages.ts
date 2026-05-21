@@ -28,9 +28,25 @@ export default class AdminPagesController {
             return (res as any).error?.({ status: 500, errors: ['admin_leaf_not_configured'] })
         }
 
+        const hasAdminAccess = await adminLeaf.canAccessAdmin(req.user)
+        if (!hasAdminAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
+
         const page = adminLeaf.getPage(pageName)
         if (!page) {
             return (res as any).error?.({ status: 404, errors: ['page_not_found'] })
+        }
+
+        if (typeof page.canAccess === 'function') {
+            try {
+                const allowed = await page.canAccess(req.user)
+                if (!allowed) {
+                    return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+                }
+            } catch {
+                return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+            }
         }
 
         const handler = adminLeaf.getPageFormHandler(pageName)

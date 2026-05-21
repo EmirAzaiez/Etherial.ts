@@ -486,11 +486,33 @@ export class StripeProvider implements PaymentProvider {
     // ==================== Webhooks ====================
 
     async handleWebhook(req: Request, webhookSecret: string): Promise<WebhookEvent | null> {
+        if (!webhookSecret) {
+            console.error(
+                '[Stripe] handleWebhook called with empty webhookSecret. ' +
+                'Set STRIPE_WEBHOOK_SECRET in your config — refusing to process unsigned events.'
+            )
+            return null
+        }
+
         const sig = req.headers['stripe-signature'] as string
+        if (!sig) {
+            console.error('[Stripe] Missing stripe-signature header on webhook request.')
+            return null
+        }
+
+        const rawBody = (req as any).rawBody
+        if (!rawBody || (!Buffer.isBuffer(rawBody) && typeof rawBody !== 'string')) {
+            console.error(
+                '[Stripe] Webhook payload not available as raw bytes. ' +
+                'Mount express.raw({ type: "application/json" }) on the webhook route BEFORE the JSON body parser ' +
+                'and expose the result as req.rawBody. Refusing to fall back to JSON.stringify(req.body) ' +
+                'since re-serialization breaks Stripe signature verification.'
+            )
+            return null
+        }
 
         try {
-            const event = this.stripe.webhooks.constructEvent((req as any).rawBody || JSON.stringify(req.body), sig, webhookSecret)
-
+            const event = this.stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)
             return this.mapWebhookEvent(event)
         } catch (err) {
             console.error('Stripe webhook verification failed:', err)

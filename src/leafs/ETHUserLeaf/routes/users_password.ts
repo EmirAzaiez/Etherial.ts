@@ -5,6 +5,7 @@ import { Controller, Post, Put, Request, Response } from 'etherial/components/ht
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
+import { ShouldProtectBruteForce, ShouldUseLimiter } from 'etherial/components/http.security/provider'
 
 import { UserLeafBase } from '../models/User.js'
 
@@ -176,6 +177,8 @@ export default class ETHUserLeafAuthController {
                             password: hashedNewPassword,
                             credentials_expired: false,
                             credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+                            // Revoke every outstanding JWT — a password change should sign other sessions out.
+                            token_version: (user.token_version || 0) + 1,
                         })
 
                         await user.sendEmailForPasswordNotification('update')
@@ -257,6 +260,17 @@ export default class ETHUserLeafAuthController {
      * }
      */
     @Post('/users/password/reset/request')
+    @ShouldUseLimiter({ windowMs: 60_000, max: 5 })
+    @ShouldProtectBruteForce({
+        freeRetries: 3,
+        minWait: 1_000,
+        maxWait: 15 * 60_000,
+        lifetime: 60 * 60,
+        keyGenerator: (req: any) => {
+            const email = req.body?.email?.toString().toLowerCase() || 'unknown'
+            return `pwreset_request:${email}`
+        }
+    })
     @ShouldValidateYupForm(PasswordResetRequestForm)
     public async requestPasswordReset(req: Request & { form: PasswordResetRequestFormType }, res: Response): Promise<any> {
         try {
@@ -269,14 +283,15 @@ export default class ETHUserLeafAuthController {
                 const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
 
                 if (!user.password_reset_requested_at || user.password_reset_requested_at <= oneMinuteAgo) {
-                    // Generate secure random token
-                    const resetToken = crypto.randomInt(100000, 1000000).toString()
+                    // 32 random bytes (256 bits) — sent to the user, never stored in plaintext.
+                    const resetToken = crypto.randomBytes(32).toString('hex')
+                    const resetTokenHash = User.hashToken(resetToken)
 
-                    // Set expiration to 1 hour from now
-                    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+                    // Shorter window than before — 15 minutes is the standard for reset links.
+                    const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
 
                     await user.update({
-                        password_reset_token: resetToken,
+                        password_reset_token: resetTokenHash,
                         password_reset_requested_at: new Date(),
                         password_reset_expires_at: expiresAt,
                     })
@@ -358,6 +373,17 @@ export default class ETHUserLeafAuthController {
      * }
      */
     @Post('/users/password/reset/confirm')
+    @ShouldUseLimiter({ windowMs: 60_000, max: 10 })
+    @ShouldProtectBruteForce({
+        freeRetries: 5,
+        minWait: 1_000,
+        maxWait: 15 * 60_000,
+        lifetime: 60 * 60,
+        keyGenerator: (req: any) => {
+            const email = req.body?.email?.toString().toLowerCase() || 'unknown'
+            return `pwreset_confirm:${email}`
+        }
+    })
     @ShouldValidateYupForm(PasswordResetConfirmForm)
     public async confirmPasswordReset(req: Request & { form: PasswordResetConfirmFormType }, res: Response): Promise<any> {
         try {
@@ -366,42 +392,45 @@ export default class ETHUserLeafAuthController {
                 where: { email: req.form.email },
             })
 
-            if (user && user.isPasswordResetTokenValid(req.form.token)) {
-                const hashedNewPassword = await bcrypt.hash(req.form.new_password, 10)
-
-                await user.update({
-                    password: hashedNewPassword,
-                    password_reset_token: null,
-                    password_reset_requested_at: null,
-                    password_reset_expires_at: null,
-                    credentials_expired: false,
-                    credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-                })
-
-                user.insertAuditLog({
-                    req: req,
-                    action: 'USER_PASSWORD_RESET_CONFIRMED',
-                    status: 'Success',
-                    resource: 'user',
-                })
-
-                res.success({
-                    status: 200,
-                    data: {
-                        message: 'Password has been reset successfully',
-                    },
-                })
-            } else if (!user) {
-                res.error({
-                    status: 404,
-                    errors: ['api.user.not_found'],
-                })
-            } else {
+            // Avoid distinguishing "user not found" from "wrong token" — both must return
+            // the same opaque error so attackers can't enumerate emails or know when to
+            // stop guessing.
+            if (!user || !user.isPasswordResetTokenValid(req.form.token)) {
                 res.error({
                     status: 400,
                     errors: ['api.password.reset_token_invalid'],
                 })
+                return
             }
+
+            const hashedNewPassword = await bcrypt.hash(req.form.new_password, 10)
+
+            await user.update({
+                password: hashedNewPassword,
+                password_reset_token: null,
+                password_reset_requested_at: null,
+                password_reset_expires_at: null,
+                credentials_expired: false,
+                credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+                // Invalidate every outstanding JWT for this user.
+                token_version: (user.token_version || 0) + 1,
+            })
+
+            user.insertAuditLog({
+                req: req,
+                action: 'USER_PASSWORD_RESET_CONFIRMED',
+                status: 'Success',
+                resource: 'user',
+            })
+
+            ;(req as any).resetBruteForce?.()
+
+            res.success({
+                status: 200,
+                data: {
+                    message: 'Password has been reset successfully',
+                },
+            })
         } catch (error) {
             console.error('Error during password reset confirmation:', error)
             res.error({

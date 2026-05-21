@@ -5,6 +5,7 @@ import App from './app.js'
 import { Database, DatabaseConfig } from 'etherial/components/database'
 import { Http, HttpConfig } from 'etherial/components/http'
 import { HttpAuth, HttpAuthConfig } from 'etherial/components/http.auth'
+import { HttpSecurity, HttpSecurityConfig } from 'etherial/components/http.security'
 import { Reactive, ReactiveConfig } from 'etherial/components/reactive'
 // import { Translation, TranslationConfig } from 'etherial/components/translation'
 
@@ -48,7 +49,27 @@ export default {
         module: HttpAuth,
         config: {
             secret: process.env.HTTP_AUTH_SECRET!,
+            defaultExpiresIn: process.env.HTTP_AUTH_EXPIRES_IN || '15m',
         } satisfies HttpAuthConfig,
+    },
+    http_security: {
+        module: HttpSecurity,
+        config: {
+            // Honor X-Forwarded-For only when behind a trusted reverse proxy.
+            // Defaults to false so attackers can't rotate the header to bypass
+            // rate-limit / brute-force counters on a directly-exposed app.
+            trustProxy: process.env.HTTP_TRUST_PROXY === 'true',
+            rateLimit: {
+                windowMs: 60_000,
+                max: 300,
+            },
+            bruteForce: {
+                freeRetries: 5,
+                minWait: 1_000,
+                maxWait: 15 * 60_000,
+                lifetime: 60 * 60,
+            },
+        } satisfies HttpSecurityConfig,
     },
     reactive: {
         module: Reactive,

@@ -5,6 +5,7 @@ import { Controller, Post, Request, Response } from 'etherial/components/http/pr
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator'
 
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
+import { ShouldProtectBruteForce, ShouldUseLimiter } from 'etherial/components/http.security/provider'
 
 import { UserLeafBase } from '../models/User.js'
 
@@ -65,6 +66,7 @@ export default class ETHUserLeafEmailController {
      */
     @Post('/users/me/email/send')
     @ShouldBeAuthenticated()
+    @ShouldUseLimiter({ windowMs: 60_000, max: 5 })
     @ShouldValidateYupForm(EmailValidationSendForm)
     public async sendEmailValidation(req: Request & { form: EmailValidationSendFormType; user: UserLeafBase }, res: Response): Promise<any> {
 
@@ -77,13 +79,16 @@ export default class ETHUserLeafEmailController {
                 const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
 
                 if (!user.email_confirmed_at || user.email_confirmed_at <= oneMinuteAgo) {
-                    // Generate secure random token
+                    // 6-digit code for UX (kept) but stored hashed and capped by attempt counter.
                     const confirmationToken = crypto.randomInt(100000, 1000000).toString()
+                    const confirmationTokenHash = User.hashToken(confirmationToken)
 
                     await user.update({
-                        email_confirmation_token: confirmationToken,
-                        email_confirmed_at: new Date(), // We use this field to track last request time
-                        email_confirmed: false, // Ensure it stays false
+                        email_confirmation_token: confirmationTokenHash,
+                        email_confirmation_expires_at: new Date(Date.now() + 15 * 60 * 1000),
+                        email_confirmation_attempts: 0,
+                        email_confirmed_at: new Date(), // last request time
+                        email_confirmed: false,
                     })
 
                     await user.sendEmailForEmailVerification(confirmationToken)
@@ -168,19 +173,38 @@ export default class ETHUserLeafEmailController {
      */
     @Post('/users/me/email/confirm')
     @ShouldBeAuthenticated()
+    @ShouldUseLimiter({ windowMs: 60_000, max: 10 })
+    @ShouldProtectBruteForce({
+        freeRetries: 5,
+        minWait: 1_000,
+        maxWait: 15 * 60_000,
+        lifetime: 60 * 60,
+        keyGenerator: (req: any) => `email_confirm:${req.user?.id || 'anon'}`
+    })
     @ShouldValidateYupForm(EmailValidationConfirmForm)
     public async confirmEmailValidation(req: Request & { form: EmailValidationConfirmFormType; user: UserLeafBase }, res: Response): Promise<any> {
         try {
             const { User } = getModels()
             const user = await User.unscoped().findByPk(req.user.id)
 
-            if (user && !user.email_confirmed && user.isConfirmationTokenValid(req.form.token)) {
-                // Confirm email and clear token
+            if (!user) {
+                return res.error({ status: 404, errors: ['api.user.not_found'] })
+            }
+
+            if (user.email_confirmed) {
+                return res.error({ status: 400, errors: ['api.email.already_confirmed'] })
+            }
+
+            if (user.isConfirmationTokenValid(req.form.token)) {
                 await user.update({
                     email_confirmed: true,
                     email_confirmed_at: new Date(),
                     email_confirmation_token: null,
+                    email_confirmation_expires_at: null,
+                    email_confirmation_attempts: 0,
                 })
+
+                ;(req as any).resetBruteForce?.()
 
                 res.success({
                     status: 200,
@@ -195,17 +219,11 @@ export default class ETHUserLeafEmailController {
                     action: 'USER_EMAIL_VALIDATION_CONFIRMED',
                     resource: 'user',
                 })
-            } else if (!user) {
-                res.error({
-                    status: 404,
-                    errors: ['api.user.not_found'],
-                })
-            } else if (user.email_confirmed) {
-                res.error({
-                    status: 400,
-                    errors: ['api.email.already_confirmed'],
-                })
             } else {
+                // Increment the per-token attempt counter. Once it hits CONFIRMATION_MAX_ATTEMPTS,
+                // isConfirmationTokenValid will refuse further checks even if the right code is guessed.
+                await user.increment('email_confirmation_attempts')
+
                 res.error({
                     status: 400,
                     errors: ['api.email.confirmation_token_invalid'],

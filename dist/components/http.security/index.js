@@ -13,13 +13,15 @@ import rateLimit from 'express-rate-limit';
 // ============================================
 export class HttpSecurity {
     constructor(config = {}) {
+        var _a;
         this.bruteForceStore = new Map();
         this.config = {
             rateLimit: config.rateLimit,
             ipFilter: config.ipFilter,
             bruteForce: config.bruteForce,
             maxRequestSize: config.maxRequestSize,
-            logging: config.logging
+            logging: config.logging,
+            trustProxy: (_a = config.trustProxy) !== null && _a !== void 0 ? _a : false
         };
         this.log = this.setupLogging(config.logging);
         // Cleanup expired entries periodically
@@ -38,19 +40,31 @@ export class HttpSecurity {
     }
     cleanupExpiredEntries() {
         const now = Date.now();
+        const idleThresholdMs = 3600000;
         for (const [key, entry] of this.bruteForceStore) {
-            if (entry.blockedUntil < now && (now - entry.lastAttempt) > 3600000) {
+            // Entry currently blocked: drop only after the block has expired AND it has been idle long enough.
+            // Entry never blocked (blockedUntil=0): drop only after the idle threshold — otherwise we'd
+            // wipe the in-progress attempt counter on every sweep and the brute-force gate never triggers.
+            const idle = now - entry.lastAttempt;
+            const blockExpired = entry.blockedUntil === 0 || entry.blockedUntil < now;
+            if (blockExpired && idle > idleThresholdMs) {
                 this.bruteForceStore.delete(key);
             }
         }
     }
     getClientIP(req) {
-        const forwarded = req.headers['x-forwarded-for'];
-        if (forwarded) {
-            const ips = (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',');
-            return ips[0].trim();
+        var _a;
+        if (this.config.trustProxy) {
+            const forwarded = req.headers['x-forwarded-for'];
+            if (forwarded) {
+                const ips = (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',');
+                const candidate = (_a = ips[0]) === null || _a === void 0 ? void 0 : _a.trim();
+                if (candidate) {
+                    return candidate;
+                }
+            }
         }
-        return req.ip || req.socket.remoteAddress || 'unknown';
+        return req.socket.remoteAddress || req.ip || 'unknown';
     }
     logEvent(type, req, details) {
         this.log({
@@ -151,9 +165,12 @@ export class HttpSecurity {
     // Brute Force Protection
     // ============================================
     createBruteForceProtection(config = {}) {
-        const { freeRetries = 5, minWait = 500, maxWait = 60000, lifetime = 3600 } = config;
+        const { freeRetries = 5, minWait = 500, maxWait = 60000, lifetime = 3600, keyGenerator } = config;
         return (req, res, next) => {
-            const key = `${this.getClientIP(req)}:${req.path}`;
+            const customKey = keyGenerator ? keyGenerator(req) : null;
+            const key = customKey
+                ? `${customKey}:${req.path}`
+                : `${this.getClientIP(req)}:${req.path}`;
             const now = Date.now();
             let entry = this.bruteForceStore.get(key);
             if (!entry) {

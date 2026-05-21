@@ -1,6 +1,6 @@
 import etherial from '../../index.js'
 import { Middleware } from '../http/provider.js'
-import { RateLimitConfig, IPFilterConfig, BruteForceConfig } from './index.js'
+import { RateLimitConfig, IPFilterConfig, BruteForceConfig, BruteForceProtectionConfig } from './index.js'
 
 // ============================================
 // Rate Limiting Decorators
@@ -136,7 +136,7 @@ function ShouldFilterIPs(config: IPFilterConfig): MethodDecorator {
  * login() {}
  * ```
  */
-function ShouldProtectBruteForce(config?: BruteForceConfig): MethodDecorator {
+function ShouldProtectBruteForce(config?: BruteForceProtectionConfig): MethodDecorator {
     return Middleware(etherial['http_security'].createBruteForceProtection(config))
 }
 

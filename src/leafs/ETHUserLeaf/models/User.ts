@@ -13,6 +13,7 @@ import {
     DataType,
     DefaultScope,
 } from 'etherial/components/database/provider'
+import * as crypto from 'crypto'
 
 export const USER_EXCLUDE_ATTRIBUTES_DEFAULT_SCOPE = [
     'password',
@@ -92,6 +93,15 @@ export abstract class UserLeafBase extends Model<any> {
     @Column
     email_confirmation_token: string
 
+    @AllowNull(true)
+    @Column
+    email_confirmation_expires_at: Date
+
+    @Default(0)
+    @AllowNull(false)
+    @Column
+    email_confirmation_attempts: number
+
     @Default(false)
     @AllowNull(false)
     @Column
@@ -145,6 +155,16 @@ export abstract class UserLeafBase extends Model<any> {
     @Column
     last_failed_login: Date
 
+    /**
+     * Monotonic version of issued JWTs. Embedded as `tv` in the payload at sign time
+     * and verified in authMiddleware. Bump this to revoke every outstanding token
+     * (password reset, "log out everywhere", role downgrade, etc.).
+     */
+    @Default(0)
+    @AllowNull(false)
+    @Column
+    token_version: number
+
     @Unique
     @AllowNull(true)
     @Column
@@ -162,6 +182,15 @@ export abstract class UserLeafBase extends Model<any> {
     @AllowNull(true)
     @Column
     phone_verification_token: string
+
+    @AllowNull(true)
+    @Column
+    phone_verification_expires_at: Date
+
+    @Default(0)
+    @AllowNull(false)
+    @Column
+    phone_verification_attempts: number
 
     @AllowNull(true)
     @Column
@@ -229,15 +258,64 @@ export abstract class UserLeafBase extends Model<any> {
         return `${this.firstname} ${this.lastname}`.trim()
     }
 
-    isConfirmationTokenValid(token: string, type?: 'email' | 'phone'): boolean {
-        if (type === 'phone') {
-            return this.phone_verification_token === token && !this.phone_verified
+    /**
+     * Maximum failed confirmation attempts before a token is burned.
+     * Override in your User model if you need a different limit.
+     */
+    static readonly CONFIRMATION_MAX_ATTEMPTS: number = 5
+
+    /**
+     * Constant-time comparison of a candidate token against a stored hash.
+     * Returns false safely on shape mismatch.
+     */
+    static verifyTokenHash(candidate: string | undefined | null, storedHash: string | undefined | null): boolean {
+        if (!candidate || !storedHash) {
+            return false
         }
-        return this.email_confirmation_token === token && !this.email_confirmed
+        const candidateHash = crypto.createHash('sha256').update(candidate).digest()
+        let storedBuf: Buffer
+        try {
+            storedBuf = Buffer.from(storedHash, 'hex')
+        } catch {
+            return false
+        }
+        if (storedBuf.length !== candidateHash.length) {
+            return false
+        }
+        return crypto.timingSafeEqual(candidateHash, storedBuf)
+    }
+
+    /**
+     * Hash a token for at-rest storage. Confirmation/reset tokens are
+     * short-lived secrets — store only the SHA-256 hash so a DB leak does not
+     * grant attackers usable tokens.
+     */
+    static hashToken(token: string): string {
+        return crypto.createHash('sha256').update(token).digest('hex')
+    }
+
+    isConfirmationTokenValid(token: string, type?: 'email' | 'phone'): boolean {
+        const ctor = this.constructor as typeof UserLeafBase
+
+        if (type === 'phone') {
+            if (this.phone_verified) return false
+            if (!this.phone_verification_expires_at || this.phone_verification_expires_at <= new Date()) return false
+            if (this.phone_verification_attempts >= ctor.CONFIRMATION_MAX_ATTEMPTS) return false
+            return ctor.verifyTokenHash(token, this.phone_verification_token)
+        }
+
+        if (this.email_confirmed) return false
+        if (!this.email_confirmation_expires_at || this.email_confirmation_expires_at <= new Date()) return false
+        if (this.email_confirmation_attempts >= ctor.CONFIRMATION_MAX_ATTEMPTS) return false
+        return ctor.verifyTokenHash(token, this.email_confirmation_token)
     }
 
     isPasswordResetTokenValid(token: string): boolean {
-        return this.password_reset_token === token && this.password_reset_expires_at && this.password_reset_expires_at > new Date()
+        if (!this.password_reset_expires_at || this.password_reset_expires_at <= new Date()) {
+            return false
+        }
+        const ctor = this.constructor as typeof UserLeafBase
+        return ctor.verifyTokenHash(token, this.password_reset_token)
     }
 
     async sendEmailForPasswordReset(resetToken: string): Promise<void> {

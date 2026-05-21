@@ -13,6 +13,8 @@ export declare abstract class UserLeafBase extends Model<any> {
     credentials_expired: boolean;
     credentials_expire_at: Date;
     email_confirmation_token: string;
+    email_confirmation_expires_at: Date;
+    email_confirmation_attempts: number;
     email_confirmed: boolean;
     email_confirmed_at: Date;
     should_set_password: boolean;
@@ -25,10 +27,18 @@ export declare abstract class UserLeafBase extends Model<any> {
     login_count: number;
     failed_login_attempts: number;
     last_failed_login: Date;
+    /**
+     * Monotonic version of issued JWTs. Embedded as `tv` in the payload at sign time
+     * and verified in authMiddleware. Bump this to revoke every outstanding token
+     * (password reset, "log out everywhere", role downgrade, etc.).
+     */
+    token_version: number;
     phone: string;
     phone_verified: boolean;
     phone_temporary: string;
     phone_verification_token: string;
+    phone_verification_expires_at: Date;
+    phone_verification_attempts: number;
     phone_verified_at: Date;
     avatar: string;
     metadata: Record<string, any>;
@@ -45,6 +55,22 @@ export declare abstract class UserLeafBase extends Model<any> {
     updated_at: Date;
     isActive(): boolean;
     getFullName(): string;
+    /**
+     * Maximum failed confirmation attempts before a token is burned.
+     * Override in your User model if you need a different limit.
+     */
+    static readonly CONFIRMATION_MAX_ATTEMPTS: number;
+    /**
+     * Constant-time comparison of a candidate token against a stored hash.
+     * Returns false safely on shape mismatch.
+     */
+    static verifyTokenHash(candidate: string | undefined | null, storedHash: string | undefined | null): boolean;
+    /**
+     * Hash a token for at-rest storage. Confirmation/reset tokens are
+     * short-lived secrets — store only the SHA-256 hash so a DB leak does not
+     * grant attackers usable tokens.
+     */
+    static hashToken(token: string): string;
     isConfirmationTokenValid(token: string, type?: 'email' | 'phone'): boolean;
     isPasswordResetTokenValid(token: string): boolean;
     sendEmailForPasswordReset(resetToken: string): Promise<void>;
