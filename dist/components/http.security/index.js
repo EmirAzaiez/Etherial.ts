@@ -109,13 +109,23 @@ class HttpSecurity {
          * @deprecated This function is deprecated and should be replaced with decodeJWTToken.
          */
         this.decodeToken = (token) => {
-            return jwt.decode(token, this.secret);
+            try {
+                return jwt.verify(token, this.secret);
+            }
+            catch (e) {
+                return null;
+            }
         };
         this.generateJWTToken = (data) => {
             return jwt.sign(data, this.secret);
         };
         this.decodeJWTToken = (token) => {
-            return jwt.decode(token, this.secret);
+            try {
+                return jwt.verify(token, this.secret);
+            }
+            catch (e) {
+                return null;
+            }
         };
         this.authentificatorMiddlewareJWT = (req, res, next) => __awaiter(this, void 0, void 0, function* () {
             if (req.user) {

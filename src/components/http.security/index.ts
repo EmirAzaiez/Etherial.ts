@@ -129,7 +129,11 @@ export class HttpSecurity implements IEtherialModule {
          */
 
         this.decodeToken = (token) => {
-            return jwt.decode(token, this.secret)
+            try {
+                return jwt.verify(token, this.secret)
+            } catch (e) {
+                return null
+            }
         }
 
         this.generateJWTToken = (data: {}) => {
@@ -137,7 +141,11 @@ export class HttpSecurity implements IEtherialModule {
         }
 
         this.decodeJWTToken = (token) => {
-            return jwt.decode(token, this.secret)
+            try {
+                return jwt.verify(token, this.secret)
+            } catch (e) {
+                return null
+            }
         }
 
         this.authentificatorMiddlewareJWT = async (req, res, next) => {
