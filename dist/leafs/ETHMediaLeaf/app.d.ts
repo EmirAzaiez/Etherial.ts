@@ -181,10 +181,7 @@ export default class EthMediaLeaf {
         command: string;
         description: string;
         warn: boolean;
-        action: () => Promise<import("@aws-sdk/client-s3").PutBucketCorsCommandOutput | {
-            success: boolean;
-            message: any;
-        }>;
+        action: () => Promise<any>;
         options?: undefined;
     } | {
         command: string;

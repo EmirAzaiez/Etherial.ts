@@ -2,8 +2,12 @@
 import puppeteer from 'puppeteer'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import ejs from 'ejs'
 import { formatMoney, CURRENCY_SYMBOLS } from '../providers/base.js'
+
+// ESM has no __dirname — derive it from the module URL (mirrors app.ts).
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export interface InvoiceCompanyInfo {
     name?: string

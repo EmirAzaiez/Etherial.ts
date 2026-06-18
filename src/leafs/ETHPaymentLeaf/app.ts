@@ -38,8 +38,8 @@ import { generateInvoice, generateCreditNote, InvoiceData, CreditNoteData, Invoi
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 
 // Import providers to register them
-import './providers/stripe'
-import './providers/paypal'
+import './providers/stripe.js'
+import './providers/paypal.js'
 
 // Re-export types and base models for consumers
 export * from './providers/base.js'

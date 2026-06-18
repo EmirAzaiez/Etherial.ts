@@ -16,7 +16,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var _a, _b;
 import etherial from 'etherial';
+import { Response } from 'express';
 import { Controller, Get } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 const getAdminLeaf = () => etherial.eth_admin_leaf;
@@ -51,7 +53,7 @@ __decorate([
     Get('/admin/auth/check'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, typeof (_b = typeof Response !== "undefined" && Response) === "function" ? _b : Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "checkAdminAuthAccess", null);
 AuthController = __decorate([

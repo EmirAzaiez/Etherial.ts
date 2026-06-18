@@ -11,8 +11,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import ejs from 'ejs';
 import { formatMoney, CURRENCY_SYMBOLS } from '../providers/base.js';
+// ESM has no __dirname — derive it from the module URL (mirrors app.ts).
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 function buildTemplateData(data, type) {
     const locale = data.locale || 'fr';
     const currencySymbol = CURRENCY_SYMBOLS[data.currency] || data.currency.toUpperCase();

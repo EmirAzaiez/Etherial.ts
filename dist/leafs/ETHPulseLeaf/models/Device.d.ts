@@ -61,6 +61,6 @@ export declare class BaseDevice extends Model<BaseDevice> {
         form: RegisterDeviceFormType;
         user_agent: string;
         user_id: number;
-    }): Promise<BaseDevice>;
+    }): Promise<any>;
 }
 export { BaseDevice as Device };
