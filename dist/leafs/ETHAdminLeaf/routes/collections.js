@@ -27,9 +27,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9;
 import etherial from 'etherial';
-import { Response } from 'express';
 import { Controller, Get, Post, Put, Delete, } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 import { Op, fn, col } from 'sequelize';
@@ -1609,119 +1607,119 @@ __decorate([
     Get('/admin/collections/:collection'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_b = typeof Response !== "undefined" && Response) === "function" ? _b : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "list", null);
 __decorate([
     Get('/admin/collections/:collection/:id(\\d+)'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_d = typeof Response !== "undefined" && Response) === "function" ? _d : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "show", null);
 __decorate([
     Get('/admin/collections/:collection/:id(\\d+)/collections/:subName'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_f = typeof Response !== "undefined" && Response) === "function" ? _f : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "subCollection", null);
 __decorate([
     Post('/admin/collections/:collection'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_h = typeof Response !== "undefined" && Response) === "function" ? _h : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "create", null);
 __decorate([
     Put('/admin/collections/:collection/:id(\\d+)'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_k = typeof Response !== "undefined" && Response) === "function" ? _k : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "update", null);
 __decorate([
     Delete('/admin/collections/:collection/:id(\\d+)'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_m = typeof Response !== "undefined" && Response) === "function" ? _m : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "delete", null);
 __decorate([
     Get('/admin/collections/:collection/:id(\\d+)/collections/:subName/:subId(\\d+)'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_p = typeof Response !== "undefined" && Response) === "function" ? _p : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "showSubCollectionItem", null);
 __decorate([
     Put('/admin/collections/:collection/:id(\\d+)/collections/:subName/:subId(\\d+)'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_r = typeof Response !== "undefined" && Response) === "function" ? _r : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "updateSubCollectionItem", null);
 __decorate([
     Delete('/admin/collections/:collection/:id(\\d+)/collections/:subName/:subId(\\d+)'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_t = typeof Response !== "undefined" && Response) === "function" ? _t : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "deleteSubCollectionItem", null);
 __decorate([
     Post('/admin/collections/:collection/:id(\\d+)/collections/:subName/:subId(\\d+)/actions'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_v = typeof Response !== "undefined" && Response) === "function" ? _v : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "executeSubCollectionAction", null);
 __decorate([
     Post('/admin/collections/:collection/:id(\\d+)/actions'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_x = typeof Response !== "undefined" && Response) === "function" ? _x : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "executeAction", null);
 __decorate([
     Get('/admin/collections/:collection/search'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_z = typeof Response !== "undefined" && Response) === "function" ? _z : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "search", null);
 __decorate([
     Get('/admin/collections/:collection/export'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_1 = typeof Response !== "undefined" && Response) === "function" ? _1 : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "export", null);
 __decorate([
     Post('/admin/collections/:collection/bulk'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_3 = typeof Response !== "undefined" && Response) === "function" ? _3 : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "bulk", null);
 __decorate([
     Post('/admin/collections/:collection/:id(\\d+)/duplicate'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_5 = typeof Response !== "undefined" && Response) === "function" ? _5 : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "duplicate", null);
 __decorate([
     Post('/admin/collections/:collection/:id(\\d+)/restore'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_7 = typeof Response !== "undefined" && Response) === "function" ? _7 : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "restore", null);
 __decorate([
     Get('/admin/collections/:collection/stats'),
     ShouldBeAuthenticated(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_9 = typeof Response !== "undefined" && Response) === "function" ? _9 : Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminCollectionsController.prototype, "stats", null);
 AdminCollectionsController = __decorate([

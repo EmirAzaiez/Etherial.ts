@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 export default class AdminPagesController {
     /**
      * POST /admin/pages/:page/submit

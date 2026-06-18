@@ -1,5 +1,8 @@
 import etherial from 'etherial'
-import { Request, Response } from 'express'
+// Request/Response are type-only — `import type` so tsc doesn't emit a runtime
+// `import { Response } from 'express'` (fails under Node ESM: express is CJS,
+// no runtime Response export). emitDecoratorMetadata falls back to Object.
+import type { Request, Response } from 'express'
 import {
     Controller,
     Get,

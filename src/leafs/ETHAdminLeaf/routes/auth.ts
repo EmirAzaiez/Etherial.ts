@@ -1,5 +1,10 @@
 import etherial from 'etherial'
-import { Router, Request, Response } from 'express'
+import { Router } from 'express'
+// Request/Response are type-only: importing them as values makes tsc keep the
+// runtime `import { Response } from 'express'` (for emitDecoratorMetadata),
+// which fails under Node ESM ("Named export 'Response' not found" — express is
+// CJS and has no runtime Response export). `import type` elides them.
+import type { Request, Response } from 'express'
 import {
     Controller,
     Get

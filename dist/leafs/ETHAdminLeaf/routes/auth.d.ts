@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 export default class AuthController {
     /**
      * Check if the authenticated user has access to the admin panel

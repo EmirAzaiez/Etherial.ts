@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 /**
  * Admin Collections Controller
  * Single controller handling all CRUD operations for all collections
