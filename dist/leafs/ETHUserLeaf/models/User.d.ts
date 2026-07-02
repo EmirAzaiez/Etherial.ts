@@ -21,6 +21,7 @@ export declare abstract class UserLeafBase extends Model<any> {
     password_reset_token: string;
     password_reset_requested_at: Date;
     password_reset_expires_at: Date;
+    password_reset_attempts: number;
     role: number;
     last_login: Date;
     last_activity: Date;

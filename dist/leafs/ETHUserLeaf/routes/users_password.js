@@ -220,7 +220,7 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
      * @route POST /users/password/reset/request
      * @access Public
      * @param {Request} req - Request object containing form data
-     * @param {string} req.form.email - Email address to send reset link to
+     * @param {string} req.form.email - Email address to send the reset code to
      * @param {Response} res - Response object
      *
      * @returns {Promise<any>} JSON response with success status
@@ -239,7 +239,7 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
      * {
      *   "status": 200,
      *   "data": {
-     *     "message": "If this email exists, a password reset link has been sent"
+     *     "message": "If this email exists, a password reset code has been sent"
      *   }
      * }
      *
@@ -259,15 +259,18 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                 if (user) {
                     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
                     if (!user.password_reset_requested_at || user.password_reset_requested_at <= oneMinuteAgo) {
-                        // 32 random bytes (256 bits) — sent to the user, never stored in plaintext.
-                        const resetToken = crypto.randomBytes(32).toString('hex');
+                        // 6-digit code typed by the user in-app, same shape as the email/phone
+                        // confirmation flows. Low entropy is compensated by the attempt counter
+                        // and the brute-force decorator on /confirm. Never stored in plaintext.
+                        const resetToken = crypto.randomInt(100000, 1000000).toString();
                         const resetTokenHash = User.hashToken(resetToken);
-                        // Shorter window than before — 15 minutes is the standard for reset links.
+                        // Short window — a typed code doesn't need to outlive the reset flow.
                         const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
                         yield user.update({
                             password_reset_token: resetTokenHash,
                             password_reset_requested_at: new Date(),
                             password_reset_expires_at: expiresAt,
+                            password_reset_attempts: 0,
                         });
                         user.insertAuditLog({
                             req: req,
@@ -288,7 +291,7 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                 res.success({
                     status: 200,
                     data: {
-                        message: 'If this email exists, a password reset link has been sent',
+                        message: 'If this email exists, a password reset code has been sent',
                     },
                 });
             }
@@ -327,7 +330,7 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
      * Request Body:
      * {
      *   "email": "user@example.com",
-     *   "token": "abc123def456...",
+     *   "token": "482913",
      *   "new_password": "newSecurePassword123"
      * }
      *
@@ -357,6 +360,11 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                 // the same opaque error so attackers can't enumerate emails or know when to
                 // stop guessing.
                 if (!user || !user.isPasswordResetTokenValid(req.form.token)) {
+                    // Count the failed attempt: once it hits CONFIRMATION_MAX_ATTEMPTS,
+                    // isPasswordResetTokenValid refuses the token even if guessed right.
+                    if (user) {
+                        yield user.increment('password_reset_attempts');
+                    }
                     res.error({
                         status: 400,
                         errors: ['api.password.reset_token_invalid'],
@@ -369,6 +377,7 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                     password_reset_token: null,
                     password_reset_requested_at: null,
                     password_reset_expires_at: null,
+                    password_reset_attempts: 0,
                     credentials_expired: false,
                     credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
                     // Invalidate every outstanding JWT for this user.

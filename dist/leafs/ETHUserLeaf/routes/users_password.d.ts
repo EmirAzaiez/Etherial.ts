@@ -90,7 +90,7 @@ export default class ETHUserLeafAuthController {
      * @route POST /users/password/reset/request
      * @access Public
      * @param {Request} req - Request object containing form data
-     * @param {string} req.form.email - Email address to send reset link to
+     * @param {string} req.form.email - Email address to send the reset code to
      * @param {Response} res - Response object
      *
      * @returns {Promise<any>} JSON response with success status
@@ -109,7 +109,7 @@ export default class ETHUserLeafAuthController {
      * {
      *   "status": 200,
      *   "data": {
-     *     "message": "If this email exists, a password reset link has been sent"
+     *     "message": "If this email exists, a password reset code has been sent"
      *   }
      * }
      *
@@ -148,7 +148,7 @@ export default class ETHUserLeafAuthController {
      * Request Body:
      * {
      *   "email": "user@example.com",
-     *   "token": "abc123def456...",
+     *   "token": "482913",
      *   "new_password": "newSecurePassword123"
      * }
      *

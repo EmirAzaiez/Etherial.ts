@@ -128,6 +128,11 @@ export abstract class UserLeafBase extends Model<any> {
     @Column
     password_reset_expires_at: Date
 
+    @Default(0)
+    @AllowNull(false)
+    @Column
+    password_reset_attempts: number
+
     @Default(1)
     @AllowNull(false)
     @Column
@@ -315,6 +320,7 @@ export abstract class UserLeafBase extends Model<any> {
             return false
         }
         const ctor = this.constructor as typeof UserLeafBase
+        if (this.password_reset_attempts >= ctor.CONFIRMATION_MAX_ATTEMPTS) return false
         return ctor.verifyTokenHash(token, this.password_reset_token)
     }
 

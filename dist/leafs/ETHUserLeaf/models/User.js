@@ -100,6 +100,8 @@ export class UserLeafBase extends Model {
             return false;
         }
         const ctor = this.constructor;
+        if (this.password_reset_attempts >= ctor.CONFIRMATION_MAX_ATTEMPTS)
+            return false;
         return ctor.verifyTokenHash(token, this.password_reset_token);
     }
     sendEmailForPasswordReset(resetToken) {
@@ -259,6 +261,12 @@ __decorate([
     Column,
     __metadata("design:type", Date)
 ], UserLeafBase.prototype, "password_reset_expires_at", void 0);
+__decorate([
+    Default(0),
+    AllowNull(false),
+    Column,
+    __metadata("design:type", Number)
+], UserLeafBase.prototype, "password_reset_attempts", void 0);
 __decorate([
     Default(1),
     AllowNull(false),
