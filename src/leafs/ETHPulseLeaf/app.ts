@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Providers
-import { ISmsProvider, TwilioProvider, TwilioConfig } from './providers/sms/index.js'
+import { ISmsProvider, TwilioProvider, TwilioConfig, SaudiAlertProvider, SaudiAlertConfig } from './providers/sms/index.js'
 import { IEmailProvider, NodemailerProvider, NodemailerConfig, GmailOAuthProvider, GmailOAuthConfig } from './providers/email/index.js'
 import { IPushProvider, ExpoProvider, ExpoConfig } from './providers/push/index.js'
 
@@ -53,6 +53,9 @@ export default class ETHPulseLeaf {
                 }
                 if (name === 'unifonic') {
                     this.smsProviders.set(name, new UnifonicProvider(providerConfig as UnifonicConfig))
+                }
+                if (name === 'saudialert') {
+                    this.smsProviders.set(name, new SaudiAlertProvider(providerConfig as SaudiAlertConfig))
                 }
                 // Add more SMS providers here as needed
             }
@@ -448,6 +451,7 @@ export default class ETHPulseLeaf {
 export interface SmsProviderConfig {
     twilio?: TwilioConfig
     unifonic?: UnifonicConfig
+    saudialert?: SaudiAlertConfig
     // Add more SMS providers here
 }
 

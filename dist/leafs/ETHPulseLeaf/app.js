@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Providers
-import { TwilioProvider } from './providers/sms/index.js';
+import { TwilioProvider, SaudiAlertProvider } from './providers/sms/index.js';
 import { NodemailerProvider, GmailOAuthProvider } from './providers/email/index.js';
 import { ExpoProvider } from './providers/push/index.js';
 // Services
@@ -44,6 +44,9 @@ export default class ETHPulseLeaf {
                 }
                 if (name === 'unifonic') {
                     this.smsProviders.set(name, new UnifonicProvider(providerConfig));
+                }
+                if (name === 'saudialert') {
+                    this.smsProviders.set(name, new SaudiAlertProvider(providerConfig));
                 }
                 // Add more SMS providers here as needed
             }

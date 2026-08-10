@@ -1,5 +1,5 @@
 import { Etherial } from 'etherial';
-import { TwilioConfig } from './providers/sms/index.js';
+import { TwilioConfig, SaudiAlertConfig } from './providers/sms/index.js';
 import { NodemailerConfig, GmailOAuthConfig } from './providers/email/index.js';
 import { ExpoConfig } from './providers/push/index.js';
 import { SmsService } from './services/sms.service.js';
@@ -75,6 +75,7 @@ export default class ETHPulseLeaf {
 export interface SmsProviderConfig {
     twilio?: TwilioConfig;
     unifonic?: UnifonicConfig;
+    saudialert?: SaudiAlertConfig;
 }
 export interface EmailProviderConfig {
     nodemailer?: NodemailerConfig;
