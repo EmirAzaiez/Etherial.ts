@@ -8,38 +8,45 @@ import * as FileRequestForm from '../forms/file_request_form.js'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 
+import type { RequestHandler } from 'express'
+
 interface FileRequestRouteParams {
     allowCustomFilename?: boolean
     shouldBePrivate?: boolean
     authorizedFolders?: string[]
 }
 
-export const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false, authorizedFolders = [] }: FileRequestRouteParams = {}) => {
+// The return type is explicitly `RequestHandler` so the route can be handed to
+// `@ShouldUseRoute(...)` — inferring `(req: { form: Create }) => ...` made it
+// unassignable to express' handler signature on the consumer side.
+export const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false, authorizedFolders = [] }: FileRequestRouteParams = {}): RequestHandler => {
     const eal = etherial.leaf_s3
 
-    return async (req: { form: FileRequestForm.Create }, res, next) => {
+    return async (req: any, res: any, next: any) => {
+        const form: FileRequestForm.Create = req.form
+
         let filename = `${time()}${uniqid()}${process()}`
 
-        if (authorizedFolders.length > 0 && !authorizedFolders.includes(req.form.folder)) {
+        if (authorizedFolders.length > 0 && !authorizedFolders.includes(form.folder)) {
             return res.error({
                 status: 400,
                 errors: ['Invalid folder'],
             })
         }
 
-        let extension = mime.extension(req.form.content_type)
+        let extension = mime.extension(form.content_type)
 
-        if (allowCustomFilename && req.form.filename) {
-            filename = req.form.filename
+        if (allowCustomFilename && form.filename) {
+            filename = form.filename
         }
 
-        let path = `${req.form.folder}/${filename}.${extension}`
+        let path = `${form.folder}/${filename}.${extension}`
 
         const command = new PutObjectCommand({
             Bucket: eal.bucket,
             Key: path,
             ACL: shouldBePrivate === true ? 'private' : 'public-read',
-            ContentType: req.form.content_type,
+            ContentType: form.content_type,
         })
 
         const url = await getSignedUrl(eal.s3, command, { expiresIn: 60 * 15 })

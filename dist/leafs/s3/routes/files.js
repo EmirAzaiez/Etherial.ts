@@ -12,26 +12,30 @@ import * as mime from 'mime-types';
 import uniqid, { time, process } from 'uniqid';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+// The return type is explicitly `RequestHandler` so the route can be handed to
+// `@ShouldUseRoute(...)` — inferring `(req: { form: Create }) => ...` made it
+// unassignable to express' handler signature on the consumer side.
 export const FileRequestRoute = ({ allowCustomFilename = false, shouldBePrivate = false, authorizedFolders = [] } = {}) => {
     const eal = etherial.leaf_s3;
     return (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+        const form = req.form;
         let filename = `${time()}${uniqid()}${process()}`;
-        if (authorizedFolders.length > 0 && !authorizedFolders.includes(req.form.folder)) {
+        if (authorizedFolders.length > 0 && !authorizedFolders.includes(form.folder)) {
             return res.error({
                 status: 400,
                 errors: ['Invalid folder'],
             });
         }
-        let extension = mime.extension(req.form.content_type);
-        if (allowCustomFilename && req.form.filename) {
-            filename = req.form.filename;
+        let extension = mime.extension(form.content_type);
+        if (allowCustomFilename && form.filename) {
+            filename = form.filename;
         }
-        let path = `${req.form.folder}/${filename}.${extension}`;
+        let path = `${form.folder}/${filename}.${extension}`;
         const command = new PutObjectCommand({
             Bucket: eal.bucket,
             Key: path,
             ACL: shouldBePrivate === true ? 'private' : 'public-read',
-            ContentType: req.form.content_type,
+            ContentType: form.content_type,
         });
         const url = yield getSignedUrl(eal.s3, command, { expiresIn: 60 * 15 });
         let purl = '';
