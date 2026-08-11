@@ -379,8 +379,20 @@ function transformFields(items: any[], fields: any[]): any[] {
 
         // Apply enum transformations
         for (const [fieldName, valueToLabel] of Object.entries(optionsMap)) {
-            if (json[fieldName] !== undefined && valueToLabel[json[fieldName]]) {
-                json[fieldName] = valueToLabel[json[fieldName]]
+            const value = json[fieldName]
+            if (value === undefined || value === null) continue
+
+            // A multiselect holds a list: label each entry and keep it a list.
+            // Without this branch, a one-entry list stringifies to its single
+            // value, matches the map, and comes back out as a bare string —
+            // silently turning `['a']` into `'a'` on read.
+            if (Array.isArray(value)) {
+                json[fieldName] = value.map(entry => valueToLabel[entry] ?? entry)
+                continue
+            }
+
+            if (valueToLabel[value]) {
+                json[fieldName] = valueToLabel[value]
             }
         }
 
