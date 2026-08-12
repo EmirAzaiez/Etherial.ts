@@ -82,6 +82,8 @@ export class GmailOAuthProvider {
                 to: params.email,
                 subject: params.subject,
                 html,
+                cc: params.cc,
+                bcc: params.bcc,
             });
         });
     }

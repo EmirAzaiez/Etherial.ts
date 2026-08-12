@@ -39,6 +39,18 @@ export interface TransactionalContent {
     additionalContent?: string
 }
 
+/**
+ * Params for a templated transactional send. `cc` / `bcc` are forwarded to the
+ * underlying transport untouched — only `email` recipients are message-logged.
+ */
+export interface TransactionalOptions {
+    email: string | string[]
+    subject: string
+    content: TransactionalContent
+    cc?: string | string[]
+    bcc?: string | string[]
+}
+
 export interface IEmailProvider {
     readonly name: string
 
@@ -50,11 +62,5 @@ export interface IEmailProvider {
     /**
      * Send email using transactional template with configured branding
      */
-    sendTransactional(
-        params: {
-            email: string | string[];
-            subject: string;
-            content: TransactionalContent;
-        }
-    ): Promise<EmailResult>
+    sendTransactional(params: TransactionalOptions): Promise<EmailResult>
 }
