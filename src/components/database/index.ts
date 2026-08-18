@@ -89,13 +89,28 @@ export class Database implements IEtherialModule {
     async beforeRun(): Promise<void> { }
 
     async run(): Promise<void> {
-        if (this.models.length > 0) {
-            this.sequelize.addModels(this.models)
-        }
+        // Paths and classes go in separately, and in that order.
+        //
+        // sequelize-typescript decides how to read the whole array from its
+        // *first* entry: one string and it globs every entry, model classes
+        // included, which fails deep inside minimatch as "invalid pattern".
+        // An application declaring `models: ['src/models']` could therefore
+        // never be joined by a leaf handing over its own model classes — which
+        // is why leafs used to ship their tables as a migration the project had
+        // to remember.
+        const paths = this.models.filter((model): model is string => typeof model === 'string')
+        const classes = this.models.filter(
+            (model): model is ModelCtor<Model> => typeof model !== 'string'
+        )
+
+        if (paths.length > 0) this.sequelize.addModels(paths)
+        if (classes.length > 0) this.sequelize.addModels(classes)
+
         await this.sequelize.sync()
     }
 
-    addModels(models: ModelCtor<Model>[]): void {
+    /** Accepts model classes or directories, in any mix. */
+    addModels(models: (ModelCtor<Model> | string)[]): void {
         this.models = [...this.models, ...models]
     }
 
