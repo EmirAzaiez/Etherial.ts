@@ -153,6 +153,26 @@ export default class AdminCollectionsController {
         query: any;
     }, res: Response): Promise<any>;
     /**
+     * GET /admin/relation-options/:collection
+     * Options for a `relation` field's picker: `[{ value, label, secondary?, i18n? }]`
+     *
+     * The admin panel asks for this whenever it renders a relation input. Without
+     * it the picker has nothing to show and the dropdown looks empty over a full
+     * table, which is impossible to tell apart from an empty collection.
+     *
+     * `q` filters server-side so the picker stays usable on large collections;
+     * `ids` force-includes records that fall outside the current page, so the
+     * value already stored on the record keeps its label instead of showing as a
+     * bare id.
+     */
+    relationOptions(req: Request & {
+        user: any;
+        params: {
+            collection: string;
+        };
+        query: any;
+    }, res: Response): Promise<any>;
+    /**
      * GET /admin/collections/:collection/export
      * Export collection data as CSV or JSON
      */

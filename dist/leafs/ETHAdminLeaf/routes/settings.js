@@ -77,15 +77,24 @@ let SettingsController = class SettingsController {
      */
     getSchema(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
+            var _a, _b, _c, _d;
             const adminLeaf = getAdminLeaf();
-            // // Check if user can access admin
-            // const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
-            // if (!hasAccess) {
-            //     return (res as any).error?.({ status: 403, errors: ['forbidden'] })
-            // }
+            // Guarded like /admin/schema/:collection just below. Both were once
+            // commented out here, which handed the entire admin map — every
+            // collection, every field, every help text, every action name — to
+            // anyone who asked, with no token at all. It leaks no record, but it is
+            // a full description of the application's data model and of what each
+            // button does, which is exactly what one reads before attacking it.
+            //
+            // Nothing legitimate needs it before login: the login screen builds
+            // itself from /admin/settings/public, and the admin UI only asks for the
+            // schema once access has been verified.
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            if (!hasAccess) {
+                return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
+            }
             const schema = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getSchema();
-            return (_b = (_a = res).success) === null || _b === void 0 ? void 0 : _b.call(_a, {
+            return (_d = (_c = res).success) === null || _d === void 0 ? void 0 : _d.call(_c, {
                 status: 200,
                 data: schema
             });
@@ -294,9 +303,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], SettingsController.prototype, "getPublicSettings", null);
 __decorate([
-    Get('/admin/schema')
-    // @ShouldBeAuthenticated()
-    ,
+    Get('/admin/schema'),
+    ShouldBeAuthenticated(),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)

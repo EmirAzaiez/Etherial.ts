@@ -12,6 +12,7 @@ import ETHMediaLeaf from './leafs/ETHMediaLeaf/app.js';
 import ETHUserLeaf from './leafs/ETHUserLeaf/app.js';
 import ETHAdminLeaf from './leafs/ETHAdminLeaf/app.js';
 import ETHPulseLeaf from './leafs/ETHPulseLeaf/app.js';
+import ETHFlowLeaf from './leafs/ETHFlowLeaf/app.js';
 export interface ModuleConfig {
     [key: string]: unknown;
 }
@@ -45,6 +46,7 @@ export interface IEtherial {
     eth_user_leaf?: ETHUserLeaf;
     eth_admin_leaf?: ETHAdminLeaf;
     eth_pulse_leaf?: ETHPulseLeaf;
+    eth_flow_leaf?: ETHFlowLeaf;
 }
 type ModuleConstructor = new (config: ModuleConfig) => IEtherialModule;
 type ModuleWithConfig = {
@@ -68,6 +70,7 @@ export declare class Etherial implements IEtherial {
     eth_user_leaf?: ETHUserLeaf;
     eth_admin_leaf?: ETHAdminLeaf;
     eth_pulse_leaf?: ETHPulseLeaf;
+    eth_flow_leaf?: ETHFlowLeaf;
     initDone: boolean;
     initInProgress: boolean;
     private static readonly RESERVED_KEYS;

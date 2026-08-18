@@ -21,6 +21,16 @@ export interface FieldValidation {
 export interface FieldRelation {
     collection: string;
     displayField?: string;
+    /**
+     * Second line under each option (e.g. a code, a city, an email).
+     * Also searched when `searchable` is on — two projects can share a name.
+     */
+    secondaryField?: string;
+    /**
+     * Ask the server on each keystroke instead of filtering the loaded page.
+     * Turn it on as soon as the target collection can outgrow one page.
+     */
+    searchable?: boolean;
 }
 export interface FieldMedia {
     /**
@@ -212,6 +222,12 @@ export interface FieldBelongsToMany {
      * Example: post_tags may have 'order' or 'featured' fields
      */
     pivotFields?: FieldDefinition[];
+    /**
+     * Shown in place of "No options available" when the related collection is
+     * empty. A picker with nothing in it reads as a bug — say why it is empty
+     * and what would fill it.
+     */
+    emptyText?: string;
 }
 /**
  * Condition for showing/hiding a field based on another field's value
@@ -255,6 +271,17 @@ export interface FieldMap {
 export interface FieldDefinition {
     name: string;
     type: FieldType;
+    /**
+     * How the field is filled in, when the type alone cannot say it: the name of
+     * a custom field type registered in the back-office.
+     *
+     * It replaces the form input and nothing else — the column, the list cell,
+     * the filter and the way the value is read back stay those of `type`. A
+     * foreign key drawn by a custom picker therefore remains a relation
+     * everywhere else, instead of forcing a choice between a usable form and a
+     * readable list.
+     */
+    widget?: string;
     label?: string;
     required?: boolean;
     readonly?: boolean;

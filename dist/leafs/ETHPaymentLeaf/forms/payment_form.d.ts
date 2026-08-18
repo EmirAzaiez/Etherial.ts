@@ -7,8 +7,8 @@ export declare const CheckoutForm: import("yup").ObjectSchema<{
     line_items: {
         description?: string;
         name?: string;
-        currency?: string;
         amount?: number;
+        currency?: string;
         quantity?: number;
         image_url?: string;
     }[];

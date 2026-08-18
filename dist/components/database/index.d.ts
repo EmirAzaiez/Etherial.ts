@@ -31,7 +31,8 @@ export declare class Database implements IEtherialModule {
     private validateConfig;
     beforeRun(): Promise<void>;
     run(): Promise<void>;
-    addModels(models: ModelCtor<Model>[]): void;
+    /** Accepts model classes or directories, in any mix. */
+    addModels(models: (ModelCtor<Model> | string)[]): void;
     sync(options?: {
         force?: boolean;
         alter?: boolean;
