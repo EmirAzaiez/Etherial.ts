@@ -1,4 +1,4 @@
-import { IEmailProvider, EmailResult, EmailOptions, TransactionalContent } from './IEmailProvider.js';
+import { IEmailProvider, EmailResult, EmailOptions, TransactionalOptions } from './IEmailProvider.js';
 import { TemplateConfig } from '../../templates/TemplateEngine.js';
 export interface NodemailerConfig {
     host: string;
@@ -22,10 +22,6 @@ export declare class NodemailerProvider implements IEmailProvider {
     private templateConfig;
     constructor(config: NodemailerConfig, templateConfig: EmailTemplateConfig);
     send(options: EmailOptions): Promise<EmailResult>;
-    sendTransactional(params: {
-        email: string | string[];
-        subject: string;
-        content: TransactionalContent;
-    }): Promise<EmailResult>;
+    sendTransactional(params: TransactionalOptions): Promise<EmailResult>;
     private renderTemplate;
 }

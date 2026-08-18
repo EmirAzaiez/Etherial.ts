@@ -2,7 +2,7 @@ import {
     IEmailProvider,
     EmailResult,
     EmailOptions,
-    TransactionalContent,
+    TransactionalOptions,
 } from '../providers/email/IEmailProvider.js'
 import { MessageType, MessageStatus } from '../models/MessageLog.js'
 import { BaseEmailTemplate } from '../models/EmailTemplate.js'
@@ -67,17 +67,14 @@ export class EmailService {
      * Send transactional email with built-in template
      */
     async sendTransactional(
-        params: {
-            email: string | string[];
-            subject: string;
-            content: TransactionalContent;
-        },
+        params: TransactionalOptions,
         providerName?: string
     ): Promise<EmailResult> {
         const provider = this.provider(providerName)
         const result = await provider.sendTransactional(params)
 
-        // Log the message
+        // Log the message — cc/bcc recipients are deliberately not logged, so a
+        // blind copy stays blind in the MessageLog too.
         const recipients = Array.isArray(params.email) ? params.email : [params.email]
         await Promise.all(
             recipients.map(recipient =>

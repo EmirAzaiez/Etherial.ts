@@ -60,7 +60,8 @@ export class EmailService {
         return __awaiter(this, void 0, void 0, function* () {
             const provider = this.provider(providerName);
             const result = yield provider.sendTransactional(params);
-            // Log the message
+            // Log the message — cc/bcc recipients are deliberately not logged, so a
+            // blind copy stays blind in the MessageLog too.
             const recipients = Array.isArray(params.email) ? params.email : [params.email];
             yield Promise.all(recipients.map(recipient => this.logMessage({
                 provider: provider.name,

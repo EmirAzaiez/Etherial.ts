@@ -1,4 +1,4 @@
-import { IEmailProvider, EmailResult, EmailOptions, TransactionalContent } from './IEmailProvider.js';
+import { IEmailProvider, EmailResult, EmailOptions, TransactionalOptions } from './IEmailProvider.js';
 import { EmailTemplateConfig } from './NodemailerProvider.js';
 export interface GmailOAuthConfig {
     user: string;
@@ -15,10 +15,6 @@ export declare class GmailOAuthProvider implements IEmailProvider {
     private templateConfig;
     constructor(config: GmailOAuthConfig, templateConfig: EmailTemplateConfig);
     send(options: EmailOptions): Promise<EmailResult>;
-    sendTransactional(params: {
-        email: string | string[];
-        subject: string;
-        content: TransactionalContent;
-    }): Promise<EmailResult>;
+    sendTransactional(params: TransactionalOptions): Promise<EmailResult>;
     private renderTemplate;
 }

@@ -1,4 +1,4 @@
-import { IEmailProvider, EmailResult, EmailOptions, TransactionalContent } from '../providers/email/IEmailProvider.js';
+import { IEmailProvider, EmailResult, EmailOptions, TransactionalOptions } from '../providers/email/IEmailProvider.js';
 export declare class EmailService {
     private providers;
     private defaultProvider;
@@ -14,11 +14,7 @@ export declare class EmailService {
     /**
      * Send transactional email with built-in template
      */
-    sendTransactional(params: {
-        email: string | string[];
-        subject: string;
-        content: TransactionalContent;
-    }, providerName?: string): Promise<EmailResult>;
+    sendTransactional(params: TransactionalOptions, providerName?: string): Promise<EmailResult>;
     /**
      * Send email using a template stored in the database.
      *

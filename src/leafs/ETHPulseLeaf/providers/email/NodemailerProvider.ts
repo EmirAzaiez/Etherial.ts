@@ -6,7 +6,7 @@ import {
     IEmailProvider,
     EmailResult,
     EmailOptions,
-    TransactionalContent,
+    TransactionalOptions,
 } from './IEmailProvider.js'
 import { TemplateConfig } from '../../templates/TemplateEngine.js'
 
@@ -106,13 +106,7 @@ export class NodemailerProvider implements IEmailProvider {
         }
     }
 
-    async sendTransactional(
-        params: {
-            email: string | string[];
-            subject: string;
-            content: TransactionalContent;
-        }
-    ): Promise<EmailResult> {
+    async sendTransactional(params: TransactionalOptions): Promise<EmailResult> {
         // Use base/transactional.ejs from the configured templates path
         const templatePath = path.join(this.templatesPath, 'base', 'transactional.ejs')
 
@@ -134,6 +128,8 @@ export class NodemailerProvider implements IEmailProvider {
             to: params.email,
             subject: params.subject,
             html,
+            cc: params.cc,
+            bcc: params.bcc,
         })
     }
 

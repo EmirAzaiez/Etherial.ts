@@ -6,7 +6,7 @@ import {
     IEmailProvider,
     EmailResult,
     EmailOptions,
-    TransactionalContent,
+    TransactionalOptions,
 } from './IEmailProvider.js'
 import { TemplateConfig } from '../../templates/TemplateEngine.js'
 import { EmailTemplateConfig } from './NodemailerProvider.js'
@@ -86,13 +86,7 @@ export class GmailOAuthProvider implements IEmailProvider {
         }
     }
 
-    async sendTransactional(
-        params: {
-            email: string | string[];
-            subject: string;
-            content: TransactionalContent;
-        }
-    ): Promise<EmailResult> {
+    async sendTransactional(params: TransactionalOptions): Promise<EmailResult> {
         const templatePath = path.join(this.templatesPath, 'base', 'transactional.ejs')
 
         if (!fs.existsSync(templatePath)) {
@@ -113,6 +107,8 @@ export class GmailOAuthProvider implements IEmailProvider {
             to: params.email,
             subject: params.subject,
             html,
+            cc: params.cc,
+            bcc: params.bcc,
         })
     }
 
