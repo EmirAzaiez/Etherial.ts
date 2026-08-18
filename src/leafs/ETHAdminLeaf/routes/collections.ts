@@ -128,7 +128,24 @@ function buildIncludesFromRelations(
 }
 
 /**
- * Build nested includes for media/relation fields in hasMany
+ * The field definitions of a hasMany's children.
+ *
+ * Two forms are accepted: a `collection` name, resolved against the registry,
+ * or definitions given inline. A list of names picks from the child collection
+ * and tells us nothing on its own, hence the `typeof` check.
+ */
+function resolveChildFields(config: FieldHasMany): FieldDefinition[] | undefined {
+    if (config.collection) {
+        return getAdminLeaf()?.getCollection(config.collection)?.fields
+    }
+    if (Array.isArray(config.fields) && config.fields.length > 0 && typeof config.fields[0] !== 'string') {
+        return config.fields as FieldDefinition[]
+    }
+    return undefined
+}
+
+/**
+ * Build nested includes for media/relation/belongsToMany fields in hasMany
  */
 function buildNestedIncludesForFields(fields: FieldDefinition[]): any[] {
     const includes: any[] = []
@@ -141,6 +158,17 @@ function buildNestedIncludesForFields(fields: FieldDefinition[]): any[] {
         if (field.type === 'relation' && field.relation) {
             const assocName = field.name.replace(/_id$/, '')
             includes.push({ association: assocName })
+        }
+        // Without this a hasMany item comes back missing its own many-to-many
+        // picks, and reopening the parent shows them as empty — which the form
+        // then saves back as "none selected".
+        if (field.type === 'belongsToMany' && field.belongsToMany) {
+            includes.push({
+                association: field.name,
+                ...(field.belongsToMany.pivotFields
+                    ? { through: { attributes: field.belongsToMany.pivotFields.map(f => f.name) } }
+                    : {})
+            })
         }
     }
 
@@ -259,6 +287,35 @@ async function processHasManyItems(
         return stats
     }
 
+    // A hasMany item may carry many-to-many picks of its own — "this time range
+    // is held by Ahmed and Fatima". They are associations, not columns, so they
+    // are lifted out of the payload and synced once the row has an id.
+    const childBelongsToMany = getBelongsToManyFields(resolveChildFields(config))
+
+    const splitItem = (item: any, index: number) => {
+        const itemData: any = {
+            ...item,
+            [config.foreignKey]: parentId,
+            [config.orderField || 'order']: index
+        }
+        const relations: Array<[string, BelongsToManyInput]> = []
+        for (const [fieldName] of childBelongsToMany) {
+            if (fieldName in itemData) {
+                if (Array.isArray(itemData[fieldName])) {
+                    relations.push([fieldName, itemData[fieldName]])
+                }
+                delete itemData[fieldName]
+            }
+        }
+        return { itemData, relations }
+    }
+
+    const syncRelations = async (record: any, relations: Array<[string, BelongsToManyInput]>) => {
+        for (const [fieldName, value] of relations) {
+            await processBelongsToManyItems(record, fieldName, childBelongsToMany.get(fieldName)!, value)
+        }
+    }
+
     if (isUpdate) {
         // For updates: sync items (create new, update existing, delete removed)
         const existingItems = await Model.findAll({
@@ -278,37 +335,29 @@ async function processHasManyItems(
         // Create or update items
         for (let i = 0; i < items.length; i++) {
             const item = items[i]
-            const itemData = {
-                ...item,
-                [config.foreignKey]: parentId,
-                [config.orderField || 'order']: i
-            }
+            const { itemData, relations } = splitItem(item, i)
 
             if (item.id && existingIds.has(item.id)) {
                 // Update existing
                 const existing = existingItems.find((e: any) => e.id === item.id)
                 if (existing) {
                     await existing.update(itemData)
+                    await syncRelations(existing, relations)
                     stats.updated++
                 }
             } else {
                 // Create new (remove id if it was set but doesn't exist)
                 delete itemData.id
-                await Model.create(itemData)
+                await syncRelations(await Model.create(itemData), relations)
                 stats.created++
             }
         }
     } else {
         // For creates: just create all items
         for (let i = 0; i < items.length; i++) {
-            const item = items[i]
-            const itemData = {
-                ...item,
-                [config.foreignKey]: parentId,
-                [config.orderField || 'order']: i
-            }
+            const { itemData, relations } = splitItem(items[i], i)
             delete itemData.id // Remove any client-side temp id
-            await Model.create(itemData)
+            await syncRelations(await Model.create(itemData), relations)
             stats.created++
         }
     }
@@ -338,27 +387,32 @@ function maskSecureValue(value: string): string {
 
 /**
  * Transform field values for Admin API responses:
- * - Enum fields: convert numeric values to labels
+ * - Custom field types: run their `afterRead` hook, children of a hasMany included
  * - Secure fields: mask sensitive data
+ * - JSON fields: flatten for readable display
+ * - Relation fields: show the related record's display field
+ *
+ * Option-backed fields (`select`, `multiselect`) are served raw. The back-office
+ * matches each value against the field's `options` to draw its own label, so
+ * substituting the label here only makes the payload unsendable: what the record
+ * page reads back is no longer a value the save endpoint accepts.
  */
 function transformFields(items: any[], fields: any[]): any[] {
     // Build maps for transformations
-    const optionsMap: Record<string, Record<any, string>> = {}
     const secureFields: Set<string> = new Set()
     const jsonFields: Set<string> = new Set()
     const relationFields: Map<string, { collection: string; displayField: string }> = new Map()
+    const hasManyFields: Map<string, FieldDefinition[]> = new Map()
 
     for (const field of fields) {
-        // Collect enum options
-        if (field.options && Array.isArray(field.options)) {
-            optionsMap[field.name] = {}
-            for (const opt of field.options) {
-                optionsMap[field.name][opt.value] = opt.label
-            }
-        }
         // Collect secure fields
         if (field.secure) {
             secureFields.add(field.name)
+        }
+        // Collect hasMany children, transformed with their own definitions
+        if (field.type === 'hasMany' && field.hasMany) {
+            const childFields = resolveChildFields(field.hasMany)
+            if (childFields) hasManyFields.set(field.name, childFields)
         }
         // Collect json fields
         if (field.type === 'json') {
@@ -377,22 +431,14 @@ function transformFields(items: any[], fields: any[]): any[] {
         // Apply custom field type afterRead hooks
         json = applyAfterRead(json, fields)
 
-        // Apply enum transformations
-        for (const [fieldName, valueToLabel] of Object.entries(optionsMap)) {
-            const value = json[fieldName]
-            if (value === undefined || value === null) continue
-
-            // A multiselect holds a list: label each entry and keep it a list.
-            // Without this branch, a one-entry list stringifies to its single
-            // value, matches the map, and comes back out as a bare string —
-            // silently turning `['a']` into `'a'` on read.
-            if (Array.isArray(value)) {
-                json[fieldName] = value.map(entry => valueToLabel[entry] ?? entry)
-                continue
-            }
-
-            if (valueToLabel[value]) {
-                json[fieldName] = valueToLabel[value]
+        // The children of a hasMany get the same treatment, read against their
+        // own field definitions — otherwise a value that only makes sense once
+        // formatted (minutes shown as a clock time) stays raw inside the card
+        // while it is formatted everywhere else.
+        for (const [fieldName, childFields] of hasManyFields) {
+            const children = json[fieldName]
+            if (Array.isArray(children)) {
+                json[fieldName] = transformFields(children, childFields)
             }
         }
 
@@ -552,6 +598,75 @@ function applyAfterRead(
 }
 
 /**
+ * Apply afterRead hooks down a record and the children of its hasMany fields.
+ *
+ * `afterRead` and `beforeSave` are two halves of one codec, not a display
+ * filter: a `time` field is stored as minutes and travels as "09:00", which is
+ * precisely what the save endpoint parses back. Skipping `afterRead` therefore
+ * does not hand out a "rawer" value, it hands out one the form cannot render
+ * and the API would not take back — an edit form loading 610 into an
+ * `<input type="time">` shows an empty clock and silently loses the hour.
+ */
+function applyAfterReadDeep(
+    data: Record<string, any>,
+    fields: FieldDefinition[] | undefined
+): Record<string, any> {
+    if (!fields) return data
+
+    const result = applyAfterRead(data, fields)
+
+    for (const field of fields) {
+        if (field.type !== 'hasMany' || !field.hasMany) continue
+
+        const children = result[field.name]
+        if (!Array.isArray(children)) continue
+
+        const childFields = resolveChildFields(field.hasMany)
+        if (!childFields) continue
+
+        result[field.name] = children.map((child: any) =>
+            applyAfterReadDeep(child?.toJSON ? child.toJSON() : { ...child }, childFields)
+        )
+    }
+
+    return result
+}
+
+/**
+ * Le tri qu'on peut réellement demander à ce modèle.
+ *
+ * Le champ vient de l'URL ou d'une config, et ni l'un ni l'autre ne garantit
+ * qu'il existe sur *cette* collection : le back-office garde le tri d'un écran
+ * à l'autre, si bien que « trier les employés par `starts_at` » ressortait en
+ * erreur SQL brute à la place du tableau. On essaie donc les candidats dans
+ * l'ordre et on garde le premier qui désigne une vraie colonne — un tri qu'on
+ * ne sait pas faire vaut mieux qu'une liste qui ne s'affiche pas.
+ *
+ * `id` ferme la marche parce qu'il est toujours là ; sans lui, un modèle sans
+ * `created_at` rouvrirait exactement le même trou.
+ */
+function resolveOrder(
+    model: any,
+    candidates: Array<{ field?: any; direction?: any } | null | undefined>
+): [string, 'ASC' | 'DESC'][] {
+    const attributes = model?.rawAttributes || {}
+    const all = [...candidates, { field: 'created_at', direction: 'DESC' }, { field: 'id', direction: 'DESC' }]
+
+    for (const candidate of all) {
+        const field = candidate?.field
+        if (!field || !attributes[String(field)]) continue
+
+        // Tout ce qui n'est pas explicitement descendant est ascendant : la
+        // direction arrive elle aussi de l'URL, et `order=hop` deviendrait
+        // sinon un `ORDER BY ... HOP` que Postgres refuse.
+        const direction = String(candidate?.direction || '').toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
+        return [[String(field), direction]]
+    }
+
+    return []
+}
+
+/**
  * Parse advanced filters from query parameters
  * Supports Django-style double-underscore operators:
  * - field=value → exact match (backward compatible)
@@ -687,15 +802,12 @@ export default class AdminCollectionsController {
                 }))
             }
 
-            // Build order
-            let orderClause: [string, 'ASC' | 'DESC'][] = []
-            if (sort) {
-                orderClause = [[sort as string, (order as string || 'ASC').toUpperCase() as 'ASC' | 'DESC']]
-            } else if (listView?.sort) {
-                orderClause = [[listView.sort.field, listView.sort.direction.toUpperCase() as 'ASC' | 'DESC']]
-            } else {
-                orderClause = [['created_at', 'DESC']]
-            }
+            // Build order — le tri demandé s'il tient debout, sinon celui de la
+            // collection, sinon ce qui existe. Voir `resolveOrder`.
+            const orderClause = resolveOrder(collection.model, [
+                sort ? { field: sort, direction: order || 'ASC' } : null,
+                listView?.sort,
+            ])
 
             // Soft delete: show deleted records if requested and collection supports it
             const paranoidOption = collection.softDelete?.enabled && showDeleted === 'true'
@@ -765,11 +877,17 @@ export default class AdminCollectionsController {
                 return (res as any).error?.({ status: 404, errors: ['not_found'] })
             }
 
-            // raw=true: skip enum/secure transformations (used by edit forms to get raw values)
+            // raw=true: skip the display substitutions an edit form cannot send
+            // back — relation labels, secure masking, JSON flattening. Custom
+            // field types keep their `afterRead`: it is the codec of the value,
+            // not a decoration, and dropping it makes the record uneditable.
             if (raw === 'true') {
                 const rawData = record.toJSON ? record.toJSON() : { ...record }
                 const recordWithUrls = transformMediaUrls(rawData)
-                return (res as any).success?.({ status: 200, data: recordWithUrls })
+                return (res as any).success?.({
+                    status: 200,
+                    data: applyAfterReadDeep(recordWithUrls, collection.fields)
+                })
             }
 
             // Transform field values for admin display (enums, secure fields)
@@ -851,9 +969,7 @@ export default class AdminCollectionsController {
             const effectiveOffset = page != null
                 ? Math.max(0, (Math.max(1, Number(page)) - 1) * effectiveLimit)
                 : Number(offset ?? 0)
-            const order: [string, 'ASC' | 'DESC'][] = subConfig.sort
-                ? [[subConfig.sort.field, subConfig.sort.direction.toUpperCase() as 'ASC' | 'DESC']]
-                : [['created_at', 'DESC']]
+            const order = resolveOrder(subConfig.model, [subConfig.sort])
 
             // Build includes for nested relations (media, etc)
             const hasManyFields = getHasManyFields(collection.fields)
@@ -1475,15 +1591,21 @@ export default class AdminCollectionsController {
                 ? String(fieldsParam).split(',').map((f: string) => f.trim())
                 : (listView?.search || [])
 
-            if (searchFields.length === 0 || !q) {
+            if (searchFields.length === 0) {
                 return (res as any).success?.({ status: 200, data: [] })
             }
 
-            const where: any = {
-                [Op.or]: searchFields.map((field: string) => ({
-                    [field]: { [Op.iLike]: `%${q}%` }
-                }))
-            }
+            // An empty query is a legitimate call: it is what a relation picker
+            // sends when it opens, before anyone has typed. Returning [] there
+            // shows an empty dropdown over a full table, so browse the first
+            // page instead and let the query narrow it down.
+            const where: any = q
+                ? {
+                    [Op.or]: searchFields.map((field: string) => ({
+                        [field]: { [Op.iLike]: `%${q}%` }
+                    }))
+                }
+                : {}
 
             const cappedLimit = Math.min(Number(limit), 50)
 
@@ -1502,6 +1624,119 @@ export default class AdminCollectionsController {
             return (res as any).success?.({ status: 200, data: items })
         } catch (err: any) {
             console.error(`[ETHAdminLeaf] Search error for ${collectionName}:`, err)
+            return (res as any).error?.({ status: 400, errors: [err.message] })
+        }
+    }
+
+    /**
+     * GET /admin/relation-options/:collection
+     * Options for a `relation` field's picker: `[{ value, label, secondary?, i18n? }]`
+     *
+     * The admin panel asks for this whenever it renders a relation input. Without
+     * it the picker has nothing to show and the dropdown looks empty over a full
+     * table, which is impossible to tell apart from an empty collection.
+     *
+     * `q` filters server-side so the picker stays usable on large collections;
+     * `ids` force-includes records that fall outside the current page, so the
+     * value already stored on the record keeps its label instead of showing as a
+     * bare id.
+     */
+    @Get('/admin/relation-options/:collection')
+    @ShouldBeAuthenticated()
+    async relationOptions(
+        req: Request & { user: any; params: { collection: string }; query: any },
+        res: Response
+    ): Promise<any> {
+        const { collection: collectionName } = req.params
+        const adminLeaf = getAdminLeaf()
+
+        const collection = adminLeaf?.getCollection(collectionName)
+        if (!collection) {
+            return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
+        }
+
+        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, 'list')
+        if (!hasAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
+
+        try {
+            const { displayField, secondaryField, q, ids, limit = 100 } = req.query
+
+            const attributes = collection.model.rawAttributes || {}
+            const exists = (name?: string) => !!name && !!attributes[name]
+
+            // A displayField that does not exist would make Sequelize throw on a
+            // column that is only a typo in a config file; fall back rather than
+            // break the whole form.
+            const display = exists(String(displayField)) ? String(displayField) : exists('name') ? 'name' : 'id'
+            const secondary = exists(String(secondaryField)) ? String(secondaryField) : null
+            const i18nField = `${display}_i18n`
+
+            const searchable = [display, secondary].filter((f): f is string => !!f && f !== 'id')
+
+            // `.filter(Boolean)` before Number(): an absent `ids` splits into
+            // [''], and Number('') is 0 — a finite id nothing matches, which
+            // would silently empty the whole list.
+            const forcedIds = String(ids || '')
+                .split(',')
+                .map((raw: string) => raw.trim())
+                .filter((raw: string) => raw !== '')
+                .map((raw: string) => Number(raw))
+                .filter((n: number) => Number.isFinite(n))
+
+            // A flat Op.or: nesting one Op.or inside another loses the inner
+            // clause, so the search terms and the forced ids go in the same list.
+            const where: any =
+                q && searchable.length > 0
+                    ? { [Op.or]: searchable.map((field) => ({ [field]: { [Op.iLike]: `%${q}%` } })) }
+                    : {}
+
+            const selected = ['id', display, secondary, exists(i18nField) ? i18nField : null].filter(
+                (f, index, all): f is string => !!f && all.indexOf(f) === index
+            )
+
+            const order: any = [[display === 'id' ? 'id' : display, 'ASC']]
+
+            const records = await collection.model.findAll({
+                where,
+                attributes: selected,
+                limit: Math.min(Number(limit) || 100, 500),
+                order
+            })
+
+            // `ids` adds to the page, it never restricts it: a value already
+            // stored on the record must keep its label even when the search — or
+            // simply the page size — leaves it out. Pinned at the top so the
+            // current selection stays visible.
+            const missing = forcedIds.filter((id: number) => !records.some((r: any) => Number(r.id) === id))
+            if (missing.length > 0) {
+                const pinned = await collection.model.findAll({
+                    where: { id: { [Op.in]: missing } },
+                    attributes: selected,
+                    order
+                })
+                records.unshift(...pinned)
+            }
+
+            const data = records.map((record: any) => {
+                const json = record.toJSON ? record.toJSON() : { ...record }
+                const option: any = {
+                    value: json.id,
+                    label: json[display] != null && json[display] !== '' ? String(json[display]) : `#${json.id}`
+                }
+                if (secondary && json[secondary] != null && json[secondary] !== '') {
+                    option.secondary = String(json[secondary])
+                }
+                if (json[i18nField] && typeof json[i18nField] === 'object') {
+                    option.i18n = json[i18nField]
+                }
+                return option
+            })
+
+            return (res as any).success?.({ status: 200, data })
+        } catch (err: any) {
+            console.error(`[ETHAdminLeaf] Relation options error for ${collectionName}:`, err)
             return (res as any).error?.({ status: 400, errors: [err.message] })
         }
     }

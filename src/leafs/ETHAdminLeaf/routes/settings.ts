@@ -98,15 +98,24 @@ export default class SettingsController {
      * This is the main endpoint for the frontend to build the entire admin UI
      */
     @Get('/admin/schema')
-    // @ShouldBeAuthenticated()
+    @ShouldBeAuthenticated()
     async getSchema(req: Request & { user: any }, res: Response): Promise<any> {
         const adminLeaf = getAdminLeaf()
 
-        // // Check if user can access admin
-        // const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
-        // if (!hasAccess) {
-        //     return (res as any).error?.({ status: 403, errors: ['forbidden'] })
-        // }
+        // Guarded like /admin/schema/:collection just below. Both were once
+        // commented out here, which handed the entire admin map — every
+        // collection, every field, every help text, every action name — to
+        // anyone who asked, with no token at all. It leaks no record, but it is
+        // a full description of the application's data model and of what each
+        // button does, which is exactly what one reads before attacking it.
+        //
+        // Nothing legitimate needs it before login: the login screen builds
+        // itself from /admin/settings/public, and the admin UI only asks for the
+        // schema once access has been verified.
+        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        if (!hasAccess) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
+        }
 
         const schema = adminLeaf?.getSchema()
 

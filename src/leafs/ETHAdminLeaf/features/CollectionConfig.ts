@@ -131,6 +131,40 @@ export interface CollectionStat {
     global?: boolean
 }
 
+/**
+ * Optional helpers drawn next to a collection's form.
+ *
+ * The leaf only carries the declaration to the front-office; the endpoints are
+ * the application's own. That is deliberate — filling a form from a sentence or
+ * drawing a preview of what it would produce takes knowledge the leaf does not
+ * have (and, for an AI assistant, a key it must not hold).
+ */
+export interface CollectionAssistants {
+    /**
+     * A "Fill with AI" button above the form: the user describes what they want
+     * in prose, the endpoint answers with a patch to apply to the fields.
+     */
+    fill?: {
+        enabled: boolean
+        /** Defaults to `/admin/ai/fill/<collection>` on the API. */
+        endpoint?: string
+        /** Placeholder for the prompt box. */
+        placeholder?: string
+        /** Sample prompts, offered as one-click starters. */
+        examples?: string[]
+    }
+    /**
+     * A "Preview" button under the form: the endpoint receives the unsaved form
+     * and answers with something the front-office knows how to draw. `type`
+     * picks that renderer.
+     */
+    preview?: {
+        type: string
+        endpoint?: string
+        label?: string
+    }
+}
+
 export interface CollectionConfig {
     name: string
     model: any
@@ -156,6 +190,10 @@ export interface CollectionConfig {
      * Requires the Sequelize model to have `paranoid: true`
      */
     softDelete?: { enabled: boolean; deletedAtField?: string }
+    /**
+     * Assistants attached to this collection's form (AI fill, preview)
+     */
+    assistants?: CollectionAssistants
 }
 
 // ============================================
@@ -278,4 +316,8 @@ export interface SerializedCollection {
      * Soft delete configuration
      */
     softDelete?: { enabled: boolean; deletedAtField?: string }
+    /**
+     * Assistants attached to this collection's form (AI fill, preview)
+     */
+    assistants?: CollectionAssistants
 }

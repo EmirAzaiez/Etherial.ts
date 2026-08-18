@@ -414,7 +414,8 @@ export default class ETHAdminLeaf {
             showInDashboard,
             stats: collection.stats,
             exportable: collection.exportable,
-            softDelete: collection.softDelete
+            softDelete: collection.softDelete,
+            assistants: collection.assistants
         }
     }
 
@@ -537,6 +538,7 @@ export default class ETHAdminLeaf {
             methods: [
                 'list',
                 'search',
+                'relationOptions',
                 'export',
                 'bulk',
                 'show',
@@ -555,13 +557,16 @@ export default class ETHAdminLeaf {
             ]
         })
 
-        // Register pages route
-        if (this._pages.size > 0) {
-            this.routes.push({
-                route: path.join(__dirname, 'routes/pages'),
-                methods: ['submitForm']
-            })
-        }
+        // Register pages route - always, for the same reason as collections:
+        // the leaf's run() fires before the application's, so pages declared
+        // from App.run() are still unknown here. Guarding on _pages.size meant
+        // the route silently did not exist and every submit answered a plain
+        // 404, with the page itself listed in the schema. With no page
+        // registered the route is harmless — it answers 'page_not_found'.
+        this.routes.push({
+            route: path.join(__dirname, 'routes/pages'),
+            methods: ['submitForm']
+        })
 
         http?.routes_leafs?.push(...this.routes)
 
