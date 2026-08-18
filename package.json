@@ -22,8 +22,9 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch"
+    "build": "tsc && npm run copy:assets",
+    "dev": "tsc --watch",
+    "copy:assets": "rsync -a --include=\"*/\" --include=\"*.mjs\" --include=\"*.md\" --exclude=\"*\" src/leafs/ dist/leafs/"
   },
   "files": [
     "dist",
