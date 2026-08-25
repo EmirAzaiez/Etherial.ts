@@ -33,6 +33,46 @@ import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 import { Op, fn, col } from 'sequelize';
 const getAdminLeaf = () => etherial.eth_admin_leaf;
 /**
+ * Types de champs pour lesquels la chaîne vide n'est pas une valeur.
+ *
+ * Le formulaire du back-office initialise *tous* ses champs à `''`, puis envoie
+ * ce qu'il a. Un champ optionnel jamais rempli arrive donc en `""` et non en
+ * `null` — et `''` dans une colonne entière fait rejeter l'INSERT par Postgres
+ * (`invalid input syntax for type integer: ""`). Une fiche agent sans compte
+ * applicatif devenait impossible à créer, alors que la colonne accepte `null`
+ * et que le champ est annoncé facultatif.
+ *
+ * Le vider après coup échouait pareil : le bouton « clear » envoie `''` lui
+ * aussi. Traduire ici plutôt que dans le formulaire couvre les deux gestes, et
+ * protège des clients qu'on n'écrit pas.
+ *
+ * `select` et `multiselect` restent dehors : leurs valeurs sont des chaînes, et
+ * `''` peut y être un choix légitime.
+ */
+const EMPTY_MEANS_NULL = new Set([
+    'number', 'integer', 'boolean', 'date', 'datetime',
+    'relation', 'media', 'image', 'file', 'json',
+]);
+/**
+ * Remplace `''` par `null` sur les champs qui ne savent pas lire une chaîne vide.
+ *
+ * Appliqué avant les hooks : ceux-ci doivent voir la donnée telle qu'elle sera
+ * écrite, pas la forme brute du formulaire.
+ */
+function normalizeEmptyValues(data, fields) {
+    if (!fields)
+        return data;
+    const result = Object.assign({}, data);
+    for (const field of fields) {
+        if (result[field.name] !== '')
+            continue;
+        if (!EMPTY_MEANS_NULL.has(field.type))
+            continue;
+        result[field.name] = null;
+    }
+    return result;
+}
+/**
  * Extract hasMany field definitions from collection fields
  * Resolves collection references to get the actual model
  */
@@ -922,7 +962,7 @@ let AdminCollectionsController = class AdminCollectionsController {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['forbidden'] });
             }
             try {
-                let data = Object.assign({}, req.body);
+                let data = normalizeEmptyValues(Object.assign({}, req.body), collection.fields);
                 const resolvedHooks = adminLeaf.getResolvedHooks(collectionName);
                 // Extract hasMany fields from data
                 const hasManyFields = getHasManyFields(collection.fields);
@@ -1006,7 +1046,7 @@ let AdminCollectionsController = class AdminCollectionsController {
                 if (!record) {
                     return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 404, errors: ['not_found'] });
                 }
-                let data = Object.assign({}, req.body);
+                let data = normalizeEmptyValues(Object.assign({}, req.body), collection.fields);
                 const resolvedHooks = adminLeaf.getResolvedHooks(collectionName);
                 // Extract hasMany fields from data
                 const hasManyFields = getHasManyFields(collection.fields);

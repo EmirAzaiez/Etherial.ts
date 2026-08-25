@@ -18,6 +18,48 @@ import { Op, fn, col } from 'sequelize'
 const getAdminLeaf = () => (etherial as any).eth_admin_leaf
 
 /**
+ * Types de champs pour lesquels la chaîne vide n'est pas une valeur.
+ *
+ * Le formulaire du back-office initialise *tous* ses champs à `''`, puis envoie
+ * ce qu'il a. Un champ optionnel jamais rempli arrive donc en `""` et non en
+ * `null` — et `''` dans une colonne entière fait rejeter l'INSERT par Postgres
+ * (`invalid input syntax for type integer: ""`). Une fiche agent sans compte
+ * applicatif devenait impossible à créer, alors que la colonne accepte `null`
+ * et que le champ est annoncé facultatif.
+ *
+ * Le vider après coup échouait pareil : le bouton « clear » envoie `''` lui
+ * aussi. Traduire ici plutôt que dans le formulaire couvre les deux gestes, et
+ * protège des clients qu'on n'écrit pas.
+ *
+ * `select` et `multiselect` restent dehors : leurs valeurs sont des chaînes, et
+ * `''` peut y être un choix légitime.
+ */
+const EMPTY_MEANS_NULL = new Set([
+    'number', 'integer', 'boolean', 'date', 'datetime',
+    'relation', 'media', 'image', 'file', 'json',
+])
+
+/**
+ * Remplace `''` par `null` sur les champs qui ne savent pas lire une chaîne vide.
+ *
+ * Appliqué avant les hooks : ceux-ci doivent voir la donnée telle qu'elle sera
+ * écrite, pas la forme brute du formulaire.
+ */
+function normalizeEmptyValues(data: Record<string, any>, fields: FieldDefinition[] | undefined): Record<string, any> {
+    if (!fields) return data
+
+    const result = { ...data }
+
+    for (const field of fields) {
+        if (result[field.name] !== '') continue
+        if (!EMPTY_MEANS_NULL.has(field.type)) continue
+        result[field.name] = null
+    }
+
+    return result
+}
+
+/**
  * Extract hasMany field definitions from collection fields
  * Resolves collection references to get the actual model
  */
@@ -1070,7 +1112,7 @@ export default class AdminCollectionsController {
         }
 
         try {
-            let data = { ...req.body }
+            let data = normalizeEmptyValues({ ...req.body }, collection.fields)
             const resolvedHooks = adminLeaf.getResolvedHooks(collectionName)
 
             // Extract hasMany fields from data
@@ -1172,7 +1214,7 @@ export default class AdminCollectionsController {
                 return (res as any).error?.({ status: 404, errors: ['not_found'] })
             }
 
-            let data = { ...req.body }
+            let data = normalizeEmptyValues({ ...req.body }, collection.fields)
             const resolvedHooks = adminLeaf.getResolvedHooks(collectionName)
 
             // Extract hasMany fields from data
