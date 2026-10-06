@@ -63,8 +63,10 @@ function normalizeEmptyValues(data: Record<string, any>, fields: FieldDefinition
  * Extract hasMany field definitions from collection fields
  * Resolves collection references to get the actual model
  */
-function getHasManyFields(fields: FieldDefinition[] | undefined): Map<string, FieldHasMany & { label?: string; resolvedModel?: any }> {
-    const result = new Map<string, FieldHasMany & { label?: string; resolvedModel?: any }>()
+type ResolvedHasMany = FieldHasMany & { label?: string; resolvedModel?: any; resolvedFields?: FieldDefinition[] }
+
+function getHasManyFields(fields: FieldDefinition[] | undefined): Map<string, ResolvedHasMany> {
+    const result = new Map<string, ResolvedHasMany>()
     if (!fields) return result
 
     const adminLeaf = getAdminLeaf()
@@ -74,16 +76,22 @@ function getHasManyFields(fields: FieldDefinition[] | undefined): Map<string, Fi
             const hm = field.hasMany
 
             // Resolve model from collection if not specified
-            let resolvedModel = hm.model
-            if (!resolvedModel && hm.collection) {
-                const refCollection = adminLeaf?.getCollection(hm.collection)
-                resolvedModel = refCollection?.model
+            const refCollection = hm.collection ? adminLeaf?.getCollection(hm.collection) : undefined
+            const resolvedModel = hm.model || refCollection?.model
+
+            // Item fields, resolved like the schema the admin UI edits them with
+            let resolvedFields: FieldDefinition[] = refCollection?.fields || []
+            if (Array.isArray(hm.fields) && hm.fields.length > 0) {
+                resolvedFields = typeof hm.fields[0] === 'string'
+                    ? resolvedFields.filter(f => (hm.fields as string[]).includes(f.name))
+                    : hm.fields as FieldDefinition[]
             }
 
             result.set(field.name, {
                 ...hm,
                 label: field.label,
-                resolvedModel
+                resolvedModel,
+                resolvedFields
             })
         }
     }
@@ -234,7 +242,8 @@ async function processBelongsToManyItems(
     record: any,
     fieldName: string,
     config: FieldBelongsToMany,
-    items: BelongsToManyInput | undefined
+    items: BelongsToManyInput | undefined,
+    transaction?: any
 ): Promise<{ added: number; removed: number }> {
     const stats = { added: 0, removed: 0 }
 
@@ -243,62 +252,67 @@ async function processBelongsToManyItems(
     }
 
     try {
-        if (items.length > 0 && hasPivotData(items)) {
-            // Format with pivot data — use junction model directly
-            const JunctionModel = typeof config.through === 'string' ? null : config.through
-            if (!JunctionModel) {
-                console.error(`[ETHAdminLeaf] Pivot fields require a junction model (not string) for ${fieldName}`)
-                return stats
-            }
+        // A savepoint keeps a failing relation logged-and-skipped as before, instead of
+        // aborting the transaction the rest of the save runs in
+        await withSavepoint(transaction, async (t) => {
+            if (items.length > 0 && hasPivotData(items)) {
+                // Format with pivot data — use junction model directly
+                const JunctionModel = typeof config.through === 'string' ? null : config.through
+                if (!JunctionModel) {
+                    console.error(`[ETHAdminLeaf] Pivot fields require a junction model (not string) for ${fieldName}`)
+                    return
+                }
 
-            // Get current associations for stats
-            const currentJunctions = await JunctionModel.findAll({
-                where: { [config.foreignKey]: record.id },
-                raw: true
-            })
-            const currentOtherIds = new Set(currentJunctions.map((j: any) => j[config.otherKey]))
-
-            // Remove all existing junction rows
-            await JunctionModel.destroy({ where: { [config.foreignKey]: record.id } })
-            stats.removed = currentJunctions.length
-
-            // Create new junction rows with pivot data
-            for (const item of items) {
-                await JunctionModel.create({
-                    [config.foreignKey]: record.id,
-                    [config.otherKey]: item.id,
-                    ...(item.through || {})
+                // Get current associations for stats
+                const currentJunctions = await JunctionModel.findAll({
+                    where: { [config.foreignKey]: record.id },
+                    raw: true,
+                    transaction: t
                 })
-                if (!currentOtherIds.has(item.id)) {
-                    stats.added++
+                const currentOtherIds = new Set(currentJunctions.map((j: any) => j[config.otherKey]))
+
+                // Remove all existing junction rows
+                await JunctionModel.destroy({ where: { [config.foreignKey]: record.id }, transaction: t })
+                stats.removed = currentJunctions.length
+
+                // Create new junction rows with pivot data
+                for (const item of items) {
+                    await JunctionModel.create({
+                        [config.foreignKey]: record.id,
+                        [config.otherKey]: item.id,
+                        ...(item.through || {})
+                    }, { transaction: t })
+                    if (!currentOtherIds.has(item.id)) {
+                        stats.added++
+                    }
+                }
+                // Adjust stats: items that were re-created aren't truly "added"
+                stats.added = items.filter(item => !currentOtherIds.has(item.id)).length
+                stats.removed = currentJunctions.filter((j: any) => !items.some(item => item.id === j[config.otherKey])).length
+            } else {
+                // Simple ID format — use Sequelize's set method
+                const itemIds = items as number[]
+                const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
+
+                if (typeof record[setMethodName] === 'function') {
+                    const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
+                    const currentItems: any[] = typeof record[getMethodName] === 'function'
+                        ? await record[getMethodName]({ transaction: t })
+                        : []
+                    const currentIds = new Set<number>(currentItems.map((item: any) => item.id))
+
+                    await record[setMethodName](itemIds, { transaction: t })
+
+                    const newIds = new Set<number>(itemIds)
+                    for (const id of itemIds) {
+                        if (!currentIds.has(id)) stats.added++
+                    }
+                    for (const id of currentIds) {
+                        if (!newIds.has(id as number)) stats.removed++
+                    }
                 }
             }
-            // Adjust stats: items that were re-created aren't truly "added"
-            stats.added = items.filter(item => !currentOtherIds.has(item.id)).length
-            stats.removed = currentJunctions.filter((j: any) => !items.some(item => item.id === j[config.otherKey])).length
-        } else {
-            // Simple ID format — use Sequelize's set method
-            const itemIds = items as number[]
-            const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
-
-            if (typeof record[setMethodName] === 'function') {
-                const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`
-                const currentItems: any[] = typeof record[getMethodName] === 'function'
-                    ? await record[getMethodName]()
-                    : []
-                const currentIds = new Set<number>(currentItems.map((item: any) => item.id))
-
-                await record[setMethodName](itemIds)
-
-                const newIds = new Set<number>(itemIds)
-                for (const id of itemIds) {
-                    if (!currentIds.has(id)) stats.added++
-                }
-                for (const id of currentIds) {
-                    if (!newIds.has(id as number)) stats.removed++
-                }
-            }
-        }
+        })
     } catch (err: any) {
         console.error(`[ETHAdminLeaf] Error processing belongsToMany ${fieldName}:`, err.message)
     }
@@ -307,14 +321,42 @@ async function processBelongsToManyItems(
 }
 
 /**
+ * Run `fn` in a savepoint of `transaction`, or without a transaction when none is given
+ */
+async function withSavepoint<T>(transaction: any, fn: (t: any) => Promise<T>): Promise<T> {
+    if (!transaction) return fn(undefined)
+    return transaction.sequelize.transaction({ transaction }, fn)
+}
+
+/**
+ * Run the writes of a save in one transaction when it touches relations, so a failure
+ * half-way can no longer leave the parent saved with only part of its children
+ */
+async function inSaveTransaction<T>(model: any, needed: boolean, fn: (transaction?: any) => Promise<T>): Promise<T> {
+    if (!needed || !model?.sequelize) return fn(undefined)
+    return model.sequelize.transaction((transaction: any) => fn(transaction))
+}
+
+const isEmptyValue = (value: any) => value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+
+/**
  * Process hasMany items after parent record is created/updated
+ *
+ * Deletion is explicit: an existing item is destroyed only when the payload sends it
+ * back with `_deleted: true` (what the admin UI does). An item missing from the payload
+ * is left untouched, so a form that held an incomplete list can no longer wipe the
+ * children on save.
+ *
+ * Items are validated before anything is written: a save can neither create an item
+ * without its required values, nor blank a required value an existing item has.
  */
 async function processHasManyItems(
     parentId: number,
-    _fieldName: string,
-    config: FieldHasMany & { resolvedModel?: any },
+    fieldName: string,
+    config: ResolvedHasMany,
     items: any[] | undefined,
-    isUpdate: boolean
+    isUpdate: boolean,
+    transaction?: any
 ): Promise<{ created: number; updated: number; deleted: number }> {
     const stats = { created: 0, updated: 0, deleted: 0 }
 
@@ -329,6 +371,8 @@ async function processHasManyItems(
         return stats
     }
 
+    const orderField = config.orderField || 'order'
+
     // A hasMany item may carry many-to-many picks of its own — "this time range
     // is held by Ahmed and Fatima". They are associations, not columns, so they
     // are lifted out of the payload and synced once the row has an id.
@@ -338,8 +382,10 @@ async function processHasManyItems(
         const itemData: any = {
             ...item,
             [config.foreignKey]: parentId,
-            [config.orderField || 'order']: index
+            [orderField]: index
         }
+        delete itemData._deleted
+        delete itemData._tempId
         const relations: Array<[string, BelongsToManyInput]> = []
         for (const [fieldName] of childBelongsToMany) {
             if (fieldName in itemData) {
@@ -354,52 +400,55 @@ async function processHasManyItems(
 
     const syncRelations = async (record: any, relations: Array<[string, BelongsToManyInput]>) => {
         for (const [fieldName, value] of relations) {
-            await processBelongsToManyItems(record, fieldName, childBelongsToMany.get(fieldName)!, value)
+            await processBelongsToManyItems(record, fieldName, childBelongsToMany.get(fieldName)!, value, transaction)
         }
     }
 
-    if (isUpdate) {
-        // For updates: sync items (create new, update existing, delete removed)
-        const existingItems = await Model.findAll({
-            where: { [config.foreignKey]: parentId }
-        })
-        const existingIds = new Set(existingItems.map((item: any) => item.id))
-        const newIds = new Set(items.filter(item => item.id).map(item => item.id))
+    const existingItems: any[] = isUpdate
+        ? await Model.findAll({ where: { [config.foreignKey]: parentId }, transaction })
+        : []
+    const existingById = new Map<string, any>(existingItems.map((item: any) => [String(item.id), item]))
+    const findExisting = (item: any) => (item.id != null ? existingById.get(String(item.id)) : undefined)
 
-        // Delete items that are no longer in the list
-        for (const existing of existingItems) {
-            if (!newIds.has(existing.id)) {
-                await existing.destroy()
-                stats.deleted++
+    const deletedItems = items.filter(item => item?._deleted)
+    const keptItems = items.filter(item => item && !item._deleted)
+
+    const requiredFields = (config.resolvedFields || []).filter(f =>
+        (f.required || f.validation?.required) && f.name !== 'id' && f.name !== config.foreignKey && f.name !== orderField
+    )
+    keptItems.forEach((item, index) => {
+        const existing = findExisting(item)
+        for (const field of requiredFields) {
+            const value = item[field.name]
+            const missing = existing
+                ? value !== undefined && isEmptyValue(value) && !isEmptyValue(existing.get(field.name))
+                : isEmptyValue(value) && !(value === undefined && field.defaultValue !== undefined)
+            if (missing) {
+                throw new Error(`${config.label || fieldName} #${index + 1}: ${field.label || field.name} is required`)
             }
         }
+    })
 
-        // Create or update items
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i]
-            const { itemData, relations } = splitItem(item, i)
-
-            if (item.id && existingIds.has(item.id)) {
-                // Update existing
-                const existing = existingItems.find((e: any) => e.id === item.id)
-                if (existing) {
-                    await existing.update(itemData)
-                    await syncRelations(existing, relations)
-                    stats.updated++
-                }
-            } else {
-                // Create new (remove id if it was set but doesn't exist)
-                delete itemData.id
-                await syncRelations(await Model.create(itemData), relations)
-                stats.created++
-            }
+    for (const item of deletedItems) {
+        const existing = findExisting(item)
+        if (existing) {
+            await existing.destroy({ transaction })
+            stats.deleted++
         }
-    } else {
-        // For creates: just create all items
-        for (let i = 0; i < items.length; i++) {
-            const { itemData, relations } = splitItem(items[i], i)
-            delete itemData.id // Remove any client-side temp id
-            await syncRelations(await Model.create(itemData), relations)
+    }
+
+    for (let i = 0; i < keptItems.length; i++) {
+        const { itemData, relations } = splitItem(keptItems[i], i)
+
+        const existing = findExisting(itemData)
+        if (existing) {
+            await existing.update(itemData, { transaction })
+            await syncRelations(existing, relations)
+            stats.updated++
+        } else {
+            // Create new (remove id if it was set but doesn't belong to this parent)
+            delete itemData.id
+            await syncRelations(await Model.create(itemData, { transaction }), relations)
             stats.created++
         }
     }
@@ -1146,20 +1195,25 @@ export default class AdminCollectionsController {
             data = await processCustomFieldTypes(data, collection.fields, 'validate')
             data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
 
-            // Create parent record
-            const record = await collection.model.create(data)
+            const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0
+            const record = await inSaveTransaction(collection.model, withRelations, async (transaction) => {
+                // Create parent record
+                const created = await collection.model.create(data, { transaction })
 
-            // Create hasMany items
-            for (const [fieldName, items] of hasManyData) {
-                const hmConfig = hasManyFields.get(fieldName)!
-                await processHasManyItems(record.id, fieldName, hmConfig, items, false)
-            }
+                // Create hasMany items
+                for (const [fieldName, items] of hasManyData) {
+                    const hmConfig = hasManyFields.get(fieldName)!
+                    await processHasManyItems(created.id, fieldName, hmConfig, items, false, transaction)
+                }
 
-            // Sync belongsToMany relations
-            for (const [fieldName, itemIds] of belongsToManyData) {
-                const btmConfig = belongsToManyFields.get(fieldName)!
-                await processBelongsToManyItems(record, fieldName, btmConfig, itemIds)
-            }
+                // Sync belongsToMany relations
+                for (const [fieldName, itemIds] of belongsToManyData) {
+                    const btmConfig = belongsToManyFields.get(fieldName)!
+                    await processBelongsToManyItems(created, fieldName, btmConfig, itemIds, transaction)
+                }
+
+                return created
+            })
 
             // Run afterCreate hook
             if (resolvedHooks?.afterCreate) {
@@ -1248,20 +1302,23 @@ export default class AdminCollectionsController {
             data = await processCustomFieldTypes(data, collection.fields, 'validate')
             data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
 
-            // Update parent record
-            await record.update(data)
+            const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0
+            await inSaveTransaction(collection.model, withRelations, async (transaction) => {
+                // Update parent record
+                await record.update(data, { transaction })
 
-            // Sync hasMany items
-            for (const [fieldName, items] of hasManyData) {
-                const hmConfig = hasManyFields.get(fieldName)!
-                await processHasManyItems(record.id, fieldName, hmConfig, items, true)
-            }
+                // Sync hasMany items
+                for (const [fieldName, items] of hasManyData) {
+                    const hmConfig = hasManyFields.get(fieldName)!
+                    await processHasManyItems(record.id, fieldName, hmConfig, items, true, transaction)
+                }
 
-            // Sync belongsToMany relations
-            for (const [fieldName, itemIds] of belongsToManyData) {
-                const btmConfig = belongsToManyFields.get(fieldName)!
-                await processBelongsToManyItems(record, fieldName, btmConfig, itemIds)
-            }
+                // Sync belongsToMany relations
+                for (const [fieldName, itemIds] of belongsToManyData) {
+                    const btmConfig = belongsToManyFields.get(fieldName)!
+                    await processBelongsToManyItems(record, fieldName, btmConfig, itemIds, transaction)
+                }
+            })
 
             // Run afterUpdate hook
             if (resolvedHooks?.afterUpdate) {
