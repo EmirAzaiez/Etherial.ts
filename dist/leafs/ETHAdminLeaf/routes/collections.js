@@ -32,10 +32,6 @@ import { Controller, Get, Post, Put, Delete, } from 'etherial/components/http/pr
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 import { Op, fn, col } from 'sequelize';
 const getAdminLeaf = () => etherial.eth_admin_leaf;
-/**
- * Extract hasMany field definitions from collection fields
- * Resolves collection references to get the actual model
- */
 function getHasManyFields(fields) {
     const result = new Map();
     if (!fields)
@@ -45,12 +41,17 @@ function getHasManyFields(fields) {
         if (field.type === 'hasMany' && field.hasMany) {
             const hm = field.hasMany;
             // Resolve model from collection if not specified
-            let resolvedModel = hm.model;
-            if (!resolvedModel && hm.collection) {
-                const refCollection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(hm.collection);
-                resolvedModel = refCollection === null || refCollection === void 0 ? void 0 : refCollection.model;
+            const refCollection = hm.collection ? adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(hm.collection) : undefined;
+            const resolvedModel = hm.model || (refCollection === null || refCollection === void 0 ? void 0 : refCollection.model);
+            // Item fields, resolved like the schema the admin UI edits them with
+            let resolvedFields = (refCollection === null || refCollection === void 0 ? void 0 : refCollection.fields) || [];
+            if (Array.isArray(hm.fields) && hm.fields.length > 0) {
+                resolvedFields = typeof hm.fields[0] === 'string'
+                    ? resolvedFields.filter(f => hm.fields.includes(f.name))
+                    : hm.fields;
             }
-            result.set(field.name, Object.assign(Object.assign({}, hm), { label: field.label, resolvedModel }));
+            result.set(field.name, Object.assign(Object.assign({}, hm), { label: field.label, resolvedModel,
+                resolvedFields }));
         }
     }
     return result;
@@ -143,62 +144,67 @@ function hasPivotData(items) {
  * - Simple: [1, 2, 3] → uses Sequelize set()
  * - With pivot: [{id: 5, through: {role: 2}}, {id: 8, through: {role: 1}}] → uses junction model directly
  */
-function processBelongsToManyItems(record, fieldName, config, items) {
+function processBelongsToManyItems(record, fieldName, config, items, transaction) {
     return __awaiter(this, void 0, void 0, function* () {
         const stats = { added: 0, removed: 0 };
         if (!items || !Array.isArray(items)) {
             return stats;
         }
         try {
-            if (items.length > 0 && hasPivotData(items)) {
-                // Format with pivot data — use junction model directly
-                const JunctionModel = typeof config.through === 'string' ? null : config.through;
-                if (!JunctionModel) {
-                    console.error(`[ETHAdminLeaf] Pivot fields require a junction model (not string) for ${fieldName}`);
-                    return stats;
-                }
-                // Get current associations for stats
-                const currentJunctions = yield JunctionModel.findAll({
-                    where: { [config.foreignKey]: record.id },
-                    raw: true
-                });
-                const currentOtherIds = new Set(currentJunctions.map((j) => j[config.otherKey]));
-                // Remove all existing junction rows
-                yield JunctionModel.destroy({ where: { [config.foreignKey]: record.id } });
-                stats.removed = currentJunctions.length;
-                // Create new junction rows with pivot data
-                for (const item of items) {
-                    yield JunctionModel.create(Object.assign({ [config.foreignKey]: record.id, [config.otherKey]: item.id }, (item.through || {})));
-                    if (!currentOtherIds.has(item.id)) {
-                        stats.added++;
+            // A savepoint keeps a failing relation logged-and-skipped as before, instead of
+            // aborting the transaction the rest of the save runs in
+            yield withSavepoint(transaction, (t) => __awaiter(this, void 0, void 0, function* () {
+                if (items.length > 0 && hasPivotData(items)) {
+                    // Format with pivot data — use junction model directly
+                    const JunctionModel = typeof config.through === 'string' ? null : config.through;
+                    if (!JunctionModel) {
+                        console.error(`[ETHAdminLeaf] Pivot fields require a junction model (not string) for ${fieldName}`);
+                        return;
                     }
-                }
-                // Adjust stats: items that were re-created aren't truly "added"
-                stats.added = items.filter(item => !currentOtherIds.has(item.id)).length;
-                stats.removed = currentJunctions.filter((j) => !items.some(item => item.id === j[config.otherKey])).length;
-            }
-            else {
-                // Simple ID format — use Sequelize's set method
-                const itemIds = items;
-                const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
-                if (typeof record[setMethodName] === 'function') {
-                    const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
-                    const currentItems = typeof record[getMethodName] === 'function'
-                        ? yield record[getMethodName]()
-                        : [];
-                    const currentIds = new Set(currentItems.map((item) => item.id));
-                    yield record[setMethodName](itemIds);
-                    const newIds = new Set(itemIds);
-                    for (const id of itemIds) {
-                        if (!currentIds.has(id))
+                    // Get current associations for stats
+                    const currentJunctions = yield JunctionModel.findAll({
+                        where: { [config.foreignKey]: record.id },
+                        raw: true,
+                        transaction: t
+                    });
+                    const currentOtherIds = new Set(currentJunctions.map((j) => j[config.otherKey]));
+                    // Remove all existing junction rows
+                    yield JunctionModel.destroy({ where: { [config.foreignKey]: record.id }, transaction: t });
+                    stats.removed = currentJunctions.length;
+                    // Create new junction rows with pivot data
+                    for (const item of items) {
+                        yield JunctionModel.create(Object.assign({ [config.foreignKey]: record.id, [config.otherKey]: item.id }, (item.through || {})), { transaction: t });
+                        if (!currentOtherIds.has(item.id)) {
                             stats.added++;
+                        }
                     }
-                    for (const id of currentIds) {
-                        if (!newIds.has(id))
-                            stats.removed++;
+                    // Adjust stats: items that were re-created aren't truly "added"
+                    stats.added = items.filter(item => !currentOtherIds.has(item.id)).length;
+                    stats.removed = currentJunctions.filter((j) => !items.some(item => item.id === j[config.otherKey])).length;
+                }
+                else {
+                    // Simple ID format — use Sequelize's set method
+                    const itemIds = items;
+                    const setMethodName = `set${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
+                    if (typeof record[setMethodName] === 'function') {
+                        const getMethodName = `get${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}`;
+                        const currentItems = typeof record[getMethodName] === 'function'
+                            ? yield record[getMethodName]({ transaction: t })
+                            : [];
+                        const currentIds = new Set(currentItems.map((item) => item.id));
+                        yield record[setMethodName](itemIds, { transaction: t });
+                        const newIds = new Set(itemIds);
+                        for (const id of itemIds) {
+                            if (!currentIds.has(id))
+                                stats.added++;
+                        }
+                        for (const id of currentIds) {
+                            if (!newIds.has(id))
+                                stats.removed++;
+                        }
                     }
                 }
-            }
+            }));
         }
         catch (err) {
             console.error(`[ETHAdminLeaf] Error processing belongsToMany ${fieldName}:`, err.message);
@@ -207,9 +213,39 @@ function processBelongsToManyItems(record, fieldName, config, items) {
     });
 }
 /**
- * Process hasMany items after parent record is created/updated
+ * Run `fn` in a savepoint of `transaction`, or without a transaction when none is given
  */
-function processHasManyItems(parentId, _fieldName, config, items, isUpdate) {
+function withSavepoint(transaction, fn) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!transaction)
+            return fn(undefined);
+        return transaction.sequelize.transaction({ transaction }, fn);
+    });
+}
+/**
+ * Run the writes of a save in one transaction when it touches relations, so a failure
+ * half-way can no longer leave the parent saved with only part of its children
+ */
+function inSaveTransaction(model, needed, fn) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!needed || !(model === null || model === void 0 ? void 0 : model.sequelize))
+            return fn(undefined);
+        return model.sequelize.transaction((transaction) => fn(transaction));
+    });
+}
+const isEmptyValue = (value) => value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+/**
+ * Process hasMany items after parent record is created/updated
+ *
+ * Deletion is explicit: an existing item is destroyed only when the payload sends it
+ * back with `_deleted: true` (what the admin UI does). An item missing from the payload
+ * is left untouched, so a form that held an incomplete list can no longer wipe the
+ * children on save.
+ *
+ * Items are validated before anything is written: a save can neither create an item
+ * without its required values, nor blank a required value an existing item has.
+ */
+function processHasManyItems(parentId, fieldName, config, items, isUpdate, transaction) {
     return __awaiter(this, void 0, void 0, function* () {
         const stats = { created: 0, updated: 0, deleted: 0 };
         if (!items || !Array.isArray(items)) {
@@ -221,47 +257,47 @@ function processHasManyItems(parentId, _fieldName, config, items, isUpdate) {
             console.error('[ETHAdminLeaf] No model found for hasMany field');
             return stats;
         }
-        if (isUpdate) {
-            // For updates: sync items (create new, update existing, delete removed)
-            const existingItems = yield Model.findAll({
-                where: { [config.foreignKey]: parentId }
-            });
-            const existingIds = new Set(existingItems.map((item) => item.id));
-            const newIds = new Set(items.filter(item => item.id).map(item => item.id));
-            // Delete items that are no longer in the list
-            for (const existing of existingItems) {
-                if (!newIds.has(existing.id)) {
-                    yield existing.destroy();
-                    stats.deleted++;
+        const orderField = config.orderField || 'order';
+        const existingItems = isUpdate
+            ? yield Model.findAll({ where: { [config.foreignKey]: parentId }, transaction })
+            : [];
+        const existingById = new Map(existingItems.map((item) => [String(item.id), item]));
+        const findExisting = (item) => (item.id != null ? existingById.get(String(item.id)) : undefined);
+        const deletedItems = items.filter(item => item === null || item === void 0 ? void 0 : item._deleted);
+        const keptItems = items.filter(item => item && !item._deleted);
+        const requiredFields = (config.resolvedFields || []).filter(f => { var _a; return (f.required || ((_a = f.validation) === null || _a === void 0 ? void 0 : _a.required)) && f.name !== 'id' && f.name !== config.foreignKey && f.name !== orderField; });
+        keptItems.forEach((item, index) => {
+            const existing = findExisting(item);
+            for (const field of requiredFields) {
+                const value = item[field.name];
+                const missing = existing
+                    ? value !== undefined && isEmptyValue(value) && !isEmptyValue(existing.get(field.name))
+                    : isEmptyValue(value) && !(value === undefined && field.defaultValue !== undefined);
+                if (missing) {
+                    throw new Error(`${config.label || fieldName} #${index + 1}: ${field.label || field.name} is required`);
                 }
             }
-            // Create or update items
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                const itemData = Object.assign(Object.assign({}, item), { [config.foreignKey]: parentId, [config.orderField || 'order']: i });
-                if (item.id && existingIds.has(item.id)) {
-                    // Update existing
-                    const existing = existingItems.find((e) => e.id === item.id);
-                    if (existing) {
-                        yield existing.update(itemData);
-                        stats.updated++;
-                    }
-                }
-                else {
-                    // Create new (remove id if it was set but doesn't exist)
-                    delete itemData.id;
-                    yield Model.create(itemData);
-                    stats.created++;
-                }
+        });
+        for (const item of deletedItems) {
+            const existing = findExisting(item);
+            if (existing) {
+                yield existing.destroy({ transaction });
+                stats.deleted++;
             }
         }
-        else {
-            // For creates: just create all items
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                const itemData = Object.assign(Object.assign({}, item), { [config.foreignKey]: parentId, [config.orderField || 'order']: i });
-                delete itemData.id; // Remove any client-side temp id
-                yield Model.create(itemData);
+        for (let i = 0; i < keptItems.length; i++) {
+            const itemData = Object.assign(Object.assign({}, keptItems[i]), { [config.foreignKey]: parentId, [orderField]: i });
+            delete itemData._deleted;
+            delete itemData._tempId;
+            const existing = findExisting(itemData);
+            if (existing) {
+                yield existing.update(itemData, { transaction });
+                stats.updated++;
+            }
+            else {
+                // Create new (remove id if it was set but doesn't belong to this parent)
+                delete itemData.id;
+                yield Model.create(itemData, { transaction });
                 stats.created++;
             }
         }
@@ -838,18 +874,22 @@ let AdminCollectionsController = class AdminCollectionsController {
                 // Process custom field types: validate then beforeSave
                 data = yield processCustomFieldTypes(data, collection.fields, 'validate');
                 data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
-                // Create parent record
-                const record = yield collection.model.create(data);
-                // Create hasMany items
-                for (const [fieldName, items] of hasManyData) {
-                    const hmConfig = hasManyFields.get(fieldName);
-                    yield processHasManyItems(record.id, fieldName, hmConfig, items, false);
-                }
-                // Sync belongsToMany relations
-                for (const [fieldName, itemIds] of belongsToManyData) {
-                    const btmConfig = belongsToManyFields.get(fieldName);
-                    yield processBelongsToManyItems(record, fieldName, btmConfig, itemIds);
-                }
+                const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0;
+                const record = yield inSaveTransaction(collection.model, withRelations, (transaction) => __awaiter(this, void 0, void 0, function* () {
+                    // Create parent record
+                    const created = yield collection.model.create(data, { transaction });
+                    // Create hasMany items
+                    for (const [fieldName, items] of hasManyData) {
+                        const hmConfig = hasManyFields.get(fieldName);
+                        yield processHasManyItems(created.id, fieldName, hmConfig, items, false, transaction);
+                    }
+                    // Sync belongsToMany relations
+                    for (const [fieldName, itemIds] of belongsToManyData) {
+                        const btmConfig = belongsToManyFields.get(fieldName);
+                        yield processBelongsToManyItems(created, fieldName, btmConfig, itemIds, transaction);
+                    }
+                    return created;
+                }));
                 // Run afterCreate hook
                 if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterCreate) {
                     yield resolvedHooks.afterCreate(record, req);
@@ -922,18 +962,21 @@ let AdminCollectionsController = class AdminCollectionsController {
                 // Process custom field types: validate then beforeSave
                 data = yield processCustomFieldTypes(data, collection.fields, 'validate');
                 data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
-                // Update parent record
-                yield record.update(data);
-                // Sync hasMany items
-                for (const [fieldName, items] of hasManyData) {
-                    const hmConfig = hasManyFields.get(fieldName);
-                    yield processHasManyItems(record.id, fieldName, hmConfig, items, true);
-                }
-                // Sync belongsToMany relations
-                for (const [fieldName, itemIds] of belongsToManyData) {
-                    const btmConfig = belongsToManyFields.get(fieldName);
-                    yield processBelongsToManyItems(record, fieldName, btmConfig, itemIds);
-                }
+                const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0;
+                yield inSaveTransaction(collection.model, withRelations, (transaction) => __awaiter(this, void 0, void 0, function* () {
+                    // Update parent record
+                    yield record.update(data, { transaction });
+                    // Sync hasMany items
+                    for (const [fieldName, items] of hasManyData) {
+                        const hmConfig = hasManyFields.get(fieldName);
+                        yield processHasManyItems(record.id, fieldName, hmConfig, items, true, transaction);
+                    }
+                    // Sync belongsToMany relations
+                    for (const [fieldName, itemIds] of belongsToManyData) {
+                        const btmConfig = belongsToManyFields.get(fieldName);
+                        yield processBelongsToManyItems(record, fieldName, btmConfig, itemIds, transaction);
+                    }
+                }));
                 // Run afterUpdate hook
                 if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterUpdate) {
                     yield resolvedHooks.afterUpdate(record, req);
