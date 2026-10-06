@@ -292,6 +292,8 @@ function processHasManyItems(parentId, _fieldName, config, items, isUpdate) {
         const childBelongsToMany = getBelongsToManyFields(resolveChildFields(config));
         const splitItem = (item, index) => {
             const itemData = Object.assign(Object.assign({}, item), { [config.foreignKey]: parentId, [config.orderField || 'order']: index });
+            delete itemData._deleted;
+            delete itemData._tempId;
             const relations = [];
             for (const [fieldName] of childBelongsToMany) {
                 if (fieldName in itemData) {
@@ -308,46 +310,35 @@ function processHasManyItems(parentId, _fieldName, config, items, isUpdate) {
                 yield processBelongsToManyItems(record, fieldName, childBelongsToMany.get(fieldName), value);
             }
         });
-        if (isUpdate) {
-            // For updates: sync items (create new, update existing, delete removed)
-            const existingItems = yield Model.findAll({
-                where: { [config.foreignKey]: parentId }
-            });
-            const existingIds = new Set(existingItems.map((item) => item.id));
-            const newIds = new Set(items.filter(item => item.id).map(item => item.id));
-            // Delete items that are no longer in the list
-            for (const existing of existingItems) {
-                if (!newIds.has(existing.id)) {
-                    yield existing.destroy();
-                    stats.deleted++;
-                }
-            }
-            // Create or update items
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                const { itemData, relations } = splitItem(item, i);
-                if (item.id && existingIds.has(item.id)) {
-                    // Update existing
-                    const existing = existingItems.find((e) => e.id === item.id);
-                    if (existing) {
-                        yield existing.update(itemData);
-                        yield syncRelations(existing, relations);
-                        stats.updated++;
-                    }
-                }
-                else {
-                    // Create new (remove id if it was set but doesn't exist)
-                    delete itemData.id;
-                    yield syncRelations(yield Model.create(itemData), relations);
-                    stats.created++;
-                }
+        // Only the items flagged `_deleted` are removed. The back-office sends
+        // every card it shows, a removed one kept with `_deleted: true`; a row
+        // missing from the payload (a partial payload, a stale form) is left alone.
+        // Backport of 2433097 onto this pin.
+        const existingItems = isUpdate
+            ? yield Model.findAll({ where: { [config.foreignKey]: parentId } })
+            : [];
+        const existingById = new Map(existingItems.map((item) => [String(item.id), item]));
+        const findExisting = (item) => (item.id != null ? existingById.get(String(item.id)) : undefined);
+        const deletedItems = items.filter(item => item === null || item === void 0 ? void 0 : item._deleted);
+        const keptItems = items.filter(item => item && !item._deleted);
+        for (const item of deletedItems) {
+            const existing = findExisting(item);
+            if (existing) {
+                yield existing.destroy();
+                stats.deleted++;
             }
         }
-        else {
-            // For creates: just create all items
-            for (let i = 0; i < items.length; i++) {
-                const { itemData, relations } = splitItem(items[i], i);
-                delete itemData.id; // Remove any client-side temp id
+        for (let i = 0; i < keptItems.length; i++) {
+            const { itemData, relations } = splitItem(keptItems[i], i);
+            const existing = findExisting(itemData);
+            if (existing) {
+                yield existing.update(itemData);
+                yield syncRelations(existing, relations);
+                stats.updated++;
+            }
+            else {
+                // Create new (remove id if it was set but doesn't belong to this parent)
+                delete itemData.id;
                 yield syncRelations(yield Model.create(itemData), relations);
                 stats.created++;
             }

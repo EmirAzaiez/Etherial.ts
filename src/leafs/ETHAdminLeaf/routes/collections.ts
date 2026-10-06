@@ -340,6 +340,8 @@ async function processHasManyItems(
             [config.foreignKey]: parentId,
             [config.orderField || 'order']: index
         }
+        delete itemData._deleted
+        delete itemData._tempId
         const relations: Array<[string, BelongsToManyInput]> = []
         for (const [fieldName] of childBelongsToMany) {
             if (fieldName in itemData) {
@@ -358,47 +360,38 @@ async function processHasManyItems(
         }
     }
 
-    if (isUpdate) {
-        // For updates: sync items (create new, update existing, delete removed)
-        const existingItems = await Model.findAll({
-            where: { [config.foreignKey]: parentId }
-        })
-        const existingIds = new Set(existingItems.map((item: any) => item.id))
-        const newIds = new Set(items.filter(item => item.id).map(item => item.id))
+    // Only the items flagged `_deleted` are removed. The back-office sends
+    // every card it shows, a removed one kept with `_deleted: true`; a row
+    // missing from the payload (a partial payload, a stale form) is left alone.
+    // Backport of 2433097 onto this pin.
+    const existingItems: any[] = isUpdate
+        ? await Model.findAll({ where: { [config.foreignKey]: parentId } })
+        : []
+    const existingById = new Map<string, any>(existingItems.map((item: any) => [String(item.id), item]))
+    const findExisting = (item: any) => (item.id != null ? existingById.get(String(item.id)) : undefined)
 
-        // Delete items that are no longer in the list
-        for (const existing of existingItems) {
-            if (!newIds.has(existing.id)) {
-                await existing.destroy()
-                stats.deleted++
-            }
+    const deletedItems = items.filter(item => item?._deleted)
+    const keptItems = items.filter(item => item && !item._deleted)
+
+    for (const item of deletedItems) {
+        const existing = findExisting(item)
+        if (existing) {
+            await existing.destroy()
+            stats.deleted++
         }
+    }
 
-        // Create or update items
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i]
-            const { itemData, relations } = splitItem(item, i)
+    for (let i = 0; i < keptItems.length; i++) {
+        const { itemData, relations } = splitItem(keptItems[i], i)
 
-            if (item.id && existingIds.has(item.id)) {
-                // Update existing
-                const existing = existingItems.find((e: any) => e.id === item.id)
-                if (existing) {
-                    await existing.update(itemData)
-                    await syncRelations(existing, relations)
-                    stats.updated++
-                }
-            } else {
-                // Create new (remove id if it was set but doesn't exist)
-                delete itemData.id
-                await syncRelations(await Model.create(itemData), relations)
-                stats.created++
-            }
-        }
-    } else {
-        // For creates: just create all items
-        for (let i = 0; i < items.length; i++) {
-            const { itemData, relations } = splitItem(items[i], i)
-            delete itemData.id // Remove any client-side temp id
+        const existing = findExisting(itemData)
+        if (existing) {
+            await existing.update(itemData)
+            await syncRelations(existing, relations)
+            stats.updated++
+        } else {
+            // Create new (remove id if it was set but doesn't belong to this parent)
+            delete itemData.id
             await syncRelations(await Model.create(itemData), relations)
             stats.created++
         }
