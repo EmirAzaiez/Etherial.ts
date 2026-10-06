@@ -147,6 +147,9 @@ export class BaseDevice extends Model<BaseDevice> {
                 model: form.model,
                 os_version: form.os_version,
                 app_version: form.app_version,
+                // The language the campaigns are sent in (title_ar / message_ar)
+                locale: form.locale,
+                tz: form.tz,
                 user_agent,
                 status: true,
                 last_activity: new Date(),
@@ -160,6 +163,8 @@ export class BaseDevice extends Model<BaseDevice> {
                 model: form.model ?? device.model,
                 os_version: form.os_version ?? device.os_version,
                 app_version: form.app_version ?? device.app_version,
+                locale: form.locale ?? device.locale,
+                tz: form.tz ?? device.tz,
                 user_agent: user_agent ?? device.user_agent,
                 status: true,
                 last_activity: new Date(),
