@@ -34,10 +34,20 @@ export interface AppleAuthConfig {
      */
     audience: string | string[];
 }
+export interface PasswordPolicyConfig {
+    /** Shortest password accepted, any characters allowed. */
+    min_length: number;
+}
 export interface ETHUserLeafConfig {
     default_avatar: string;
     avatar_s3_folder: string;
     apple?: AppleAuthConfig;
+    /**
+     * Rule for every password the leaf sets: setUserPassword, userUpdatePassword and
+     * confirmPasswordReset. Omitted, they require shouldBeStrongPassword (8+ characters
+     * with a lowercase, an uppercase, a digit and one of @$!%*?&).
+     */
+    password_policy?: PasswordPolicyConfig;
     routes: {
         auth: AuthMethods[];
         auth_google: AuthGoogleMethods[];
