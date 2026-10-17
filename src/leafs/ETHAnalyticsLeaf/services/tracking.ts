@@ -7,8 +7,14 @@
 // response to finish: by then the route that answered and the user it
 // authenticated are both on the request. Nothing is awaited on the request's
 // path, and nothing that goes wrong here reaches the caller.
+//
+// A public route (a catalogue the app also shows signed-out) never
+// authenticates anyone: when the call still carries a token, the user it
+// belongs to is looked up here, after the answer, with the auth middleware's
+// own checks.
 // ──────────────────────────────────────────────────────────────────────────
 
+import etherial from 'etherial'
 import type { Request, Response, NextFunction } from 'express'
 
 import { Collector } from './collector.js'
@@ -90,7 +96,7 @@ export function apiTrackingMiddleware(
         if (options.exclude?.some((rule) => matches(rule, routePath))) return
         if (options.include && !options.include.some((rule) => matches(rule, routePath))) return
 
-        const user = req.user
+        const user = req.user ?? (await userFromBearer(req))
         const userId = idOf(user)
         const fromHeaders = contextFromHeaders(req)
         if (!userId && !(options.guests && fromHeaders.installation_id)) return
@@ -129,6 +135,13 @@ export function apiTrackingMiddleware(
         })
         next()
     }
+}
+
+/** The user behind a public route's bearer token, or null. */
+async function userFromBearer(req: Request): Promise<any | null> {
+    const auth = req.headers.authorization
+    if (!auth?.startsWith('Bearer ')) return null
+    return (await (etherial as any).http_auth?.userFromToken(auth.slice(7)).catch(() => null)) ?? null
 }
 
 function dropEmpty(ctx: AnalyticsContext): AnalyticsContext {

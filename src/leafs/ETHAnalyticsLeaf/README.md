@@ -77,7 +77,7 @@ Le back-office affiche alors l'entrée **Analytics** dans le menu.
 | Option | Défaut | Rôle |
 |---|---|---|
 | `ingest` | off | `true` ou `{ maxBatch }` (100 par défaut, 500 au plus). Ouvre `POST /analytics/events`. |
-| `track` | off | `true` ou `{ include, exclude, methods, guests }`. Compte les appels API. Le préfixe admin et la route d'ingestion ne sont jamais comptés. |
+| `track` | off | `true` ou `{ include, exclude, methods, guests }`. Compte les appels API. Le préfixe admin et la route d'ingestion ne sont jamais comptés. Une route publique appelée avec un token compte pour l'utilisateur du token. |
 | `sessionTimeoutMinutes` | 30 | Durée de silence qui termine une visite. |
 | `retentionDays` | 395 | Nombre de jours d'événements gardés (13 mois). `0` garde tout. |
 | `timezone` | `UTC` | Fuseau qui découpe les jours, les semaines et la carte « heure × jour ». |

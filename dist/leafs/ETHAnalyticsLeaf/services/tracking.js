@@ -7,6 +7,11 @@
 // response to finish: by then the route that answered and the user it
 // authenticated are both on the request. Nothing is awaited on the request's
 // path, and nothing that goes wrong here reaches the caller.
+//
+// A public route (a catalogue the app also shows signed-out) never
+// authenticates anyone: when the call still carries a token, the user it
+// belongs to is looked up here, after the answer, with the auth middleware's
+// own checks.
 // ──────────────────────────────────────────────────────────────────────────
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -17,6 +22,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import etherial from 'etherial';
 const IDENTIFY_TTL_MS = 10 * 60 * 1000;
 const MAX_PARAM_LENGTH = 64;
 function matches(rule, path) {
@@ -82,7 +88,7 @@ export function apiTrackingMiddleware(options, config, collector, identity, skip
     var _a;
     const methods = (_a = options.methods) === null || _a === void 0 ? void 0 : _a.map((m) => m.toUpperCase());
     const record = (req, res, startedAt) => __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         const rawPath = (_a = req.route) === null || _a === void 0 ? void 0 : _a.path;
         if (typeof rawPath !== 'string')
             return;
@@ -93,17 +99,17 @@ export function apiTrackingMiddleware(options, config, collector, identity, skip
             return;
         if (options.include && !options.include.some((rule) => matches(rule, routePath)))
             return;
-        const user = req.user;
+        const user = (_c = req.user) !== null && _c !== void 0 ? _c : (yield userFromBearer(req));
         const userId = idOf(user);
         const fromHeaders = contextFromHeaders(req);
         if (!userId && !(options.guests && fromHeaders.installation_id))
             return;
-        if (user && ((_c = config.excludeUser) === null || _c === void 0 ? void 0 : _c.call(config, user)))
+        if (user && ((_d = config.excludeUser) === null || _d === void 0 ? void 0 : _d.call(config, user)))
             return;
         const identified = userId ? yield identity.get(userId, user, req) : null;
         // The headers describe this very call; identify() only the user's latest device.
         const context = Object.assign(Object.assign(Object.assign({}, identified), dropEmpty(fromHeaders)), { user_id: userId });
-        const params = Object.fromEntries(Object.entries((_d = req.params) !== null && _d !== void 0 ? _d : {}).map(([k, v]) => [k, String(v).slice(0, MAX_PARAM_LENGTH)]));
+        const params = Object.fromEntries(Object.entries((_e = req.params) !== null && _e !== void 0 ? _e : {}).map(([k, v]) => [k, String(v).slice(0, MAX_PARAM_LENGTH)]));
         yield collector.track([
             {
                 type: 'api',
@@ -124,6 +130,16 @@ export function apiTrackingMiddleware(options, config, collector, identity, skip
         });
         next();
     };
+}
+/** The user behind a public route's bearer token, or null. */
+function userFromBearer(req) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
+        const auth = req.headers.authorization;
+        if (!(auth === null || auth === void 0 ? void 0 : auth.startsWith('Bearer ')))
+            return null;
+        return (_b = (yield ((_a = etherial.http_auth) === null || _a === void 0 ? void 0 : _a.userFromToken(auth.slice(7)).catch(() => null)))) !== null && _b !== void 0 ? _b : null;
+    });
 }
 function dropEmpty(ctx) {
     return Object.fromEntries(Object.entries(ctx).filter(([, v]) => v !== null && v !== undefined && v !== ''));
