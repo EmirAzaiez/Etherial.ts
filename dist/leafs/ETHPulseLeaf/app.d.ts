@@ -5,6 +5,8 @@ import { ExpoConfig } from './providers/push/index.js';
 import { SmsService } from './services/sms.service.js';
 import { EmailService } from './services/email.service.js';
 import { PushService } from './services/push.service.js';
+import { CommunicationsConfig, CommunicationSource } from './services/communications.js';
+import { PulseTextsConfig } from './services/texts.js';
 import { TemplateConfig } from './templates/TemplateEngine.js';
 import { UnifonicConfig } from './providers/sms/UnifonicProvider.js';
 /**
@@ -24,12 +26,33 @@ export default class ETHPulseLeaf {
     private routes;
     constructor(config: ETHPulseLeafConfig);
     /**
-     * Lifecycle: beforeRun - Register models
+     * Lifecycle: beforeRun - the notification texts' table, before the project syncs.
+     * The other models are the project's (it extends the base ones).
      */
+    beforeRun({ database }: Etherial): void;
     /**
      * Lifecycle: run
      */
     run({ http }: Etherial): void;
+    /**
+     * Lifecycle: afterRun - tell the back-office where the timeline lives, once
+     * the admin leaf is up (it may be declared after this one).
+     */
+    afterRun(): void;
+    /**
+     * A notification's text, as the back-office last wrote it in the person's
+     * language, else the code's: `await pulse.text('appointment.confirmed', { user, data: { time } })`.
+     */
+    text(key: string, input?: {
+        user?: any;
+        locale?: string | null;
+        data?: Record<string, unknown>;
+    }): Promise<string>;
+    /**
+     * Add the project's own messages to a user's timeline: a campaign table,
+     * a WhatsApp log… Each entry needs a channel, a date and an id.
+     */
+    registerCommunicationSource(name: string, source: CommunicationSource): void;
     /**
      * Get SMS service
      * @param providerName Optional provider name, uses default if not specified
@@ -137,7 +160,22 @@ export interface ETHPulseLeafConfig {
     routes?: {
         devices?: DevicesMethods[];
     };
+    /**
+     * The texts of the automatic notifications, in every language. The
+     * back-office's Notification texts page rewrites them; `text(key)` reads
+     * the one that goes out.
+     */
+    texts?: PulseTextsConfig;
+    /**
+     * Off by default. When on, every message sent is logged with its content
+     * (codes and long tokens masked) and the back-office shows a timeline of a
+     * user's push, SMS, email and inbox messages next to their devices.
+     */
+    communications?: boolean | CommunicationsConfig;
 }
+export { CommunicationsConfig, CommunicationSource, CommunicationEntry, CommunicationQuery } from './services/communications.js';
+export { PulseTextsConfig, PulseTextDefinition, PulseTextVariable, PulseLocalized } from './services/texts.js';
+export { PulseText } from './models/PulseText.js';
 export { ISmsProvider, SmsResult, SmsOptions } from './providers/sms/index.js';
 export { IEmailProvider, EmailResult, EmailOptions, TransactionalContent, GmailOAuthConfig } from './providers/email/index.js';
 export { IPushProvider, PushResult, PushMessage, PushOptions } from './providers/push/index.js';

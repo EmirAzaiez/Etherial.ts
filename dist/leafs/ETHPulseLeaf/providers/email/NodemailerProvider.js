@@ -57,6 +57,7 @@ export class NodemailerProvider {
                     cc: options.cc,
                     bcc: options.bcc,
                     attachments: options.attachments,
+                    headers: options.headers,
                 });
                 return {
                     success: true,

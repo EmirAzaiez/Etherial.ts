@@ -66,6 +66,7 @@ export class GmailOAuthProvider implements IEmailProvider {
                 cc: options.cc,
                 bcc: options.bcc,
                 attachments: options.attachments,
+                headers: options.headers,
             })
 
             return {

@@ -10,11 +10,15 @@ export declare class EmailService {
     /**
      * Send raw email using the default or specified provider
      */
-    send(options: EmailOptions, providerName?: string): Promise<EmailResult>;
+    send(options: EmailOptions & {
+        userId?: number;
+    }, providerName?: string): Promise<EmailResult>;
     /**
      * Send transactional email with built-in template
      */
-    sendTransactional(params: TransactionalOptions, providerName?: string): Promise<EmailResult>;
+    sendTransactional(params: TransactionalOptions & {
+        userId?: number;
+    }, providerName?: string): Promise<EmailResult>;
     /**
      * Send email using a template stored in the database.
      *
@@ -30,6 +34,7 @@ export declare class EmailService {
         to: string | string[];
         locale?: string;
         variables?: Record<string, string>;
+        userId?: number;
     }, providerName?: string): Promise<EmailResult>;
     /**
      * Log message to database

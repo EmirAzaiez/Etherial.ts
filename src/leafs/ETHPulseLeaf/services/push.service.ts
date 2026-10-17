@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { IPushProvider, PushResult, PushMessage, PushOptions } from '../providers/push/IPushProvider.js'
 import { MessageType, MessageStatus } from '../models/MessageLog.js'
 import etherial from 'etherial'
@@ -64,10 +65,15 @@ export class PushService {
     async sendMultiple(
         pushTokens: string[],
         message: PushMessage,
-        options?: PushOptions & { userIds?: number[]; providerName?: string }
+        options?: PushOptions & { userIds?: number[]; providerName?: string; logMetadata?: Record<string, any> }
     ): Promise<PushResult[]> {
         const provider = this.provider(options?.providerName)
         const results = await provider.sendMultiple(pushTokens, message, options)
+
+        // One send to several devices: the rows share a batch id, so a
+        // timeline can show them as the one message they are.
+        const batch = results.length > 1 ? randomUUID() : undefined
+        const metadata = batch ? { ...options?.logMetadata, batch } : options?.logMetadata
 
         // Log each message
         await Promise.all(
@@ -81,6 +87,7 @@ export class PushService {
                     externalId: result.ticketId,
                     errorMessage: result.error,
                     userId: options?.userIds?.[index],
+                    metadata,
                 })
             )
         )
@@ -142,6 +149,7 @@ export class PushService {
         externalId?: string
         errorMessage?: string
         userId?: number
+        metadata?: Record<string, any>
     }): Promise<void> {
         try {
             const { MessageLog } = getModels()

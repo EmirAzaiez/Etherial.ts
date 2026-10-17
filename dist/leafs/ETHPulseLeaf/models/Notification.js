@@ -76,16 +76,21 @@ export class BaseNotification extends Model {
                 if (devices.length === 0) {
                     return;
                 }
-                const tokens = devices.map((d) => d.push_token).filter(Boolean);
+                const withToken = devices.filter((d) => d.push_token);
+                const tokens = withToken.map((d) => d.push_token);
                 if (tokens.length === 0) {
                     return;
                 }
                 // Build notification data
                 const notificationData = instance.buildPushData();
-                // Send push
+                // Send push. The log rows name the user and the inbox entry, so the
+                // back-office shows one message with its push status, not two.
                 yield pulseLeaf.push().sendMultiple(tokens, {
                     body: instance.title || '',
                     data: notificationData,
+                }, {
+                    userIds: withToken.map((d) => d.user_id),
+                    logMetadata: { notification_id: instance.id },
                 });
                 console.log(`[BaseNotification] Push sent to ${tokens.length} devices for notification ${instance.id}`);
             }

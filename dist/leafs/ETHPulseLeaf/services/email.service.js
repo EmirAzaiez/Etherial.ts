@@ -7,6 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 import { MessageType, MessageStatus } from '../models/MessageLog.js';
 import { BaseEmailTemplate } from '../models/EmailTemplate.js';
 import etherial from 'etherial';
@@ -16,6 +27,31 @@ const getModels = () => {
         MessageLog: models.MessageLog,
     };
 };
+/** The words of an HTML email, for the log: tags out, entities and blank runs collapsed. */
+function htmlToText(html) {
+    if (!html)
+        return undefined;
+    return html
+        .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<br\s*\/?>|<\/(p|div|h\d|li|tr)>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#39;|&apos;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\s*\n\s*/g, '\n')
+        .trim();
+}
+function transactionalText(content) {
+    if (!content)
+        return undefined;
+    // The button's URL is left out: a reset or magic link carries its token.
+    const parts = [content.title, content.greeting, content.body, content.buttonText, content.additionalContent];
+    return htmlToText(parts.filter(Boolean).join('\n\n'));
+}
 export class EmailService {
     constructor(providers, defaultProvider) {
         this.providers = new Map();
@@ -39,16 +75,19 @@ export class EmailService {
     send(options, providerName) {
         return __awaiter(this, void 0, void 0, function* () {
             const provider = this.provider(providerName);
-            const result = yield provider.send(options);
+            const { userId } = options, email = __rest(options, ["userId"]);
+            const result = yield provider.send(email);
             // Log the message
             const recipients = Array.isArray(options.to) ? options.to : [options.to];
             yield Promise.all(recipients.map(recipient => this.logMessage({
                 provider: provider.name,
                 recipient,
                 subject: options.subject,
+                content: options.text || htmlToText(options.html),
                 status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
                 externalId: result.messageId,
                 errorMessage: result.error,
+                userId,
             })));
             return result;
         });
@@ -59,7 +98,8 @@ export class EmailService {
     sendTransactional(params, providerName) {
         return __awaiter(this, void 0, void 0, function* () {
             const provider = this.provider(providerName);
-            const result = yield provider.sendTransactional(params);
+            const { userId } = params, email = __rest(params, ["userId"]);
+            const result = yield provider.sendTransactional(email);
             // Log the message — cc/bcc recipients are deliberately not logged, so a
             // blind copy stays blind in the MessageLog too.
             const recipients = Array.isArray(params.email) ? params.email : [params.email];
@@ -67,10 +107,12 @@ export class EmailService {
                 provider: provider.name,
                 recipient,
                 subject: params.subject,
+                content: transactionalText(params.content),
                 status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
                 externalId: result.messageId,
                 errorMessage: result.error,
                 metadata: { type: 'transactional' },
+                userId,
             })));
             return result;
         });
@@ -103,6 +145,7 @@ export class EmailService {
             const resolved = template.resolve(params.variables || {});
             return this.sendTransactional({
                 email: params.to,
+                userId: params.userId,
                 subject: resolved.subject,
                 content: {
                     title: resolved.title,

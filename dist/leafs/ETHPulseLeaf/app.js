@@ -7,6 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import etherial from 'etherial';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -19,6 +20,10 @@ import { ExpoProvider } from './providers/push/index.js';
 import { SmsService } from './services/sms.service.js';
 import { EmailService } from './services/email.service.js';
 import { PushService } from './services/push.service.js';
+import { communicationsOptions, registerCommunicationSource, } from './services/communications.js';
+// Notification texts
+import { PulseText } from './models/PulseText.js';
+import { TEXTS_COLLECTION, PulseTextError, pulseText, setTextsConfig, textLocales } from './services/texts.js';
 // Seeds
 import { getDefaultContent } from './seeds/email-template-defaults.js';
 import { UnifonicProvider } from './providers/sms/UnifonicProvider.js';
@@ -98,6 +103,18 @@ export default class ETHPulseLeaf {
         if (((_h = config.routes) === null || _h === void 0 ? void 0 : _h.devices) && config.routes.devices.length > 0) {
             this.routes.push({ route: path.join(__dirname, 'routes/devices'), methods: config.routes.devices });
         }
+        // A user's messages and devices on one timeline, in the back-office
+        if (communicationsOptions(config.communications)) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/communications'),
+                methods: ['userCommunications'],
+            });
+        }
+        // Notification texts the back-office rewrites
+        if (config.texts) {
+            setTextsConfig(config.texts);
+            this.routes.push({ route: path.join(__dirname, 'routes/texts'), methods: ['listTexts', 'saveText', 'resetText'] });
+        }
         // Register email template sync route (always available when templates are configured)
         if ((_j = config.email) === null || _j === void 0 ? void 0 : _j.templates) {
             this.routes.push({
@@ -107,8 +124,13 @@ export default class ETHPulseLeaf {
         }
     }
     /**
-     * Lifecycle: beforeRun - Register models
+     * Lifecycle: beforeRun - the notification texts' table, before the project syncs.
+     * The other models are the project's (it extends the base ones).
      */
+    beforeRun({ database }) {
+        if (this.config.texts)
+            database === null || database === void 0 ? void 0 : database.addModels([PulseText]);
+    }
     // beforeRun({ database }: Etherial) {
     //     database?.addModels([
     //         path.join(__dirname, 'models/MessageLog.js'),
@@ -127,6 +149,48 @@ export default class ETHPulseLeaf {
         if (this.routes.length > 0) {
             http.routes_leafs.push(...this.routes);
         }
+    }
+    /**
+     * Lifecycle: afterRun - tell the back-office where the timeline lives, once
+     * the admin leaf is up (it may be declared after this one).
+     */
+    afterRun() {
+        var _a, _b, _c, _d;
+        const communications = communicationsOptions(this.config.communications);
+        const adminLeaf = etherial.eth_admin_leaf;
+        if (communications && (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.setFeature)) {
+            adminLeaf.setFeature('communications', { collection: (_a = communications.usersCollection) !== null && _a !== void 0 ? _a : 'users' });
+        }
+        if (this.config.texts && (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.registerCollection)) {
+            // Rewritten through the Notification texts page, which checks them: the generic routes only read.
+            const refuse = () => __awaiter(this, void 0, void 0, function* () {
+                throw new PulseTextError('read_only', 400, 'Change texts from the Notification texts page');
+            });
+            (_c = (_b = adminLeaf.hooks) === null || _b === void 0 ? void 0 : _b.register) === null || _c === void 0 ? void 0 : _c.call(_b, 'pulse:texts-read-only', {
+                collection: TEXTS_COLLECTION,
+                description: 'Notification texts are saved from the Notification texts page',
+                beforeCreate: refuse,
+                beforeUpdate: refuse,
+                beforeDelete: () => __awaiter(this, void 0, void 0, function* () { return false; }),
+            });
+            if (!adminLeaf.getCollection(TEXTS_COLLECTION))
+                adminLeaf.registerCollection(textsCollection());
+            (_d = adminLeaf.setFeature) === null || _d === void 0 ? void 0 : _d.call(adminLeaf, 'pulseTexts', Object.assign(Object.assign({ collection: TEXTS_COLLECTION }, textLocales()), { count: this.config.texts.items.length }));
+        }
+    }
+    /**
+     * A notification's text, as the back-office last wrote it in the person's
+     * language, else the code's: `await pulse.text('appointment.confirmed', { user, data: { time } })`.
+     */
+    text(key, input = {}) {
+        return pulseText(key, input);
+    }
+    /**
+     * Add the project's own messages to a user's timeline: a campaign table,
+     * a WhatsApp log… Each entry needs a channel, a date and an id.
+     */
+    registerCommunicationSource(name, source) {
+        registerCommunicationSource(name, source);
     }
     /**
      * Get SMS service
@@ -382,8 +446,39 @@ export default class ETHPulseLeaf {
 export const AvailableRouteMethods = {
     devices: ['registerDevice', 'revokeDevice'],
 };
+export { PulseText } from './models/PulseText.js';
 export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js';
 export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus } from './models/Device.js';
 export { ETHPulseLeafNotificationBaseModel } from './models/Notification.js';
 export { BaseEmailTemplate, EmailTemplate } from './models/EmailTemplate.js';
 export { registerPulseCollections } from './admin/features.js';
+function textsCollection() {
+    return {
+        name: TEXTS_COLLECTION,
+        model: PulseText,
+        // `update` is never used by the generic routes (the hooks refuse it): it is
+        // listed so the role permissions can grant editing the texts.
+        crud: ['list', 'show', 'update'],
+        meta: {
+            label: 'Notification text',
+            labelPlural: 'Notification texts',
+            icon: 'MessageSquareText',
+            description: 'The texts of the automatic notifications, as the back-office rewrote them',
+            group: 'System',
+            order: 96,
+            hidden: true,
+        },
+        fields: [
+            { name: 'id', type: 'integer', readonly: true, sortable: true },
+            { name: 'key', type: 'string', label: 'Text', readonly: true, filterable: true },
+            { name: 'locale', type: 'string', label: 'Language', readonly: true, filterable: true },
+            { name: 'text', type: 'text', label: 'Text', readonly: true },
+            { name: 'updated_by', type: 'integer', label: 'Saved by', readonly: true },
+            { name: 'updated_at', type: 'datetime', label: 'Saved', readonly: true, sortable: true },
+        ],
+        views: {
+            list: { fields: ['key', 'locale', 'text', 'updated_at'], sort: { field: 'updated_at', direction: 'desc' } },
+            show: { fields: ['key', 'locale', 'text', 'updated_by', 'updated_at'] },
+        },
+    };
+}

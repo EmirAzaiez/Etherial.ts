@@ -20,6 +20,7 @@ export declare class PushService {
     sendMultiple(pushTokens: string[], message: PushMessage, options?: PushOptions & {
         userIds?: number[];
         providerName?: string;
+        logMetadata?: Record<string, any>;
     }): Promise<PushResult[]>;
     /**
      * Send push notification to a Device model instance

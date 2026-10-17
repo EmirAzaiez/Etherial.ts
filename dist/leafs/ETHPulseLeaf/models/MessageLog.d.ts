@@ -1,4 +1,5 @@
 import { Model } from 'etherial/components/database/provider';
+export declare function redactCodes(text: string): string;
 export declare enum MessageType {
     SMS = "sms",
     EMAIL = "email",
@@ -55,6 +56,8 @@ export declare class BaseMessageLog extends Model<BaseMessageLog> {
         errorMessage?: string;
         metadata?: Record<string, any>;
         userId?: number;
+        /** What the message said. Kept (in `metadata.content`, codes masked) only when `communications` is on. */
+        content?: string;
     }): Promise<BaseMessageLog>;
     updateStatus(status: MessageStatus, externalId?: string, errorMessage?: string): Promise<void>;
     markAsSent(externalId?: string): Promise<void>;

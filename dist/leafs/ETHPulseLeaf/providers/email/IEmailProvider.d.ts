@@ -25,6 +25,8 @@ export interface EmailOptions {
     cc?: string | string[];
     bcc?: string | string[];
     attachments?: EmailAttachment[];
+    /** Extra headers, as `List-Unsubscribe` for a newsletter. */
+    headers?: Record<string, string>;
 }
 export interface TransactionalContent {
     title?: string;

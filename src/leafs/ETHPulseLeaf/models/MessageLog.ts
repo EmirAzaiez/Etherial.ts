@@ -12,6 +12,26 @@ import {
 } from 'etherial/components/database/provider'
 import etherial from 'etherial'
 
+// A message carrying a one-time code is worth a login to whoever reads the
+// log. Its digits are masked before the text is stored: a code the back-office
+// shows is a code a staff member can use.
+const CODE_HINT = /\b(code|otp|pin|passcode|verification|verify|password)\b|رمز|كود|التحقق|تحقق/i
+const DIGIT_RUN = /(?<![0-9٠-٩])[0-9٠-٩]{4,8}(?![0-9٠-٩])/g
+// Reset tokens, magic links, API keys: long unbroken runs of token characters.
+const TOKEN_RUN = /[A-Za-z0-9_\-]{32,}/g
+
+export function redactCodes(text: string): string {
+    const masked = text.replace(TOKEN_RUN, '••••')
+    return CODE_HINT.test(masked) ? masked.replace(DIGIT_RUN, '••••') : masked
+}
+
+const MAX_CONTENT = 4000
+
+function withContent(metadata: Record<string, any> | undefined, content: string | undefined) {
+    if (!content || !(etherial as any).eth_pulse_leaf?.config?.communications) return metadata
+    return { ...metadata, content: redactCodes(content).slice(0, MAX_CONTENT) }
+}
+
 export enum MessageType {
     SMS = 'sms',
     EMAIL = 'email',
@@ -112,6 +132,8 @@ export class BaseMessageLog extends Model<BaseMessageLog> {
             errorMessage?: string
             metadata?: Record<string, any>
             userId?: number
+            /** What the message said. Kept (in `metadata.content`, codes masked) only when `communications` is on. */
+            content?: string
         }
     ): Promise<BaseMessageLog> {
         // Get the registered MessageLog model from Sequelize
@@ -131,7 +153,7 @@ export class BaseMessageLog extends Model<BaseMessageLog> {
             status: data.status || MessageStatus.PENDING,
             external_id: data.externalId,
             error_message: data.errorMessage,
-            metadata: data.metadata,
+            metadata: withContent(data.metadata, data.content),
             user_id: data.userId,
         })
     }

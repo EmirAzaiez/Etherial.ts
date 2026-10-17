@@ -13,6 +13,7 @@ export declare class SmsService {
     send(params: {
         phone: string;
         message: string;
+        userId?: number;
     }, providerName?: string): Promise<SmsResult>;
     /**
      * Send SMS to multiple recipients

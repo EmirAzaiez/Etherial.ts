@@ -7,6 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import { randomUUID } from 'crypto';
 import { MessageType, MessageStatus } from '../models/MessageLog.js';
 import etherial from 'etherial';
 const getModels = () => {
@@ -60,6 +61,10 @@ export class PushService {
         return __awaiter(this, void 0, void 0, function* () {
             const provider = this.provider(options === null || options === void 0 ? void 0 : options.providerName);
             const results = yield provider.sendMultiple(pushTokens, message, options);
+            // One send to several devices: the rows share a batch id, so a
+            // timeline can show them as the one message they are.
+            const batch = results.length > 1 ? randomUUID() : undefined;
+            const metadata = batch ? Object.assign(Object.assign({}, options === null || options === void 0 ? void 0 : options.logMetadata), { batch }) : options === null || options === void 0 ? void 0 : options.logMetadata;
             // Log each message
             yield Promise.all(results.map((result, index) => {
                 var _a;
@@ -72,6 +77,7 @@ export class PushService {
                     externalId: result.ticketId,
                     errorMessage: result.error,
                     userId: (_a = options === null || options === void 0 ? void 0 : options.userIds) === null || _a === void 0 ? void 0 : _a[index],
+                    metadata,
                 });
             }));
             return results;

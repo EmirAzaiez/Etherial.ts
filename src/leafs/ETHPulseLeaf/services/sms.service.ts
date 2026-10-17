@@ -35,17 +35,20 @@ export class SmsService {
     /**
      * Send SMS using the default or specified provider
      */
-    async send(params: { phone: string; message: string }, providerName?: string): Promise<SmsResult> {
+    async send(params: { phone: string; message: string; userId?: number }, providerName?: string): Promise<SmsResult> {
         const provider = this.provider(providerName)
-        const result = await provider.send(params)
+        const { userId, ...sms } = params
+        const result = await provider.send(sms)
 
         // Log the message
         await this.logMessage({
             provider: provider.name,
             recipient: params.phone,
+            content: params.message,
             status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
             externalId: result.messageId,
             errorMessage: result.error,
+            userId,
         })
 
         return result
@@ -64,6 +67,7 @@ export class SmsService {
                 this.logMessage({
                     provider: provider.name,
                     recipient: recipients[index],
+                    content: message,
                     status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
                     externalId: result.messageId,
                     errorMessage: result.error,
@@ -88,6 +92,7 @@ export class SmsService {
     private async logMessage(data: {
         provider: string
         recipient: string
+        content?: string
         status: MessageStatus
         externalId?: string
         errorMessage?: string

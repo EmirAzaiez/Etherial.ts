@@ -146,7 +146,7 @@ export function applyPulseMixin<TBase extends Constructor<Model<any> & UserLike>
                 return { success: false, error: 'User has no phone number' }
             }
 
-            return etherial.eth_pulse_leaf.sms(providerName).send({ phone: this.phone, message: params.message })
+            return etherial.eth_pulse_leaf.sms(providerName).send({ phone: this.phone, message: params.message, userId: this.id })
         }
 
         /**
@@ -173,7 +173,8 @@ export function applyPulseMixin<TBase extends Constructor<Model<any> & UserLike>
             return etherial.eth_pulse_leaf.email(providerName).sendTransactional({
                 email: this.email,
                 subject: params.subject,
-                content: params.content
+                content: params.content,
+                userId: this.id,
             })
         }
 
@@ -210,6 +211,7 @@ export function applyPulseMixin<TBase extends Constructor<Model<any> & UserLike>
                 to: this.email,
                 locale: options?.locale,
                 variables: { ...userVars, ...options?.variables },
+                userId: this.id,
             })
         }
     }

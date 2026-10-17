@@ -43,8 +43,8 @@ export const pulseActions = {
             message: yup.string().required().max(500).label('Message'),
             url: yup.string().url().label('Link (optional)')
         }),
-        handler: (record, data, _req, _context) => __awaiter(void 0, void 0, void 0, function* () {
-            var _a, _b;
+        handler: (record, data, req, _context) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a, _b, _c;
             const { title, message, url } = data;
             const { Device } = getModels();
             const devices = yield Device.findAll({
@@ -70,6 +70,9 @@ export const pulseActions = {
                 title: title || defaultTitle,
                 body: message,
                 data: notificationData
+            }, {
+                userIds: devices.filter(d => d.push_token).map(d => d.user_id),
+                logMetadata: { source: 'back-office', sent_by_user_id: (_c = req === null || req === void 0 ? void 0 : req.user) === null || _c === void 0 ? void 0 : _c.id },
             });
             return { success: true, data: { sent_to: tokens.length } };
         })
@@ -97,7 +100,7 @@ export const pulseActions = {
                 return { success: false, error: 'No phone number found' };
             }
             const pulseLeaf = getPulseLeaf();
-            const result = yield pulseLeaf.sms().send({ phone, message: data.message });
+            const result = yield pulseLeaf.sms().send({ phone, message: data.message, userId: record.id });
             return result.success
                 ? { success: true, data: { sent: true, phone } }
                 : { success: false, error: result.error };
@@ -128,6 +131,7 @@ export const pulseActions = {
             }
             const pulseLeaf = getPulseLeaf();
             const result = yield pulseLeaf.email().sendTransactional({
+                userId: record.id,
                 email,
                 subject: data.subject,
                 content: {

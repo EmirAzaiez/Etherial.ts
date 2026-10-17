@@ -55,7 +55,7 @@ export function applyPulseMixin(Base) {
                 if (!this.phone) {
                     return { success: false, error: 'User has no phone number' };
                 }
-                return etherial.eth_pulse_leaf.sms(providerName).send({ phone: this.phone, message: params.message });
+                return etherial.eth_pulse_leaf.sms(providerName).send({ phone: this.phone, message: params.message, userId: this.id });
             });
         }
         /**
@@ -74,7 +74,8 @@ export function applyPulseMixin(Base) {
                 return etherial.eth_pulse_leaf.email(providerName).sendTransactional({
                     email: this.email,
                     subject: params.subject,
-                    content: params.content
+                    content: params.content,
+                    userId: this.id,
                 });
             });
         }
@@ -101,6 +102,7 @@ export function applyPulseMixin(Base) {
                     to: this.email,
                     locale: options === null || options === void 0 ? void 0 : options.locale,
                     variables: Object.assign(Object.assign({}, userVars), options === null || options === void 0 ? void 0 : options.variables),
+                    userId: this.id,
                 });
             });
         }

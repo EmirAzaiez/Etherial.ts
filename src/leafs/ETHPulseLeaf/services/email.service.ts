@@ -15,6 +15,31 @@ const getModels = () => {
     }
 }
 
+/** The words of an HTML email, for the log: tags out, entities and blank runs collapsed. */
+function htmlToText(html: string | undefined): string | undefined {
+    if (!html) return undefined
+    return html
+        .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<br\s*\/?>|<\/(p|div|h\d|li|tr)>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#39;|&apos;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\s*\n\s*/g, '\n')
+        .trim()
+}
+
+function transactionalText(content: TransactionalOptions['content']): string | undefined {
+    if (!content) return undefined
+    // The button's URL is left out: a reset or magic link carries its token.
+    const parts = [content.title, content.greeting, content.body, content.buttonText, (content as any).additionalContent]
+    return htmlToText(parts.filter(Boolean).join('\n\n'))
+}
+
 export class EmailService {
     private providers: Map<string, IEmailProvider> = new Map()
     private defaultProvider: string
@@ -41,9 +66,10 @@ export class EmailService {
     /**
      * Send raw email using the default or specified provider
      */
-    async send(options: EmailOptions, providerName?: string): Promise<EmailResult> {
+    async send(options: EmailOptions & { userId?: number }, providerName?: string): Promise<EmailResult> {
         const provider = this.provider(providerName)
-        const result = await provider.send(options)
+        const { userId, ...email } = options
+        const result = await provider.send(email)
 
         // Log the message
         const recipients = Array.isArray(options.to) ? options.to : [options.to]
@@ -53,9 +79,11 @@ export class EmailService {
                     provider: provider.name,
                     recipient,
                     subject: options.subject,
+                    content: options.text || htmlToText(options.html),
                     status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
                     externalId: result.messageId,
                     errorMessage: result.error,
+                    userId,
                 })
             )
         )
@@ -67,11 +95,12 @@ export class EmailService {
      * Send transactional email with built-in template
      */
     async sendTransactional(
-        params: TransactionalOptions,
+        params: TransactionalOptions & { userId?: number },
         providerName?: string
     ): Promise<EmailResult> {
         const provider = this.provider(providerName)
-        const result = await provider.sendTransactional(params)
+        const { userId, ...email } = params
+        const result = await provider.sendTransactional(email)
 
         // Log the message — cc/bcc recipients are deliberately not logged, so a
         // blind copy stays blind in the MessageLog too.
@@ -82,10 +111,12 @@ export class EmailService {
                     provider: provider.name,
                     recipient,
                     subject: params.subject,
+                    content: transactionalText(params.content),
                     status: result.success ? MessageStatus.SENT : MessageStatus.FAILED,
                     externalId: result.messageId,
                     errorMessage: result.error,
                     metadata: { type: 'transactional' },
+                    userId,
                 })
             )
         )
@@ -110,6 +141,7 @@ export class EmailService {
             to: string | string[]
             locale?: string
             variables?: Record<string, string>
+            userId?: number
         },
         providerName?: string
     ): Promise<EmailResult> {
@@ -131,6 +163,7 @@ export class EmailService {
 
         return this.sendTransactional({
             email: params.to,
+            userId: params.userId,
             subject: resolved.subject,
             content: {
                 title: resolved.title,
@@ -150,6 +183,7 @@ export class EmailService {
         provider: string
         recipient: string
         subject?: string
+        content?: string
         status: MessageStatus
         externalId?: string
         errorMessage?: string

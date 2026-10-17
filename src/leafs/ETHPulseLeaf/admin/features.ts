@@ -40,7 +40,7 @@ export const pulseActions: Record<string, Omit<Action, 'name'>> = {
             message: yup.string().required().max(500).label('Message'),
             url: yup.string().url().label('Link (optional)')
         }),
-        handler: async (record, data, _req, _context): Promise<ActionResult> => {
+        handler: async (record, data, req, _context): Promise<ActionResult> => {
             const { title, message, url } = data
 
             const { Device } = getModels()
@@ -71,6 +71,9 @@ export const pulseActions: Record<string, Omit<Action, 'name'>> = {
                 title: title || defaultTitle,
                 body: message,
                 data: notificationData
+            }, {
+                userIds: devices.filter(d => d.push_token).map(d => d.user_id),
+                logMetadata: { source: 'back-office', sent_by_user_id: (req as any)?.user?.id },
             })
 
             return { success: true, data: { sent_to: tokens.length } }
@@ -101,7 +104,7 @@ export const pulseActions: Record<string, Omit<Action, 'name'>> = {
             }
 
             const pulseLeaf = getPulseLeaf()
-            const result = await pulseLeaf.sms().send({ phone, message: data.message })
+            const result = await pulseLeaf.sms().send({ phone, message: data.message, userId: record.id })
 
             return result.success
                 ? { success: true, data: { sent: true, phone } }
@@ -135,6 +138,7 @@ export const pulseActions: Record<string, Omit<Action, 'name'>> = {
 
             const pulseLeaf = getPulseLeaf()
             const result = await pulseLeaf.email().sendTransactional({
+                userId: record.id,
                 email,
                 subject: data.subject,
                 content: {
