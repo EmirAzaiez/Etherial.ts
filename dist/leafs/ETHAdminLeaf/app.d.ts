@@ -3,6 +3,8 @@ import { ActionRegistry, CustomFieldTypeConfig } from './features/ActionRegistry
 import { HookRegistry, ResolvedHooks } from './features/HookRegistry.js';
 import { CollectionConfig, SerializedCollection } from './features/CollectionConfig.js';
 import { PageConfig, SerializedPage } from './features/PageConfig.js';
+import { LoginJournalConfig } from './features/loginJournal.js';
+import { AuditConfig } from './features/audit.js';
 export type AccessChecker = (user: any, context: {
     route: string;
     method: string;
@@ -23,6 +25,27 @@ export interface AdminSettings {
 }
 export interface AdminFeatures {
     reactiveMonitoring?: boolean;
+    /**
+     * Keep a journal of back-office sign-ins (who, when, from where, refused
+     * or not), listed in the `admin-logins` collection. Opt-in: the leaf adds
+     * an `admin_login_logs` table.
+     */
+    loginJournal?: boolean | LoginJournalConfig;
+    /**
+     * Record every change to the records the back-office shows: who made it
+     * (a person, Salesforce, the system…), through what, and each column
+     * before and after. Shown on each record and in the `admin-audit`
+     * collection; an edit can be undone from there. Opt-in: the leaf adds an
+     * `admin_audit_logs` table. Name an integration's writes with `withActor()`.
+     */
+    audit?: boolean | AuditConfig;
+    /**
+     * The back-office's AI helpers: the assistant, "Fill with AI",
+     * auto-translate, the flow generator. Opt-in: what they read is sent to an
+     * AI provider, and every request is paid for. Off, the back-office hides
+     * them and their routes refuse; a project's own AI routes ask `aiEnabled()`.
+     */
+    ai?: boolean;
 }
 export interface ETHAdminLeafConfig {
     prefix?: string;
@@ -148,9 +171,34 @@ export default class ETHAdminLeaf {
     get settings(): AdminSettings;
     get features(): AdminFeatures;
     /**
+     * What the back-office needs to know about the features: whether each one
+     * is on, never its server-side configuration.
+     */
+    publicFeatures(): Record<string, any>;
+    /** Whether the project turned the back-office's AI helpers on (`features.ai`). */
+    aiEnabled(): boolean;
+    private _leafFeatures;
+    private _auditedCollections;
+    /**
+     * Another leaf announcing what it adds to the back-office (Pulse's
+     * communications timeline…). Only what the front needs: never secrets.
+     */
+    setFeature(name: string, value: unknown): void;
+    /**
+     * Lifecycle: beforeRun - hand the leaf's own tables to the database before
+     * it syncs. Only the features turned on add a table.
+     */
+    beforeRun({ database }: Etherial): void;
+    /**
      * Lifecycle: run - register routes
      */
     run({ http }: Etherial): void;
+    /**
+     * Lifecycle: afterRun - every model and collection of the project exists
+     * now, so the journal can join its rows to the user model and link them
+     * to the users collection.
+     */
+    afterRun(): void;
     commands(): any[];
 }
 export * from './features/index.js';

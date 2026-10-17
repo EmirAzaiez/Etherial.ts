@@ -856,9 +856,16 @@ export default class AdminCollectionsController {
                 ? { paranoid: false }
                 : {}
 
+            // The primary key always comes along: the back-office keys and links
+            // rows by it, whether or not the list shows it as a column.
+            const primaryKey = collection.model.primaryKeyAttribute
+            const listAttributes = listView?.fields && primaryKey && !listView.fields.includes(primaryKey)
+                ? [primaryKey, ...listView.fields]
+                : listView?.fields
+
             const result = await collection.model.findAndCountAll({
                 where,
-                attributes: listView?.fields,
+                attributes: listAttributes,
                 include: listView?.include || [],
                 order: orderClause,
                 limit: effectiveLimit,
@@ -1839,6 +1846,10 @@ export default class AdminCollectionsController {
                     .filter(f => !f.secure && f.type !== 'hasMany' && f.type !== 'belongsToMany')
                     .map(f => f.name)
             }
+            // Only the model's columns: a field like a map-picker is drawn by the
+            // back-office from other columns, and selecting it fails the query.
+            const columns = collection.model.rawAttributes || {}
+            exportFields = exportFields.filter(f => !!columns[f])
 
             const MAX_EXPORT_ROWS = 10000
             const rows = await collection.model.findAll({

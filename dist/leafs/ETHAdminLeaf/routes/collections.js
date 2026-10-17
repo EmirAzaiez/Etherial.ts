@@ -745,7 +745,13 @@ let AdminCollectionsController = class AdminCollectionsController {
                 const paranoidOption = ((_g = collection.softDelete) === null || _g === void 0 ? void 0 : _g.enabled) && showDeleted === 'true'
                     ? { paranoid: false }
                     : {};
-                const result = yield collection.model.findAndCountAll(Object.assign({ where, attributes: listView === null || listView === void 0 ? void 0 : listView.fields, include: (listView === null || listView === void 0 ? void 0 : listView.include) || [], order: orderClause, limit: effectiveLimit, offset: effectiveOffset }, paranoidOption));
+                // The primary key always comes along: the back-office keys and links
+                // rows by it, whether or not the list shows it as a column.
+                const primaryKey = collection.model.primaryKeyAttribute;
+                const listAttributes = (listView === null || listView === void 0 ? void 0 : listView.fields) && primaryKey && !listView.fields.includes(primaryKey)
+                    ? [primaryKey, ...listView.fields]
+                    : listView === null || listView === void 0 ? void 0 : listView.fields;
+                const result = yield collection.model.findAndCountAll(Object.assign({ where, attributes: listAttributes, include: (listView === null || listView === void 0 ? void 0 : listView.include) || [], order: orderClause, limit: effectiveLimit, offset: effectiveOffset }, paranoidOption));
                 // Transform field values for admin display (enums, secure fields)
                 const transformedItems = transformFields(result.rows, collection.fields || []);
                 // Add CDN URLs to all media objects
@@ -1556,6 +1562,10 @@ let AdminCollectionsController = class AdminCollectionsController {
                         .filter(f => !f.secure && f.type !== 'hasMany' && f.type !== 'belongsToMany')
                         .map(f => f.name);
                 }
+                // Only the model's columns: a field like a map-picker is drawn by the
+                // back-office from other columns, and selecting it fails the query.
+                const columns = collection.model.rawAttributes || {};
+                exportFields = exportFields.filter(f => !!columns[f]);
                 const MAX_EXPORT_ROWS = 10000;
                 const rows = yield collection.model.findAll({
                     where,

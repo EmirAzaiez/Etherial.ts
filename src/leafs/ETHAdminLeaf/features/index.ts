@@ -10,6 +10,7 @@ export {
     FieldType,
     FieldDefinition,
     FieldOption,
+    BadgeColor,
     CustomFieldTypeConfig,
     yupToForm
 } from './ActionRegistry.js'
@@ -36,3 +37,9 @@ export {
     SerializedPage,
     CustomPageForm
 } from './PageConfig.js'
+
+// Login journal
+export { LoginJournalConfig, LOGIN_JOURNAL_COLLECTION } from './loginJournal.js'
+
+// Change history
+export { AuditConfig, AuditActor, AUDIT_COLLECTION, withActor, withAuditMeta, currentActor } from './audit.js'

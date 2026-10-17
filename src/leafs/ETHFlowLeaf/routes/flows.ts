@@ -31,6 +31,10 @@ import type { FlowGraph } from '../types.js'
 
 const getAdminLeaf = () => (etherial as any).eth_admin_leaf
 
+// Describing a flow in a sentence is one of the back-office's AI helpers: it
+// goes with the admin leaf's `features.ai`. The AI steps inside flows don't.
+const canGenerate = () => hasAI() && !!getAdminLeaf()?.aiEnabled?.()
+
 async function canManage(req: any, res: any): Promise<boolean> {
     const adminLeaf = getAdminLeaf()
     if (!adminLeaf) {
@@ -83,7 +87,7 @@ export default class FlowsController {
             status: 200,
             data: {
                 ...registry.serialize(),
-                ai: hasAI(),
+                ai: canGenerate(),
             },
         })
     }
@@ -340,6 +344,8 @@ export default class FlowsController {
     @ShouldBeAuthenticated()
     async generate(req: Request & { user: any; body: any }, res: Response): Promise<any> {
         if (!(await canManage(req, res))) return
+
+        if (!canGenerate()) return (res as any).error?.({ status: 403, errors: ['ai_off'] })
 
         const prompt = String(req.body?.prompt ?? '').trim()
         if (!prompt) return (res as any).error?.({ status: 400, errors: ['prompt_required'] })

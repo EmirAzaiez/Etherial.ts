@@ -181,6 +181,32 @@ export class HttpAuth {
         return jwt.decode(token);
     }
     /**
+     * The user a token belongs to, with the same checks as authMiddleware
+     * (signature, expiry, auth checker, token version) — or null.
+     * For code that holds a token outside a request: a login being journaled,
+     * a socket handshake.
+     */
+    userFromToken(token) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const payload = this.verifyToken(token);
+            if (!payload || !this.authChecker)
+                return null;
+            try {
+                const user = yield this.authChecker(payload);
+                if (!user)
+                    return null;
+                const tokenVersion = payload.tv;
+                const userVersion = user.token_version;
+                if (tokenVersion !== undefined && userVersion !== undefined && tokenVersion !== userVersion)
+                    return null;
+                return user;
+            }
+            catch (_a) {
+                return null;
+            }
+        });
+    }
+    /**
      * Set the custom authentication checker
      */
     setAuthChecker(checker) {

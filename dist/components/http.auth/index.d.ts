@@ -41,6 +41,13 @@ export declare class HttpAuth implements IEtherialModule {
      */
     decodeToken(token: string): JWTPayload | null;
     /**
+     * The user a token belongs to, with the same checks as authMiddleware
+     * (signature, expiry, auth checker, token version) — or null.
+     * For code that holds a token outside a request: a login being journaled,
+     * a socket handshake.
+     */
+    userFromToken(token: string): Promise<any | null>;
+    /**
      * Set the custom authentication checker
      */
     setAuthChecker(checker: AuthChecker): void;

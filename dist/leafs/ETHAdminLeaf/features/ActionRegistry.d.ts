@@ -268,6 +268,8 @@ export interface FieldMap {
     /** Map height in pixels (default: 400) */
     height?: number;
 }
+/** The chip colours the back office knows. */
+export type BadgeColor = 'gray' | 'red' | 'orange' | 'amber' | 'yellow' | 'lime' | 'green' | 'emerald' | 'teal' | 'cyan' | 'sky' | 'blue' | 'indigo' | 'violet' | 'purple' | 'fuchsia' | 'pink' | 'rose' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
 export interface FieldDefinition {
     name: string;
     type: FieldType;
@@ -303,6 +305,18 @@ export interface FieldDefinition {
     hasMany?: FieldHasMany;
     belongsToMany?: FieldBelongsToMany;
     map?: FieldMap;
+    /**
+     * Show a text value as a coloured chip, in the lists and on the record: a
+     * status synced from Salesforce, whose values the code does not list.
+     *
+     * `true` colours each value from its words: Completed is green, Pending
+     * amber, Failed red, Closed grey. A map pins values to colours (matched
+     * without case) and leaves the others to that guess:
+     * `badge: { Sold: 'purple', Booked: 'blue' }`.
+     *
+     * On a `select`, an option's own `color` still wins.
+     */
+    badge?: boolean | Record<string, BadgeColor>;
     /**
      * Column span in a 12-column grid system (1-12)
      * Default: 12 (full width)

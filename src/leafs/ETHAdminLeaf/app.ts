@@ -7,6 +7,26 @@ import { ActionRegistry, SerializedAction, CustomFieldTypeConfig, FieldDefinitio
 import { HookRegistry, ResolvedHooks } from './features/HookRegistry.js'
 import { CollectionConfig, SerializedCollection } from './features/CollectionConfig.js'
 import { PageConfig, SerializedPage } from './features/PageConfig.js'
+import {
+    LoginJournalConfig,
+    LOGIN_JOURNAL_COLLECTION,
+    loginJournalOptions,
+    loginJournalMiddleware,
+    loginJournalCollection,
+    linkLoginJournalToUsers,
+} from './features/loginJournal.js'
+import { AdminLoginLog } from './models/AdminLoginLog.js'
+import {
+    AuditConfig,
+    AUDIT_COLLECTION,
+    auditOptions,
+    auditContextMiddleware,
+    auditCollection,
+    installAuditHooks,
+    linkAuditToUsers,
+    scheduleAuditRetention,
+} from './features/audit.js'
+import { AdminAuditLog } from './models/AdminAuditLog.js'
 
 export type AccessChecker = (
     user: any,
@@ -31,6 +51,27 @@ export interface AdminSettings {
 
 export interface AdminFeatures {
     reactiveMonitoring?: boolean
+    /**
+     * Keep a journal of back-office sign-ins (who, when, from where, refused
+     * or not), listed in the `admin-logins` collection. Opt-in: the leaf adds
+     * an `admin_login_logs` table.
+     */
+    loginJournal?: boolean | LoginJournalConfig
+    /**
+     * Record every change to the records the back-office shows: who made it
+     * (a person, Salesforce, the system…), through what, and each column
+     * before and after. Shown on each record and in the `admin-audit`
+     * collection; an edit can be undone from there. Opt-in: the leaf adds an
+     * `admin_audit_logs` table. Name an integration's writes with `withActor()`.
+     */
+    audit?: boolean | AuditConfig
+    /**
+     * The back-office's AI helpers: the assistant, "Fill with AI",
+     * auto-translate, the flow generator. Opt-in: what they read is sent to an
+     * AI provider, and every request is paid for. Off, the back-office hides
+     * them and their routes refuse; a project's own AI routes ask `aiEnabled()`.
+     */
+    ai?: boolean
 }
 
 export interface ETHAdminLeafConfig {
@@ -460,7 +501,7 @@ export default class ETHAdminLeaf {
 
         return {
             settings: this._settings,
-            features: this._features,
+            features: this.publicFeatures(),
             collections: this.serializeCollections(),
             pages: this.serializePages(),
             customFieldTypes: this.getCustomFieldTypeNames(),
@@ -525,6 +566,57 @@ export default class ETHAdminLeaf {
     }
 
     /**
+     * What the back-office needs to know about the features: whether each one
+     * is on, never its server-side configuration.
+     */
+    publicFeatures(): Record<string, any> {
+        const { loginJournal, audit, ai, ...rest } = this._features
+        const auditConfig = auditOptions(audit)
+        return {
+            ...rest,
+            ...this._leafFeatures,
+            loginJournal: loginJournal ? { collection: LOGIN_JOURNAL_COLLECTION } : false,
+            audit: auditConfig
+                ? {
+                      collection: AUDIT_COLLECTION,
+                      collections: this._auditedCollections,
+                      usersCollection: auditConfig.usersCollection ?? 'users',
+                  }
+                : false,
+            ai: this.aiEnabled(),
+        }
+    }
+
+    /** Whether the project turned the back-office's AI helpers on (`features.ai`). */
+    aiEnabled(): boolean {
+        return this._features.ai === true
+    }
+
+    private _leafFeatures: Record<string, any> = {}
+    private _auditedCollections: string[] = []
+
+    /**
+     * Another leaf announcing what it adds to the back-office (Pulse's
+     * communications timeline…). Only what the front needs: never secrets.
+     */
+    setFeature(name: string, value: unknown): void {
+        this._leafFeatures[name] = value
+    }
+
+    /**
+     * Lifecycle: beforeRun - hand the leaf's own tables to the database before
+     * it syncs. Only the features turned on add a table.
+     */
+    beforeRun({ database }: Etherial) {
+        if (loginJournalOptions(this._features.loginJournal)) {
+            database?.addModels([AdminLoginLog] as any)
+        }
+        if (auditOptions(this._features.audit)) {
+            database?.addModels([AdminAuditLog] as any)
+        }
+    }
+
+    /**
      * Lifecycle: run - register routes
      */
     run({ http }: Etherial) {
@@ -568,11 +660,56 @@ export default class ETHAdminLeaf {
             methods: ['submitForm']
         })
 
+        const audit = auditOptions(this._features.audit)
+        if (audit) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/audit'),
+                methods: ['history', 'restore']
+            })
+        }
+
         http?.routes_leafs?.push(...this.routes)
+
+        // Mounted now, before any controller: http.listen() registers the
+        // routes later, so the journal sees the login's answer go out.
+        const journal = loginJournalOptions(this._features.loginJournal)
+        if (journal && http?.app) {
+            http.app.use(loginJournalMiddleware(journal))
+            console.log('[ETHAdminLeaf] Login journal enabled')
+        }
+
+        // Opened before any controller, so every write a request makes knows who made it.
+        if (audit && http?.app) {
+            http.app.use(auditContextMiddleware(audit, this._config.prefix ?? '/admin'))
+        }
 
         console.log(`[ETHAdminLeaf] Initialized with ${this._collections.size} collections, ${this._pages.size} pages, ${this._customFieldTypes.size} custom field types`)
         console.log(`[ETHAdminLeaf] Actions: ${this._actions.list().join(', ') || 'none'}`)
         console.log(`[ETHAdminLeaf] Hooks: ${this._hooks.list().join(', ') || 'none'}`)
+    }
+
+    /**
+     * Lifecycle: afterRun - every model and collection of the project exists
+     * now, so the journal can join its rows to the user model and link them
+     * to the users collection.
+     */
+    afterRun() {
+        const journal = loginJournalOptions(this._features.loginJournal)
+        if (journal && !this._collections.has(LOGIN_JOURNAL_COLLECTION)) {
+            const linked = linkLoginJournalToUsers(journal)
+            const hasUsers = this._collections.has(journal.usersCollection ?? 'users')
+            this.registerCollection(loginJournalCollection(journal, hasUsers, linked) as CollectionConfig)
+        }
+
+        const audit = auditOptions(this._features.audit)
+        if (audit && !this._collections.has(AUDIT_COLLECTION)) {
+            this._auditedCollections = installAuditHooks(Array.from(this._collections.values()), audit)
+            const linked = linkAuditToUsers(audit)
+            const hasUsers = this._collections.has(audit.usersCollection ?? 'users')
+            this.registerCollection(auditCollection(audit, this._auditedCollections, hasUsers, linked) as CollectionConfig)
+            scheduleAuditRetention(audit)
+            console.log(`[ETHAdminLeaf] Change history on ${this._auditedCollections.length} collections`)
+        }
     }
 
     commands() {

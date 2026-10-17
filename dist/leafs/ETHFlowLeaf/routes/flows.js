@@ -41,6 +41,9 @@ import { generateFlow } from '../ai/generator.js';
 import { WEBHOOK_PREFIX } from '../config.js';
 import { hasAI } from '../ai/provider.js';
 const getAdminLeaf = () => etherial.eth_admin_leaf;
+// Describing a flow in a sentence is one of the back-office's AI helpers: it
+// goes with the admin leaf's `features.ai`. The AI steps inside flows don't.
+const canGenerate = () => { var _a, _b; return hasAI() && !!((_b = (_a = getAdminLeaf()) === null || _a === void 0 ? void 0 : _a.aiEnabled) === null || _b === void 0 ? void 0 : _b.call(_a)); };
 function canManage(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
@@ -89,7 +92,7 @@ let FlowsController = class FlowsController {
                 return;
             return (_b = (_a = res).success) === null || _b === void 0 ? void 0 : _b.call(_a, {
                 status: 200,
-                data: Object.assign(Object.assign({}, registry.serialize()), { ai: hasAI() }),
+                data: Object.assign(Object.assign({}, registry.serialize()), { ai: canGenerate() }),
             });
         });
     }
@@ -318,18 +321,20 @@ let FlowsController = class FlowsController {
     /** Describe the automation in a sentence; get a graph back to edit. */
     generate(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
             if (!(yield canManage(req, res)))
                 return;
-            const prompt = String((_b = (_a = req.body) === null || _a === void 0 ? void 0 : _a.prompt) !== null && _b !== void 0 ? _b : '').trim();
+            if (!canGenerate())
+                return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['ai_off'] });
+            const prompt = String((_d = (_c = req.body) === null || _c === void 0 ? void 0 : _c.prompt) !== null && _d !== void 0 ? _d : '').trim();
             if (!prompt)
-                return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 400, errors: ['prompt_required'] });
+                return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 400, errors: ['prompt_required'] });
             try {
-                const draft = yield generateFlow(prompt, (_e = req.body) === null || _e === void 0 ? void 0 : _e.existing);
-                return (_g = (_f = res).success) === null || _g === void 0 ? void 0 : _g.call(_f, { status: 200, data: draft });
+                const draft = yield generateFlow(prompt, (_g = req.body) === null || _g === void 0 ? void 0 : _g.existing);
+                return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 200, data: draft });
             }
             catch (error) {
-                return (_j = (_h = res).error) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 400, errors: [(_k = error === null || error === void 0 ? void 0 : error.message) !== null && _k !== void 0 ? _k : 'generation_failed'] });
+                return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 400, errors: [(_m = error === null || error === void 0 ? void 0 : error.message) !== null && _m !== void 0 ? _m : 'generation_failed'] });
             }
         });
     }
