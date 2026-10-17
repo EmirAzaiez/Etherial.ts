@@ -54,7 +54,7 @@ export var DevicePushTokenStatus;
 export class BaseDevice extends Model {
     static registerOrUpdateDevice(_a) {
         return __awaiter(this, arguments, void 0, function* ({ form, user_agent, user_id }) {
-            var _b, _c, _d, _e, _f;
+            var _b, _c, _d, _e, _f, _g, _h;
             const platformValue = (_b = form.platform) !== null && _b !== void 0 ? _b : DevicePlatform.WEB;
             let device = yield this.findOne({
                 where: { device: form.device },
@@ -68,10 +68,12 @@ export class BaseDevice extends Model {
                 };
             }
             if (!device) {
-                device = yield this.create(Object.assign({ user_id, device: form.device, platform: platformValue, brand: form.brand, model: form.model, os_version: form.os_version, app_version: form.app_version, user_agent, status: true, last_activity: new Date() }, pushObject));
+                device = yield this.create(Object.assign({ user_id, device: form.device, platform: platformValue, brand: form.brand, model: form.model, os_version: form.os_version, app_version: form.app_version, 
+                    // The language the campaigns are sent in (title_ar / message_ar)
+                    locale: form.locale, tz: form.tz, user_agent, status: true, last_activity: new Date() }, pushObject));
             }
             else if (device.user_id === user_id || device.user_id === null) {
-                yield device.update(Object.assign({ user_id, platform: platformValue, brand: (_c = form.brand) !== null && _c !== void 0 ? _c : device.brand, model: (_d = form.model) !== null && _d !== void 0 ? _d : device.model, os_version: (_e = form.os_version) !== null && _e !== void 0 ? _e : device.os_version, app_version: (_f = form.app_version) !== null && _f !== void 0 ? _f : device.app_version, user_agent: user_agent !== null && user_agent !== void 0 ? user_agent : device.user_agent, status: true, last_activity: new Date() }, pushObject));
+                yield device.update(Object.assign({ user_id, platform: platformValue, brand: (_c = form.brand) !== null && _c !== void 0 ? _c : device.brand, model: (_d = form.model) !== null && _d !== void 0 ? _d : device.model, os_version: (_e = form.os_version) !== null && _e !== void 0 ? _e : device.os_version, app_version: (_f = form.app_version) !== null && _f !== void 0 ? _f : device.app_version, locale: (_g = form.locale) !== null && _g !== void 0 ? _g : device.locale, tz: (_h = form.tz) !== null && _h !== void 0 ? _h : device.tz, user_agent: user_agent !== null && user_agent !== void 0 ? user_agent : device.user_agent, status: true, last_activity: new Date() }, pushObject));
             }
             return device;
         });
