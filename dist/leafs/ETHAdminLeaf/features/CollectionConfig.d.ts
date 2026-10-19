@@ -184,6 +184,12 @@ export interface CollectionConfig {
      * Assistants attached to this collection's form (AI fill, preview)
      */
     assistants?: CollectionAssistants;
+    /**
+     * Body keys a create or update may carry beyond the declared, editable
+     * fields: what a widget or a hook reads without a field of its own.
+     * Everything else is dropped before the hooks run.
+     */
+    extraWritable?: string[];
 }
 /**
  * Serialized sub-collection with FULL field definitions

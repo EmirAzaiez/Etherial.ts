@@ -8,6 +8,21 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import jwt from 'jsonwebtoken';
+import { createHash, timingSafeEqual } from 'crypto';
+/**
+ * Compares a secret in constant time. `===` stops at the first wrong
+ * character, and the time it takes leaks how much of a guess was right.
+ * Both sides are hashed first: `timingSafeEqual` needs equal lengths, and
+ * comparing the lengths themselves would leak the secret's.
+ */
+function safeEqual(given, expected) {
+    if (typeof given !== 'string' || typeof expected !== 'string' || !expected) {
+        return false;
+    }
+    const a = createHash('sha256').update(given).digest();
+    const b = createHash('sha256').update(expected).digest();
+    return timingSafeEqual(a, b);
+}
 export class HttpAuth {
     constructor({ secret, defaultExpiresIn }) {
         /**
@@ -80,13 +95,19 @@ export class HttpAuth {
                 try {
                     const base64Credentials = authHeader.slice(6);
                     const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
-                    const [username, password] = credentials.split(':');
+                    // At the first colon only: a password may contain one.
+                    const separator = credentials.indexOf(':');
+                    const username = separator >= 0 ? credentials.slice(0, separator) : credentials;
+                    const password = separator >= 0 ? credentials.slice(separator + 1) : '';
                     if (!username || !password) {
                         res.status(401).json({ errors: ['invalid_credentials'] });
                         return;
                     }
                     // Direct verification with provided credentials
-                    if (username === expectedUsername && password === expectedPassword) {
+                    // Both compared, always: stopping at a wrong username would tell it apart by timing.
+                    const usernameMatches = safeEqual(username, expectedUsername);
+                    const passwordMatches = safeEqual(password, expectedPassword);
+                    if (usernameMatches && passwordMatches) {
                         req.user = { username };
                         return next();
                     }
@@ -113,7 +134,7 @@ export class HttpAuth {
                     return;
                 }
                 // Direct verification with provided API key
-                if (apiKey === expectedApiKey) {
+                if (safeEqual(apiKey, expectedApiKey)) {
                     req.user = { apiKey };
                     return next();
                 }

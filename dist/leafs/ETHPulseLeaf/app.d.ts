@@ -7,6 +7,7 @@ import { EmailService } from './services/email.service.js';
 import { PushService } from './services/push.service.js';
 import { CommunicationsConfig, CommunicationSource } from './services/communications.js';
 import { PulseTextsConfig } from './services/texts.js';
+import { PushCampaignsConfig } from './services/campaigns.js';
 import { TemplateConfig } from './templates/TemplateEngine.js';
 import { UnifonicConfig } from './providers/sms/UnifonicProvider.js';
 /**
@@ -172,8 +173,21 @@ export interface ETHPulseLeafConfig {
      * user's push, SMS, email and inbox messages next to their devices.
      */
     communications?: boolean | CommunicationsConfig;
+    /**
+     * Off by default. Push campaigns from the back-office: draft, schedule or
+     * send now, a test send, per-device deliveries with Expo's receipts and
+     * the taps, and a sweep that sends what is due (one server per turn).
+     * The project keeps its models (tables `notification_campaigns` and
+     * `notification_campaign_deliveries`, extending `BasePushCampaign` and
+     * `BaseNotificationCampaignDelivery`) and says who a campaign reaches.
+     * Replaces the `pulse:send-campaign` hook, which sent on create.
+     */
+    campaigns?: PushCampaignsConfig;
 }
 export { CommunicationsConfig, CommunicationSource, CommunicationEntry, CommunicationQuery } from './services/communications.js';
+export { PushCampaignsConfig, PushCampaignAudience, CAMPAIGN_NOTIFICATION_LOCATION, dispatchCampaign, collectReceipts, refreshCampaignStats, sendCampaignTest, recordCampaignOpen, publishCampaignToInbox, } from './services/campaigns.js';
+export { BasePushCampaign, NotificationCampaignStatus, EDITABLE_CAMPAIGN_STATUSES, pushCampaignTable } from './models/PushCampaign.js';
+export { BaseNotificationCampaignDelivery, NotificationDeliveryStatus, notificationCampaignDeliveryTable } from './models/NotificationCampaignDelivery.js';
 export { PulseTextsConfig, PulseTextDefinition, PulseTextVariable, PulseLocalized } from './services/texts.js';
 export { PulseText } from './models/PulseText.js';
 export { ISmsProvider, SmsResult, SmsOptions } from './providers/sms/index.js';

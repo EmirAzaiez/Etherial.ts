@@ -30,6 +30,8 @@ var __rest = (this && this.__rest) || function (s, e) {
 import etherial from 'etherial';
 import { Controller, Get, Post, Put, Delete, } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
+import { detectEditConflict } from '../features/concurrency.js';
+import { writableFields, keepWritable, lockedColumns, isSecretColumn } from '../features/access.js';
 import { Op, fn, col } from 'sequelize';
 const getAdminLeaf = () => etherial.eth_admin_leaf;
 /**
@@ -734,6 +736,125 @@ function escapeCsvValue(value) {
     return str;
 }
 /**
+ * Creates (`record` null) or updates a record the way every back-office write
+ * goes, whichever route asks — one form, a bulk edit, a duplicate:
+ *
+ *   - the body is cut to the columns the user may write, BEFORE the hooks: a
+ *     hook may still set a readonly column (a creator, a status), the client
+ *     may not;
+ *   - the before hook, the custom field types, the save with its relations
+ *     (in one transaction when there are), the after hook, the reload.
+ *
+ * `fromStoredValues` (a duplicate) keeps every stored column but the locked
+ * ones, and skips the custom field types: the values come from the table, not
+ * from a form, and converting them again would corrupt them.
+ */
+function saveRecord(collection_1, record_1, body_1, req_1) {
+    return __awaiter(this, arguments, void 0, function* (collection, record, body, req, options = {}) {
+        var _a, _b;
+        const adminLeaf = getAdminLeaf();
+        let data;
+        if (options.fromStoredValues) {
+            data = Object.assign({}, body);
+            for (const name of yield lockedColumns(collection, req.user)) {
+                delete data[name];
+            }
+        }
+        else {
+            const writable = yield writableFields(collection, req.user);
+            data = keepWritable(normalizeEmptyValues(Object.assign({}, body), collection.fields), writable);
+        }
+        const resolvedHooks = adminLeaf.getResolvedHooks(collection.name);
+        // Extract hasMany fields from data
+        const hasManyFields = getHasManyFields(collection.fields);
+        const hasManyData = new Map();
+        for (const [fieldName] of hasManyFields) {
+            if (data[fieldName] !== undefined) {
+                hasManyData.set(fieldName, data[fieldName]);
+                delete data[fieldName];
+            }
+        }
+        // Extract belongsToMany fields from data
+        const belongsToManyFields = getBelongsToManyFields(collection.fields);
+        const belongsToManyData = new Map();
+        for (const [fieldName] of belongsToManyFields) {
+            if (data[fieldName] !== undefined) {
+                belongsToManyData.set(fieldName, data[fieldName]);
+                delete data[fieldName];
+            }
+        }
+        if (record && (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeUpdate)) {
+            data = (_a = yield resolvedHooks.beforeUpdate(record, data, req)) !== null && _a !== void 0 ? _a : data;
+        }
+        if (!record && (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeCreate)) {
+            data = (_b = yield resolvedHooks.beforeCreate(data, req)) !== null && _b !== void 0 ? _b : data;
+        }
+        // Process custom field types: validate then beforeSave
+        if (!options.fromStoredValues) {
+            data = yield processCustomFieldTypes(data, collection.fields, 'validate');
+            data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
+        }
+        const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0;
+        const saved = yield inSaveTransaction(collection.model, withRelations, (transaction) => __awaiter(this, void 0, void 0, function* () {
+            const target = record
+                ? yield record.update(data, { transaction })
+                : yield collection.model.create(data, { transaction });
+            // Sync hasMany items
+            for (const [fieldName, items] of hasManyData) {
+                const hmConfig = hasManyFields.get(fieldName);
+                yield processHasManyItems(target.id, fieldName, hmConfig, items, !!record, transaction);
+            }
+            // Sync belongsToMany relations
+            for (const [fieldName, itemIds] of belongsToManyData) {
+                const btmConfig = belongsToManyFields.get(fieldName);
+                yield processBelongsToManyItems(target, fieldName, btmConfig, itemIds, transaction);
+            }
+            return target;
+        }));
+        if (record && (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterUpdate)) {
+            yield resolvedHooks.afterUpdate(saved, req);
+        }
+        if (!record && (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterCreate)) {
+            yield resolvedHooks.afterCreate(saved, req);
+        }
+        // Reload with relations
+        const reloadIncludes = [];
+        if (hasManyData.size > 0) {
+            reloadIncludes.push(...Array.from(hasManyFields.keys()).map(name => ({ association: name })));
+        }
+        if (belongsToManyData.size > 0) {
+            reloadIncludes.push(...Array.from(belongsToManyFields.keys()).map(name => ({ association: name })));
+        }
+        if (reloadIncludes.length > 0) {
+            yield saved.reload({ include: reloadIncludes });
+        }
+        return saved;
+    });
+}
+/** At most this many records per bulk request: each one runs the full update. */
+const MAX_BULK_IDS = 100;
+/**
+ * Whether a client may name `name` as a column to read or search on: a
+ * declared field that is not `secure`, the list's own search columns, `id` or
+ * `name` — or any column when the collection declares no field at all, as its
+ * forms do. Credentials never.
+ */
+function isReadableColumn(collection, name) {
+    var _a, _b, _c, _d, _e;
+    if (isSecretColumn(name)) {
+        return false;
+    }
+    const fields = collection.fields || [];
+    const declared = fields.find((f) => f.name === name);
+    if (declared) {
+        return !declared.secure;
+    }
+    if (name === 'id' || name === 'name' || ((_c = (_b = (_a = collection.views) === null || _a === void 0 ? void 0 : _a.list) === null || _b === void 0 ? void 0 : _b.search) === null || _c === void 0 ? void 0 : _c.includes(name))) {
+        return true;
+    }
+    return fields.length === 0 && !!((_e = (_d = collection.model) === null || _d === void 0 ? void 0 : _d.rawAttributes) === null || _e === void 0 ? void 0 : _e[name]);
+}
+/**
  * Admin Collections Controller
  * Single controller handling all CRUD operations for all collections
  */
@@ -993,7 +1114,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     create(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j;
             const { collection: collectionName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -1005,69 +1126,12 @@ let AdminCollectionsController = class AdminCollectionsController {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['forbidden'] });
             }
             try {
-                let data = normalizeEmptyValues(Object.assign({}, req.body), collection.fields);
-                const resolvedHooks = adminLeaf.getResolvedHooks(collectionName);
-                // Extract hasMany fields from data
-                const hasManyFields = getHasManyFields(collection.fields);
-                const hasManyData = new Map();
-                for (const [fieldName] of hasManyFields) {
-                    if (data[fieldName] !== undefined) {
-                        hasManyData.set(fieldName, data[fieldName]);
-                        delete data[fieldName];
-                    }
-                }
-                // Extract belongsToMany fields from data
-                const belongsToManyFields = getBelongsToManyFields(collection.fields);
-                const belongsToManyData = new Map();
-                for (const [fieldName] of belongsToManyFields) {
-                    if (data[fieldName] !== undefined) {
-                        belongsToManyData.set(fieldName, data[fieldName]);
-                        delete data[fieldName];
-                    }
-                }
-                // Run beforeCreate hook
-                if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeCreate) {
-                    data = (_e = yield resolvedHooks.beforeCreate(data, req)) !== null && _e !== void 0 ? _e : data;
-                }
-                // Process custom field types: validate then beforeSave
-                data = yield processCustomFieldTypes(data, collection.fields, 'validate');
-                data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
-                const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0;
-                const record = yield inSaveTransaction(collection.model, withRelations, (transaction) => __awaiter(this, void 0, void 0, function* () {
-                    // Create parent record
-                    const created = yield collection.model.create(data, { transaction });
-                    // Create hasMany items
-                    for (const [fieldName, items] of hasManyData) {
-                        const hmConfig = hasManyFields.get(fieldName);
-                        yield processHasManyItems(created.id, fieldName, hmConfig, items, false, transaction);
-                    }
-                    // Sync belongsToMany relations
-                    for (const [fieldName, itemIds] of belongsToManyData) {
-                        const btmConfig = belongsToManyFields.get(fieldName);
-                        yield processBelongsToManyItems(created, fieldName, btmConfig, itemIds, transaction);
-                    }
-                    return created;
-                }));
-                // Run afterCreate hook
-                if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterCreate) {
-                    yield resolvedHooks.afterCreate(record, req);
-                }
-                // Reload with relations
-                const reloadIncludes = [];
-                if (hasManyData.size > 0) {
-                    reloadIncludes.push(...Array.from(hasManyFields.keys()).map(name => ({ association: name })));
-                }
-                if (belongsToManyData.size > 0) {
-                    reloadIncludes.push(...Array.from(belongsToManyFields.keys()).map(name => ({ association: name })));
-                }
-                if (reloadIncludes.length > 0) {
-                    yield record.reload({ include: reloadIncludes });
-                }
-                return (_g = (_f = res).success) === null || _g === void 0 ? void 0 : _g.call(_f, { status: 201, data: record });
+                const record = yield saveRecord(collection, null, req.body, req);
+                return (_f = (_e = res).success) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 201, data: record });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] Create error for ${collectionName}:`, err);
-                return (_j = (_h = res).error) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 400, errors: ((_k = err.errors) === null || _k === void 0 ? void 0 : _k.map((e) => e.message)) || [err.message] });
+                return (_h = (_g = res).error) === null || _h === void 0 ? void 0 : _h.call(_g, { status: 400, errors: ((_j = err.errors) === null || _j === void 0 ? void 0 : _j.map((e) => e.message)) || [err.message] });
             }
         });
     }
@@ -1077,7 +1141,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     update(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
             const { collection: collectionName, id } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -1093,68 +1157,27 @@ let AdminCollectionsController = class AdminCollectionsController {
                 if (!record) {
                     return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 404, errors: ['not_found'] });
                 }
-                let data = normalizeEmptyValues(Object.assign({}, req.body), collection.fields);
-                const resolvedHooks = adminLeaf.getResolvedHooks(collectionName);
-                // Extract hasMany fields from data
-                const hasManyFields = getHasManyFields(collection.fields);
-                const hasManyData = new Map();
-                for (const [fieldName] of hasManyFields) {
-                    if (data[fieldName] !== undefined) {
-                        hasManyData.set(fieldName, data[fieldName]);
-                        delete data[fieldName];
-                    }
+                // A form loaded before someone else's save must not silently undo
+                // it: refuse, with the record as it is now (as the edit page loads
+                // it) so the back-office can merge or ask. No If-Match, no check.
+                const conflict = yield detectEditConflict(collection, record, req.headers['if-match']);
+                if (conflict) {
+                    const fresh = yield collection.model.findByPk(id, {
+                        include: buildIncludesFromRelations(collection.fields, (_h = (_g = collection.views) === null || _g === void 0 ? void 0 : _g.show) === null || _h === void 0 ? void 0 : _h.include),
+                    });
+                    const plain = (fresh === null || fresh === void 0 ? void 0 : fresh.toJSON) ? fresh.toJSON() : Object.assign({}, fresh);
+                    return (_k = (_j = res).error) === null || _k === void 0 ? void 0 : _k.call(_j, {
+                        status: 409,
+                        errors: ['conflict'],
+                        data: Object.assign({ current: applyAfterReadDeep(transformMediaUrls(plain), collection.fields) }, conflict),
+                    });
                 }
-                // Extract belongsToMany fields from data
-                const belongsToManyFields = getBelongsToManyFields(collection.fields);
-                const belongsToManyData = new Map();
-                for (const [fieldName] of belongsToManyFields) {
-                    if (data[fieldName] !== undefined) {
-                        belongsToManyData.set(fieldName, data[fieldName]);
-                        delete data[fieldName];
-                    }
-                }
-                // Run beforeUpdate hook
-                if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeUpdate) {
-                    data = (_g = yield resolvedHooks.beforeUpdate(record, data, req)) !== null && _g !== void 0 ? _g : data;
-                }
-                // Process custom field types: validate then beforeSave
-                data = yield processCustomFieldTypes(data, collection.fields, 'validate');
-                data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
-                const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0;
-                yield inSaveTransaction(collection.model, withRelations, (transaction) => __awaiter(this, void 0, void 0, function* () {
-                    // Update parent record
-                    yield record.update(data, { transaction });
-                    // Sync hasMany items
-                    for (const [fieldName, items] of hasManyData) {
-                        const hmConfig = hasManyFields.get(fieldName);
-                        yield processHasManyItems(record.id, fieldName, hmConfig, items, true, transaction);
-                    }
-                    // Sync belongsToMany relations
-                    for (const [fieldName, itemIds] of belongsToManyData) {
-                        const btmConfig = belongsToManyFields.get(fieldName);
-                        yield processBelongsToManyItems(record, fieldName, btmConfig, itemIds, transaction);
-                    }
-                }));
-                // Run afterUpdate hook
-                if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterUpdate) {
-                    yield resolvedHooks.afterUpdate(record, req);
-                }
-                // Reload with relations
-                const reloadIncludes = [];
-                if (hasManyData.size > 0) {
-                    reloadIncludes.push(...Array.from(hasManyFields.keys()).map(name => ({ association: name })));
-                }
-                if (belongsToManyData.size > 0) {
-                    reloadIncludes.push(...Array.from(belongsToManyFields.keys()).map(name => ({ association: name })));
-                }
-                if (reloadIncludes.length > 0) {
-                    yield record.reload({ include: reloadIncludes });
-                }
-                return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 200, data: record });
+                yield saveRecord(collection, record, req.body, req);
+                return (_m = (_l = res).success) === null || _m === void 0 ? void 0 : _m.call(_l, { status: 200, data: record });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] Update error for ${collectionName}:`, err);
-                return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 400, errors: ((_m = err.errors) === null || _m === void 0 ? void 0 : _m.map((e) => e.message)) || [err.message] });
+                return (_p = (_o = res).error) === null || _p === void 0 ? void 0 : _p.call(_o, { status: 400, errors: ((_q = err.errors) === null || _q === void 0 ? void 0 : _q.map((e) => e.message)) || [err.message] });
             }
         });
     }
@@ -1271,7 +1294,16 @@ let AdminCollectionsController = class AdminCollectionsController {
                 if (!record) {
                     return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 404, errors: ['not_found'] });
                 }
-                yield record.update(req.body);
+                // Same cut as a record's own form: the registered collection's
+                // editable fields when there is one, else the columns the sub-list
+                // shows. Never the key, never the link to the parent.
+                const registered = adminLeaf.getCollection(subName);
+                const writable = registered && registered.model === subConfig.model
+                    ? yield writableFields(registered, req.user)
+                    : new Set(subConfig.fields);
+                writable.delete('id');
+                writable.delete(subConfig.foreignKey);
+                yield record.update(keepWritable(req.body, writable));
                 return (_o = (_m = res).success) === null || _o === void 0 ? void 0 : _o.call(_m, { status: 200, data: record });
             }
             catch (err) {
@@ -1416,7 +1448,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     search(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
             const { collection: collectionName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -1434,8 +1466,13 @@ let AdminCollectionsController = class AdminCollectionsController {
                 const searchFields = fieldsParam
                     ? String(fieldsParam).split(',').map((f) => f.trim())
                     : ((listView === null || listView === void 0 ? void 0 : listView.search) || []);
+                // The searched columns are also the ones returned: a client could
+                // otherwise read (or guess, letter by letter) any column.
+                if (searchFields.some((field) => !isReadableColumn(collection, field))) {
+                    return (_g = (_f = res).error) === null || _g === void 0 ? void 0 : _g.call(_f, { status: 400, errors: ['invalid_search_field'] });
+                }
                 if (searchFields.length === 0) {
-                    return (_g = (_f = res).success) === null || _g === void 0 ? void 0 : _g.call(_f, { status: 200, data: [] });
+                    return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 200, data: [] });
                 }
                 // An empty query is a legitimate call: it is what a relation picker
                 // sends when it opens, before anyone has typed. Returning [] there
@@ -1459,11 +1496,11 @@ let AdminCollectionsController = class AdminCollectionsController {
                     const json = r.toJSON ? r.toJSON() : Object.assign({}, r);
                     return json;
                 });
-                return (_j = (_h = res).success) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 200, data: items });
+                return (_l = (_k = res).success) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 200, data: items });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] Search error for ${collectionName}:`, err);
-                return (_l = (_k = res).error) === null || _l === void 0 ? void 0 : _l.call(_k, { status: 400, errors: [err.message] });
+                return (_o = (_m = res).error) === null || _o === void 0 ? void 0 : _o.call(_m, { status: 400, errors: [err.message] });
             }
         });
     }
@@ -1482,7 +1519,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     relationOptions(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
             const { collection: collectionName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -1495,6 +1532,14 @@ let AdminCollectionsController = class AdminCollectionsController {
             }
             try {
                 const { displayField, secondaryField, q, ids, limit = 100 } = req.query;
+                // The labels are read from the query string: without this, any
+                // column of a listable table (a password hash, a token) could be
+                // asked for as the "label" of its rows.
+                for (const requested of [displayField, secondaryField]) {
+                    if (requested && !isReadableColumn(collection, String(requested))) {
+                        return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 400, errors: ['invalid_display_field'] });
+                    }
+                }
                 const attributes = collection.model.rawAttributes || {};
                 const exists = (name) => !!name && !!attributes[name];
                 // A displayField that does not exist would make Sequelize throw on a
@@ -1553,11 +1598,11 @@ let AdminCollectionsController = class AdminCollectionsController {
                     }
                     return option;
                 });
-                return (_f = (_e = res).success) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 200, data });
+                return (_h = (_g = res).success) === null || _h === void 0 ? void 0 : _h.call(_g, { status: 200, data });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] Relation options error for ${collectionName}:`, err);
-                return (_h = (_g = res).error) === null || _h === void 0 ? void 0 : _h.call(_g, { status: 400, errors: [err.message] });
+                return (_k = (_j = res).error) === null || _k === void 0 ? void 0 : _k.call(_j, { status: 400, errors: [err.message] });
             }
         });
     }
@@ -1567,7 +1612,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     export(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
             const { collection: collectionName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -1577,12 +1622,14 @@ let AdminCollectionsController = class AdminCollectionsController {
             if (!collection.exportable) {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['export_not_enabled'] });
             }
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.checkAccess(req.user, collectionName, 'list'));
+            // A file holds every record in full: listing alone (a lookup grant,
+            // made to fill a picker) is not enough.
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canViewCollection(req.user, collectionName));
             if (!hasAccess) {
                 return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 403, errors: ['forbidden'] });
             }
             try {
-                const _k = req.query, { format = 'csv', fields: fieldsParam, search } = _k, filters = __rest(_k, ["format", "fields", "search"]);
+                const _l = req.query, { format = 'csv', fields: fieldsParam, search, sort, order, showDeleted, exclude } = _l, filters = __rest(_l, ["format", "fields", "search", "sort", "order", "showDeleted", "exclude"]);
                 const listView = (_g = collection.views) === null || _g === void 0 ? void 0 : _g.list;
                 // Build where clause (reuse advanced filters)
                 const allowedFilters = (listView === null || listView === void 0 ? void 0 : listView.filters) || [];
@@ -1608,16 +1655,32 @@ let AdminCollectionsController = class AdminCollectionsController {
                 }
                 // Only the model's columns: a field like a map-picker is drawn by the
                 // back-office from other columns, and selecting it fails the query.
+                // Credentials never leave, even when asked for by name.
                 const columns = collection.model.rawAttributes || {};
-                exportFields = exportFields.filter(f => !!columns[f]);
+                exportFields = exportFields.filter(f => !!columns[f] && !isSecretColumn(f));
+                if (exportFields.length === 0) {
+                    exportFields = Object.keys(columns).filter(f => !secureFieldNames.has(f) && !isSecretColumn(f));
+                }
+                // The columns hidden on the list stay out of the file too, unless
+                // that would leave nothing to export.
+                if (exclude) {
+                    const hidden = new Set(String(exclude).split(',').map(f => f.trim()));
+                    const kept = exportFields.filter(f => !hidden.has(f));
+                    if (kept.length > 0) {
+                        exportFields = kept;
+                    }
+                }
+                // The file comes out as the list shows it: same order, same
+                // deleted toggle (see `list`).
+                const orderClause = resolveOrder(collection.model, [
+                    sort ? { field: sort, direction: order || 'ASC' } : null,
+                    listView === null || listView === void 0 ? void 0 : listView.sort,
+                ]);
+                const paranoidOption = ((_h = collection.softDelete) === null || _h === void 0 ? void 0 : _h.enabled) && showDeleted === 'true'
+                    ? { paranoid: false }
+                    : {};
                 const MAX_EXPORT_ROWS = 10000;
-                const rows = yield collection.model.findAll({
-                    where,
-                    attributes: exportFields,
-                    limit: MAX_EXPORT_ROWS,
-                    order: [['id', 'ASC']],
-                    raw: true
-                });
+                const rows = yield collection.model.findAll(Object.assign({ where, attributes: exportFields, limit: MAX_EXPORT_ROWS, order: orderClause, raw: true }, paranoidOption));
                 if (format === 'json') {
                     res.setHeader('Content-Type', 'application/json');
                     res.setHeader('Content-Disposition', `attachment; filename="${collectionName}_export.json"`);
@@ -1638,7 +1701,7 @@ let AdminCollectionsController = class AdminCollectionsController {
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] Export error for ${collectionName}:`, err);
-                return (_j = (_h = res).error) === null || _j === void 0 ? void 0 : _j.call(_h, { status: 400, errors: [err.message] });
+                return (_k = (_j = res).error) === null || _k === void 0 ? void 0 : _k.call(_j, { status: 400, errors: [err.message] });
             }
         });
     }
@@ -1648,7 +1711,7 @@ let AdminCollectionsController = class AdminCollectionsController {
      */
     bulk(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
             const { collection: collectionName } = req.params;
             const adminLeaf = getAdminLeaf();
             const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCollection(collectionName);
@@ -1659,7 +1722,7 @@ let AdminCollectionsController = class AdminCollectionsController {
             if (!action || !ids || !Array.isArray(ids)) {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 400, errors: ['action_and_ids_required'] });
             }
-            if (ids.length > 100) {
+            if (ids.length > MAX_BULK_IDS) {
                 return (_f = (_e = res).error) === null || _f === void 0 ? void 0 : _f.call(_e, { status: 400, errors: ['max_100_ids_per_request'] });
             }
             // Check appropriate access
@@ -1698,14 +1761,31 @@ let AdminCollectionsController = class AdminCollectionsController {
                     if (!data || typeof data !== 'object') {
                         return (_p = (_o = res).error) === null || _p === void 0 ? void 0 : _p.call(_o, { status: 400, errors: ['data_required_for_update'] });
                     }
-                    const [updated] = yield collection.model.update(data, { where: { id: { [Op.in]: ids } } });
-                    return (_r = (_q = res).success) === null || _r === void 0 ? void 0 : _r.call(_q, { status: 200, data: { updated } });
+                    // One record at a time, through the same path as its form: a
+                    // single `Model.update()` skipped the field cut, the hooks,
+                    // the validation and the per-record history.
+                    const records = yield collection.model.findAll({ where: { id: { [Op.in]: ids } } });
+                    let updated = 0;
+                    const failed = [];
+                    for (const record of records) {
+                        try {
+                            yield saveRecord(collection, record, data, req);
+                            updated++;
+                        }
+                        catch (err) {
+                            failed.push({ id: record.id, error: ((_r = (_q = err.errors) === null || _q === void 0 ? void 0 : _q[0]) === null || _r === void 0 ? void 0 : _r.message) || err.message });
+                        }
+                    }
+                    if (updated === 0 && failed.length > 0) {
+                        return (_t = (_s = res).error) === null || _t === void 0 ? void 0 : _t.call(_s, { status: 400, errors: failed.map((f) => `#${f.id}: ${f.error}`), data: { updated, failed } });
+                    }
+                    return (_v = (_u = res).success) === null || _v === void 0 ? void 0 : _v.call(_u, { status: 200, data: { updated, failed } });
                 }
-                return (_t = (_s = res).error) === null || _t === void 0 ? void 0 : _t.call(_s, { status: 400, errors: ['invalid_action'] });
+                return (_x = (_w = res).error) === null || _x === void 0 ? void 0 : _x.call(_w, { status: 400, errors: ['invalid_action'] });
             }
             catch (err) {
                 console.error(`[ETHAdminLeaf] Bulk error for ${collectionName}:`, err);
-                return (_v = (_u = res).error) === null || _v === void 0 ? void 0 : _v.call(_u, { status: 400, errors: [err.message] });
+                return (_z = (_y = res).error) === null || _z === void 0 ? void 0 : _z.call(_y, { status: 400, errors: [err.message] });
             }
         });
     }
@@ -1740,7 +1820,10 @@ let AdminCollectionsController = class AdminCollectionsController {
                 delete data.createdAt;
                 delete data.updatedAt;
                 delete data.deletedAt;
-                const newRecord = yield collection.model.create(data);
+                // Through the create path: its hooks run (a slug, an author, a
+                // sync), and the copy cannot carry a column its author could not
+                // have set himself.
+                const newRecord = yield saveRecord(collection, null, data, req, { fromStoredValues: true });
                 return (_h = (_g = res).success) === null || _h === void 0 ? void 0 : _h.call(_g, { status: 201, data: newRecord });
             }
             catch (err) {
@@ -1806,7 +1889,8 @@ let AdminCollectionsController = class AdminCollectionsController {
             if (!collection) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 404, errors: ['collection_not_found'] });
             }
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.checkAccess(req.user, collectionName, 'list'));
+            // Counts are reads of the whole table: a lookup grant does not cover them.
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canViewCollection(req.user, collectionName));
             if (!hasAccess) {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 403, errors: ['forbidden'] });
             }

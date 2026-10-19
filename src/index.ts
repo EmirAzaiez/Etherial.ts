@@ -3,6 +3,7 @@ import 'reflect-metadata'
 import { Http } from './components/http/index.js'
 import { HttpAuth } from './components/http.auth/index.js'
 import { HttpSecurity } from './components/http.security/index.js'
+import { startSentry } from './components/monitoring/sentry.js'
 
 import { Reactive } from './components/reactive/index.js'
 import { Database } from './components/database/index.js'
@@ -147,6 +148,10 @@ export class Etherial implements IEtherial {
      */
     async run(): Promise<Etherial> {
         const moduleKeys = this.getModuleKeys()
+
+        // First, so a module that fails to start is reported too. A no-op
+        // unless SENTRY_DSN is set, and never a reason not to start.
+        await startSentry().catch(() => undefined)
 
         try {
             // Phase 1: beforeRun (all modules in parallel)

@@ -20,6 +20,7 @@ import { AsyncLocalStorage } from 'async_hooks'
 import etherial from 'etherial'
 import { Op } from 'sequelize'
 import type { Request, Response, NextFunction } from 'express'
+import { runExclusive } from '../../../components/database/lock.js'
 import { AdminAuditLog } from '../models/AdminAuditLog.js'
 import type { CollectionConfig } from './CollectionConfig.js'
 
@@ -119,7 +120,10 @@ export function currentActor(): { actor: AuditActor; source: string; meta: Recor
 
     if (!req) return { actor: { type: 'system' }, source: 'system', meta }
     const source = String(req.originalUrl ?? req.url ?? '').startsWith(adminPrefix) ? 'back-office' : 'app'
-    return { actor: person ?? { type: 'guest' }, source, meta }
+    // A change the assistant prepared and the person confirmed: still theirs,
+    // but the history says how it was made. Only the back-office sends it.
+    const via = source === 'back-office' && req.headers?.['x-admin-via'] === 'assistant' ? { via: 'assistant' } : null
+    return { actor: person ?? { type: 'guest' }, source, meta: via ? { ...meta, ...via } : meta }
 }
 
 /**
@@ -418,18 +422,23 @@ export function installAuditHooks(collections: CollectionConfig[], config: Audit
     return tracked
 }
 
-/** Removes entries older than `retentionDays`, now and then once a day. */
+/**
+ * Removes entries older than `retentionDays`, now and then once a day. Once a
+ * day across all servers: the lease is kept for most of the day, so the boot
+ * of a second server, or of the next deploy, does not purge again.
+ */
 export function scheduleAuditRetention(config: AuditConfig) {
     const days = config.retentionDays
     if (!days || days <= 0) return
+    const DAY = 24 * 3600 * 1000
     const purge = () => {
-        const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000)
-        AdminAuditLog.destroy({ where: { created_at: { [Op.lt]: cutoff } } as any }).catch((err: any) =>
-            console.error('[ETHAdminLeaf] Audit retention:', err?.message || err)
-        )
+        runExclusive('eth_admin.audit_retention', { ttlMs: DAY - 10 * 60 * 1000, release: false }, async () => {
+            const cutoff = new Date(Date.now() - days * DAY)
+            await AdminAuditLog.destroy({ where: { created_at: { [Op.lt]: cutoff } } as any })
+        }).catch((err: any) => console.error('[ETHAdminLeaf] Audit retention:', err?.message || err))
     }
     purge()
-    setInterval(purge, 24 * 3600 * 1000).unref()
+    setInterval(purge, DAY).unref()
 }
 
 /** Joins entries to the user model so the change list names the author. */

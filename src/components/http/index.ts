@@ -7,6 +7,7 @@ import cors, { CorsOptions } from 'cors'
 
 import { IEtherialModule, IEtherial } from '../../index.js'
 import { Translation, createTranslationMiddleware } from '../translation/index.js'
+import { captureError } from '../monitoring/sentry.js'
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head' | 'all'
 
@@ -54,6 +55,7 @@ export class Http implements IEtherialModule {
 
     private config: HttpConfig
     private registeredRoutes: { method: HttpMethod; path: string; handler: string }[] = []
+    private routeGuards: RequestHandler[] = []
     private log: (message: string) => void
 
     constructor(config: HttpConfig) {
@@ -312,6 +314,12 @@ export class Http implements IEtherialModule {
     async listen(): Promise<this> {
         const startTime = Date.now()
 
+        // After everything the app mounted before listening (cors, body
+        // parsers), before the first route.
+        for (const guard of this.routeGuards) {
+            this.app.use(guard)
+        }
+
         // Load and register controllers
         const controllers = await this.loadControllers()
 
@@ -388,6 +396,17 @@ export class Http implements IEtherialModule {
             })
         }
 
+        // Report the server's own errors (Sentry, when on), then hand them on
+        // unchanged to whichever handler answers. A client's mistake — bad
+        // JSON, a body too large — carries a 4xx status and is not reported.
+        this.app.use(((err: any, req: Request, _res: Response, next: NextFunction) => {
+            const status = Number(err?.status ?? err?.statusCode ?? 500)
+            if (!(status >= 400 && status < 500)) {
+                captureError(err, req)
+            }
+            next(err)
+        }) as ErrorRequestHandler)
+
         // Error handler
         if (this.errorHandler) {
             this.app.use(this.errorHandler)
@@ -448,6 +467,17 @@ export class Http implements IEtherialModule {
 
     use(middleware: RequestHandler): this {
         this.app.use(middleware)
+        return this
+    }
+
+    /**
+     * Mounts a middleware when `listen()` starts, right before the routes.
+     * A leaf runs before the app, so one it mounts with `app.use` would come
+     * ahead of the app's cors and body parsers: an auth gate there answers
+     * preflights without CORS headers and sees no body.
+     */
+    beforeRoutes(middleware: RequestHandler): this {
+        this.routeGuards.push(middleware)
         return this
     }
 

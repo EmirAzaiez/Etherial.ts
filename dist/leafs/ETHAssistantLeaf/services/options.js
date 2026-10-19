@@ -8,6 +8,24 @@ import etherial from 'etherial';
 /** The hidden back-office collection that lists every question asked. */
 export const REQUESTS_COLLECTION = 'assistant-requests';
 export const TASKS = ['ask', 'summarize', 'draft'];
+/** Most records one proposal may touch: the bulk endpoint takes 100. */
+const MAX_PROPOSAL_RECORDS = 100;
+export function proposalsOn(config) {
+    return !!config.proposals;
+}
+export function maxRecordsOf(config) {
+    const asked = typeof config.proposals === 'object' ? Number(config.proposals.maxRecords) : NaN;
+    if (!Number.isFinite(asked) || asked < 1)
+        return 50;
+    return Math.min(Math.floor(asked), MAX_PROPOSAL_RECORDS);
+}
+export function historyOn(config) {
+    return !!config.history;
+}
+export function keepDaysOf(config) {
+    const asked = typeof config.history === 'object' ? Number(config.history.keepDays) : NaN;
+    return Number.isFinite(asked) && asked >= 0 ? Math.floor(asked) : 90;
+}
 export const DEFAULT_MODELS = { smart: 'claude-sonnet-5-5', fast: 'claude-haiku-5-5' };
 export function apiKeyOf(config) {
     return config.apiKey || process.env.ANTHROPIC_API_KEY || undefined;

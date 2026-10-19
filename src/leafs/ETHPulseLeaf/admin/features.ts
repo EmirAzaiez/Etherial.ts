@@ -357,6 +357,11 @@ export function registerPulseActions(registry: ActionRegistry) {
 
 export function registerPulseHooks(registry: HookRegistry) {
     for (const [name, hook] of Object.entries(pulseHooks)) {
+        // With `campaigns` on, the create form only schedules and the leaf's
+        // engine sends: this hook, which sends on create, would push it twice.
+        if (name === 'pulse:send-campaign' && getPulseLeaf()?.config?.campaigns) {
+            continue
+        }
         registry.register(name, hook)
     }
     console.log('[ETHPulseLeaf] Hooks:', Object.keys(pulseHooks).join(', '))

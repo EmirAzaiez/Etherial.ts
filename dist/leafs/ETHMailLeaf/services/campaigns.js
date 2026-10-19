@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { randomUUID } from 'crypto';
 import { Op, col, fn } from 'sequelize';
+import { runExclusive } from '../../../components/database/lock.js';
 import { MailCampaign } from '../models/MailCampaign.js';
 import { MailCampaignRecipient } from '../models/MailCampaignRecipient.js';
 import { MailUnsubscribe } from '../models/MailUnsubscribe.js';
@@ -349,9 +350,10 @@ export function scheduleCampaign(idInput, body, userId, origin) {
         const [scheduled] = yield MailCampaign.update({ status: 'scheduled', scheduled_at: at, audience_label: audience.label.slice(0, 300), public_url: base, scheduled_by: userId, error: null }, { where: { id: campaign.id, status: 'draft' } });
         if (!scheduled)
             throw new MailError('campaign_locked', 409, 'This campaign is not a draft anymore');
-        // Due now: no need to wait for the next sweep.
+        // Due now: no need to wait for the next sweep to list it; the sending
+        // itself stays the sweep's, within the rate.
         if (at.getTime() <= Date.now())
-            (_b = (_a = setTimeout(() => sweepOnce(), 500)).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
+            (_b = (_a = setTimeout(() => sweepOnce({ startOnly: true }), 500)).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
         return readCampaign(campaign.id);
     });
 }
@@ -591,15 +593,21 @@ function batchSize() {
     const perMinute = Number((_a = state.config.campaigns) === null || _a === void 0 ? void 0 : _a.perMinute) || 60;
     return Math.max(1, Math.floor((perMinute * SWEEP_MS) / 60000));
 }
-function sweep() {
+/** Due campaigns: list their recipients. Claimed one by one, safe on any server. */
+function startDue() {
     return __awaiter(this, void 0, void 0, function* () {
-        // 1. Due campaigns: list their recipients.
         const due = yield MailCampaign.findAll({ where: { status: 'scheduled', scheduled_at: { [Op.lte]: new Date() } }, order: [['scheduled_at', 'ASC']], limit: 5 });
         for (const campaign of due) {
             const [taken] = yield MailCampaign.update({ status: 'preparing', started_at: new Date() }, { where: { id: campaign.id, status: 'scheduled' } });
             if (taken)
                 yield prepare(campaign.id);
         }
+    });
+}
+function sweep() {
+    return __awaiter(this, void 0, void 0, function* () {
+        // 1. Due campaigns: list their recipients.
+        yield startDue();
         // 2. Listing for too long: its server stopped. Listing again is safe, one row per address.
         const stale = yield MailCampaign.findAll({ where: { status: 'preparing', updated_at: { [Op.lt]: new Date(Date.now() - PREPARE_STALE_MS) } }, limit: 5 });
         for (const campaign of stale) {
@@ -630,13 +638,25 @@ function sweep() {
 }
 let timer = null;
 let running = false;
+/**
+ * One turn, on one server. The rows are claimed, so two servers would not send
+ * an address twice, but each would spend the whole `perMinute` budget: two
+ * servers, twice the rate the provider was promised. The lease, kept for most
+ * of the turn, makes the budget the whole cluster's.
+ *
+ * `startOnly`: just open the campaigns that are due, without sending — what
+ * scheduling one for now asks, whoever holds the lease.
+ */
 function sweepOnce() {
-    return __awaiter(this, void 0, void 0, function* () {
+    return __awaiter(this, arguments, void 0, function* (options = {}) {
         if (running)
             return;
         running = true;
         try {
-            yield sweep();
+            if (options.startOnly)
+                yield startDue();
+            else
+                yield runExclusive('eth_mail.campaign_sweep', { ttlMs: SWEEP_MS - 2000, release: false }, sweep);
         }
         catch (err) {
             console.error('[ETHMailLeaf] Campaign sweep failed:', (err === null || err === void 0 ? void 0 : err.message) || err);
@@ -653,8 +673,8 @@ function sweepOnce() {
 export function startCampaignSweep() {
     if (!state.config.campaigns || timer)
         return;
-    setTimeout(sweepOnce, 15000).unref();
-    timer = setInterval(sweepOnce, SWEEP_MS);
+    setTimeout(() => sweepOnce(), 15000).unref();
+    timer = setInterval(() => sweepOnce(), SWEEP_MS);
     timer.unref();
 }
 /** What the back-office needs to open the Campaigns page. */

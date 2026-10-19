@@ -52,6 +52,48 @@ export interface ETHAssistantLeafConfig {
     canUse?: (user: any) => boolean | Promise<boolean>
     /** Back-office collection the user ids link to, in the log. Default `users`. */
     usersCollection?: string
+    /**
+     * Let it prepare changes — edit a record, create one, run an action, edit
+     * several records at once — shown in the panel as a card the staff member
+     * confirms or cancels. It never writes itself: confirming calls the
+     * back-office's own endpoints, so the person's rights, the hooks, the
+     * validation and the audit all apply. Off by default.
+     *
+     * `maxRecords`: the most records one proposal may touch. Default 50, at
+     * most 100 (what the bulk endpoint takes).
+     */
+    proposals?: boolean | { maxRecords?: number }
+    /**
+     * Keep each person's conversations, to reopen and continue them from the
+     * panel. Unlike the log, they hold the answers, made of the project's data:
+     * off by default. Each person only ever sees their own.
+     *
+     * `keepDays`: a conversation left untouched this long is deleted. Default
+     * 90; 0 keeps them.
+     */
+    history?: boolean | { keepDays?: number }
+}
+
+/** Most records one proposal may touch: the bulk endpoint takes 100. */
+const MAX_PROPOSAL_RECORDS = 100
+
+export function proposalsOn(config: ETHAssistantLeafConfig): boolean {
+    return !!config.proposals
+}
+
+export function maxRecordsOf(config: ETHAssistantLeafConfig): number {
+    const asked = typeof config.proposals === 'object' ? Number(config.proposals.maxRecords) : NaN
+    if (!Number.isFinite(asked) || asked < 1) return 50
+    return Math.min(Math.floor(asked), MAX_PROPOSAL_RECORDS)
+}
+
+export function historyOn(config: ETHAssistantLeafConfig): boolean {
+    return !!config.history
+}
+
+export function keepDaysOf(config: ETHAssistantLeafConfig): number {
+    const asked = typeof config.history === 'object' ? Number(config.history.keepDays) : NaN
+    return Number.isFinite(asked) && asked >= 0 ? Math.floor(asked) : 90
 }
 
 export const DEFAULT_MODELS = { smart: 'claude-sonnet-5-5', fast: 'claude-haiku-5-5' }

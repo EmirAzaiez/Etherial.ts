@@ -5,8 +5,8 @@ import { InferType } from 'yup';
 export declare const CheckoutForm: import("yup").ObjectSchema<{
     provider: string;
     line_items: {
-        description?: string;
         name?: string;
+        description?: string;
         amount?: number;
         currency?: string;
         quantity?: number;

@@ -3,6 +3,7 @@ import * as path from 'path'
 import { Op } from 'sequelize'
 import { fileURLToPath } from 'url'
 
+import { runExclusive } from '../../components/database/lock.js'
 import { AnalyticsEvent } from './models/AnalyticsEvent.js'
 import { AnalyticsSession } from './models/AnalyticsSession.js'
 import { Collector, TrackedEvent } from './services/collector.js'
@@ -117,18 +118,23 @@ export default class ETHAnalyticsLeaf {
     private scheduleRetention() {
         const days = this.config.retentionDays ?? 395
         if (!days || days <= 0) return
+        const DAY = 24 * 3600 * 1000
         const purge = async () => {
-            const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000)
             try {
-                await AnalyticsEvent.destroy({ where: { created_at: { [Op.lt]: cutoff } } as any })
-                await AnalyticsSession.destroy({ where: { last_seen_at: { [Op.lt]: cutoff } } as any })
+                // Once a day across all servers: a big DELETE run by each of
+                // them at once only fights over the same rows.
+                await runExclusive('eth_analytics.retention', { ttlMs: DAY - 10 * 60 * 1000, release: false }, async () => {
+                    const cutoff = new Date(Date.now() - days * DAY)
+                    await AnalyticsEvent.destroy({ where: { created_at: { [Op.lt]: cutoff } } as any })
+                    await AnalyticsSession.destroy({ where: { last_seen_at: { [Op.lt]: cutoff } } as any })
+                })
             } catch (err: any) {
                 console.error('[ETHAnalyticsLeaf] Retention:', err?.message || err)
             }
         }
         // Not at boot: the tables may not be synced yet.
         setTimeout(purge, 60 * 1000).unref?.()
-        setInterval(purge, 24 * 3600 * 1000).unref?.()
+        setInterval(purge, DAY).unref?.()
     }
 
     commands() {

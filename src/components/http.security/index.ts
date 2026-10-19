@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express'
 import rateLimit, { Options as RateLimitOptions } from 'express-rate-limit'
-import { IEtherialModule } from '../../index.js'
+import etherial, { IEtherialModule } from '../../index.js'
+import { BruteForceStore, DatabaseBruteForceStore, MemoryBruteForceStore } from './store.js'
 
 // ============================================
 // Types & Interfaces
@@ -54,6 +55,11 @@ export interface HttpSecurityConfig {
     // When false (default), the raw socket address is used and XFF is ignored to
     // prevent attackers from rotating the header to bypass rate/brute-force counters.
     trustProxy?: boolean
+
+    // Where brute-force counters are kept. 'database' (the default when the app
+    // has a Postgres or MySQL database) shares them between servers and keeps
+    // them across restarts; 'memory' counts per process.
+    bruteForceStore?: 'database' | 'memory'
 }
 
 export interface SecurityEvent {
@@ -66,22 +72,14 @@ export interface SecurityEvent {
 }
 
 // ============================================
-// In-Memory Stores
-// ============================================
-
-interface BruteForceEntry {
-    attempts: number
-    lastAttempt: number
-    blockedUntil: number
-}
-
-// ============================================
 // Main HttpSecurity Class
 // ============================================
 
 export class HttpSecurity implements IEtherialModule {
     private config: HttpSecurityConfig
-    private bruteForceStore: Map<string, BruteForceEntry> = new Map()
+    private memoryStore = new MemoryBruteForceStore()
+    private databaseStore = new DatabaseBruteForceStore()
+    private storeFailureLoggedAt = 0
     private log: (event: SecurityEvent) => void
 
     constructor(config: HttpSecurityConfig = {}) {
@@ -91,13 +89,11 @@ export class HttpSecurity implements IEtherialModule {
             bruteForce: config.bruteForce,
             maxRequestSize: config.maxRequestSize,
             logging: config.logging,
-            trustProxy: config.trustProxy ?? false
+            trustProxy: config.trustProxy ?? false,
+            bruteForceStore: config.bruteForceStore
         }
 
         this.log = this.setupLogging(config.logging)
-
-        // Cleanup expired entries periodically
-        setInterval(() => this.cleanupExpiredEntries(), 60000)
     }
 
     private setupLogging(logging?: boolean | ((event: SecurityEvent) => void)): (event: SecurityEvent) => void {
@@ -112,21 +108,26 @@ export class HttpSecurity implements IEtherialModule {
         }
     }
 
-    private cleanupExpiredEntries(): void {
-        const now = Date.now()
-        const idleThresholdMs = 3600000
-
-        for (const [key, entry] of this.bruteForceStore) {
-            // Entry currently blocked: drop only after the block has expired AND it has been idle long enough.
-            // Entry never blocked (blockedUntil=0): drop only after the idle threshold — otherwise we'd
-            // wipe the in-progress attempt counter on every sweep and the brute-force gate never triggers.
-            const idle = now - entry.lastAttempt
-            const blockExpired = entry.blockedUntil === 0 || entry.blockedUntil < now
-
-            if (blockExpired && idle > idleThresholdMs) {
-                this.bruteForceStore.delete(key)
-            }
+    // Chosen per request, not once: the decorators build their middleware when
+    // the routes are imported, which may be before the database is up.
+    private bruteForceStoreFor(): BruteForceStore {
+        if (this.config.bruteForceStore === 'memory') {
+            return this.memoryStore
         }
+        if (DatabaseBruteForceStore.supports((etherial as any).database?.sequelize)) {
+            return this.databaseStore
+        }
+        return this.memoryStore
+    }
+
+    private logStoreFailure(err: any): void {
+        // Once a minute at most: a database that is down fails every login.
+        const now = Date.now()
+        if (now - this.storeFailureLoggedAt < 60000) {
+            return
+        }
+        this.storeFailureLoggedAt = now
+        console.error('[HttpSecurity] Brute-force counters unavailable in the database, counting in memory:', err?.message || err)
     }
 
     private getClientIP(req: Request): string {
@@ -265,29 +266,29 @@ export class HttpSecurity implements IEtherialModule {
             keyGenerator
         } = config
 
-        return (req: Request, res: Response, next: NextFunction): void => {
+        const rules = { freeRetries, minWait, maxWait, lifetime }
+
+        return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
             const customKey = keyGenerator ? keyGenerator(req) : null
             const key = customKey
                 ? `${customKey}:${req.path}`
                 : `${this.getClientIP(req)}:${req.path}`
             const now = Date.now()
-            let entry = this.bruteForceStore.get(key)
 
-            if (!entry) {
-                entry = { attempts: 0, lastAttempt: now, blockedUntil: 0 }
-                this.bruteForceStore.set(key, entry)
-            }
-
-            // Reset if lifetime exceeded
-            if ((now - entry.lastAttempt) > lifetime * 1000) {
-                entry.attempts = 0
-                entry.blockedUntil = 0
+            let store = this.bruteForceStoreFor()
+            let blockedUntil: number
+            try {
+                blockedUntil = await store.hit(key, rules, now)
+            } catch (err) {
+                this.logStoreFailure(err)
+                store = this.memoryStore
+                blockedUntil = await store.hit(key, rules, now)
             }
 
             // Check if blocked
-            if (entry.blockedUntil > now) {
-                this.logEvent('brute_force', req, { blockedUntil: entry.blockedUntil })
-                const retryAfter = Math.ceil((entry.blockedUntil - now) / 1000)
+            if (blockedUntil > now) {
+                this.logEvent('brute_force', req, { blockedUntil })
+                const retryAfter = Math.ceil((blockedUntil - now) / 1000)
                 res.status(429).json({
                     status: 429,
                     error: 'too_many_attempts',
@@ -297,18 +298,10 @@ export class HttpSecurity implements IEtherialModule {
                 return
             }
 
-            entry.lastAttempt = now
-            entry.attempts++
-
-            // Apply penalty after free retries
-            if (entry.attempts > freeRetries) {
-                const wait = Math.min(maxWait, minWait * Math.pow(2, entry.attempts - freeRetries - 1))
-                entry.blockedUntil = now + wait
-            }
-
-            // Attach reset function to request
+            // Attach reset function to request. The routes call it without
+            // awaiting it: the delete runs in the background.
             ; (req as any).resetBruteForce = () => {
-                this.bruteForceStore.delete(key)
+                store.reset(key).catch((err) => this.logStoreFailure(err))
             }
 
             next()

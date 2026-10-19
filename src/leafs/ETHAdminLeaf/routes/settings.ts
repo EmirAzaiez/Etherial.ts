@@ -117,7 +117,9 @@ export default class SettingsController {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
 
-        const schema = adminLeaf?.getSchema()
+        // Only what this user can reach: a role sees its own collections,
+        // CRUD steps, actions and pages, not the whole map.
+        const schema = await adminLeaf.getSchemaFor(req.user)
 
         return (res as any).success?.({
             status: 200,
@@ -139,7 +141,8 @@ export default class SettingsController {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
 
-        const collection = adminLeaf?.serializeCollection(req.params.collection)
+        // A collection the user cannot list does not exist for them.
+        const collection = await adminLeaf.serializeCollectionFor(req.user, req.params.collection)
         if (!collection) {
             return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
         }
@@ -162,8 +165,8 @@ export default class SettingsController {
     async getStats(req: Request & { user: any; query: { months?: string } }, res: Response): Promise<any> {
         const adminLeaf = getAdminLeaf()
 
-        // Check if user can access admin
-        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        // With roles, the dashboard is a permission of its own.
+        const hasAccess = await adminLeaf?.canSeeDashboardFor(req.user)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
@@ -184,6 +187,10 @@ export default class SettingsController {
                 const Model = collection.model
                 if (!Model) continue
 
+                // A count says how big a table is and how fast it grows: only
+                // for those who may open its records.
+                if (!(await adminLeaf.canViewCollection(req.user, collection.name))) continue
+
                 // Get total count
                 const count = await Model.count()
                 totalItems += count
@@ -192,8 +199,6 @@ export default class SettingsController {
                 const attributes = Model.getAttributes?.() || Model.rawAttributes || {}
                 const hasCreatedAt = 'created_at' in attributes || 'createdAt' in attributes
                 const createdAtField = 'created_at' in attributes ? 'created_at' : 'createdAt'
-
-                console.log(Model)
 
                 // Try to get recent count (items created in last 7 days)
                 let recentCount: number | undefined

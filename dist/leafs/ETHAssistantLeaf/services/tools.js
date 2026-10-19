@@ -186,7 +186,7 @@ function coerce(field, value) {
     }
 }
 /** Sequelize's where for the filters and the search; dates by the day are whole days. */
-function whereOf(collection, filters = [], search) {
+export function whereOf(collection, filters = [], search) {
     var _a, _b, _c;
     if (!Array.isArray(filters))
         throw new ToolError('filters is a list');
@@ -331,7 +331,7 @@ function linkOf(collection, filters = [], search) {
     return `/${collection.name}${qs ? `?${qs}` : ''}`;
 }
 // ── Values as the assistant reads them ──────────────────────────────────────
-function formatDate(value, withTime) {
+export function formatDate(value, withTime) {
     if (value === null || value === undefined || value === '')
         return null;
     const date = value instanceof Date ? value : new Date(String(value));
@@ -353,7 +353,7 @@ function formatDate(value, withTime) {
     return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
 }
 /** The names of the records a link field points to: one query per field. */
-function relationLabels(field, ids) {
+export function relationLabels(field, ids) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
         const out = new Map();

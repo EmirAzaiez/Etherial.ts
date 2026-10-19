@@ -11,7 +11,6 @@ export class UnifonicProvider {
     constructor(config) {
         this.name = 'unifonic';
         this.baseUrl = 'https://el.cloud.unifonic.com/rest/SMS/messages';
-        console.log(config);
         if (!config.appSid || !config.senderId) {
             throw new Error('UnifonicProvider: appSid and senderId are required');
         }

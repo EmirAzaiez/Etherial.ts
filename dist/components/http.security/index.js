@@ -8,24 +8,27 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import rateLimit from 'express-rate-limit';
+import etherial from '../../index.js';
+import { DatabaseBruteForceStore, MemoryBruteForceStore } from './store.js';
 // ============================================
 // Main HttpSecurity Class
 // ============================================
 export class HttpSecurity {
     constructor(config = {}) {
         var _a;
-        this.bruteForceStore = new Map();
+        this.memoryStore = new MemoryBruteForceStore();
+        this.databaseStore = new DatabaseBruteForceStore();
+        this.storeFailureLoggedAt = 0;
         this.config = {
             rateLimit: config.rateLimit,
             ipFilter: config.ipFilter,
             bruteForce: config.bruteForce,
             maxRequestSize: config.maxRequestSize,
             logging: config.logging,
-            trustProxy: (_a = config.trustProxy) !== null && _a !== void 0 ? _a : false
+            trustProxy: (_a = config.trustProxy) !== null && _a !== void 0 ? _a : false,
+            bruteForceStore: config.bruteForceStore
         };
         this.log = this.setupLogging(config.logging);
-        // Cleanup expired entries periodically
-        setInterval(() => this.cleanupExpiredEntries(), 60000);
     }
     setupLogging(logging) {
         if (logging === false) {
@@ -38,19 +41,26 @@ export class HttpSecurity {
             console.log(`[Security:${event.type}] ${event.method} ${event.path} from ${event.ip}`);
         };
     }
-    cleanupExpiredEntries() {
-        const now = Date.now();
-        const idleThresholdMs = 3600000;
-        for (const [key, entry] of this.bruteForceStore) {
-            // Entry currently blocked: drop only after the block has expired AND it has been idle long enough.
-            // Entry never blocked (blockedUntil=0): drop only after the idle threshold — otherwise we'd
-            // wipe the in-progress attempt counter on every sweep and the brute-force gate never triggers.
-            const idle = now - entry.lastAttempt;
-            const blockExpired = entry.blockedUntil === 0 || entry.blockedUntil < now;
-            if (blockExpired && idle > idleThresholdMs) {
-                this.bruteForceStore.delete(key);
-            }
+    // Chosen per request, not once: the decorators build their middleware when
+    // the routes are imported, which may be before the database is up.
+    bruteForceStoreFor() {
+        var _a;
+        if (this.config.bruteForceStore === 'memory') {
+            return this.memoryStore;
         }
+        if (DatabaseBruteForceStore.supports((_a = etherial.database) === null || _a === void 0 ? void 0 : _a.sequelize)) {
+            return this.databaseStore;
+        }
+        return this.memoryStore;
+    }
+    logStoreFailure(err) {
+        // Once a minute at most: a database that is down fails every login.
+        const now = Date.now();
+        if (now - this.storeFailureLoggedAt < 60000) {
+            return;
+        }
+        this.storeFailureLoggedAt = now;
+        console.error('[HttpSecurity] Brute-force counters unavailable in the database, counting in memory:', (err === null || err === void 0 ? void 0 : err.message) || err);
     }
     getClientIP(req) {
         var _a;
@@ -166,26 +176,27 @@ export class HttpSecurity {
     // ============================================
     createBruteForceProtection(config = {}) {
         const { freeRetries = 5, minWait = 500, maxWait = 60000, lifetime = 3600, keyGenerator } = config;
-        return (req, res, next) => {
+        const rules = { freeRetries, minWait, maxWait, lifetime };
+        return (req, res, next) => __awaiter(this, void 0, void 0, function* () {
             const customKey = keyGenerator ? keyGenerator(req) : null;
             const key = customKey
                 ? `${customKey}:${req.path}`
                 : `${this.getClientIP(req)}:${req.path}`;
             const now = Date.now();
-            let entry = this.bruteForceStore.get(key);
-            if (!entry) {
-                entry = { attempts: 0, lastAttempt: now, blockedUntil: 0 };
-                this.bruteForceStore.set(key, entry);
+            let store = this.bruteForceStoreFor();
+            let blockedUntil;
+            try {
+                blockedUntil = yield store.hit(key, rules, now);
             }
-            // Reset if lifetime exceeded
-            if ((now - entry.lastAttempt) > lifetime * 1000) {
-                entry.attempts = 0;
-                entry.blockedUntil = 0;
+            catch (err) {
+                this.logStoreFailure(err);
+                store = this.memoryStore;
+                blockedUntil = yield store.hit(key, rules, now);
             }
             // Check if blocked
-            if (entry.blockedUntil > now) {
-                this.logEvent('brute_force', req, { blockedUntil: entry.blockedUntil });
-                const retryAfter = Math.ceil((entry.blockedUntil - now) / 1000);
+            if (blockedUntil > now) {
+                this.logEvent('brute_force', req, { blockedUntil });
+                const retryAfter = Math.ceil((blockedUntil - now) / 1000);
                 res.status(429).json({
                     status: 429,
                     error: 'too_many_attempts',
@@ -194,20 +205,14 @@ export class HttpSecurity {
                 });
                 return;
             }
-            entry.lastAttempt = now;
-            entry.attempts++;
-            // Apply penalty after free retries
-            if (entry.attempts > freeRetries) {
-                const wait = Math.min(maxWait, minWait * Math.pow(2, entry.attempts - freeRetries - 1));
-                entry.blockedUntil = now + wait;
-            }
-            // Attach reset function to request
+            // Attach reset function to request. The routes call it without
+            // awaiting it: the delete runs in the background.
             ;
             req.resetBruteForce = () => {
-                this.bruteForceStore.delete(key);
+                store.reset(key).catch((err) => this.logStoreFailure(err));
             };
             next();
-        };
+        });
     }
     get bruteForceMiddleware() {
         if (!this.config.bruteForce) {

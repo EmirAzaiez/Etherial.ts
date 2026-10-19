@@ -27,6 +27,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { AsyncLocalStorage } from 'async_hooks';
 import etherial from 'etherial';
 import { Op } from 'sequelize';
+import { runExclusive } from '../../../components/database/lock.js';
 import { AdminAuditLog } from '../models/AdminAuditLog.js';
 export const AUDIT_COLLECTION = 'admin-audit';
 /** Values stored in place of what must not be kept (secrets) or could not be (too long). */
@@ -68,7 +69,7 @@ function labelOf(user) {
 }
 /** The author of a write made now, and where it came through. */
 export function currentActor() {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const store = storage.getStore();
     const meta = (_a = store === null || store === void 0 ? void 0 : store.meta) !== null && _a !== void 0 ? _a : null;
     const req = store === null || store === void 0 ? void 0 : store.req;
@@ -84,7 +85,10 @@ export function currentActor() {
     if (!req)
         return { actor: { type: 'system' }, source: 'system', meta };
     const source = String((_d = (_c = req.originalUrl) !== null && _c !== void 0 ? _c : req.url) !== null && _d !== void 0 ? _d : '').startsWith(adminPrefix) ? 'back-office' : 'app';
-    return { actor: person !== null && person !== void 0 ? person : { type: 'guest' }, source, meta };
+    // A change the assistant prepared and the person confirmed: still theirs,
+    // but the history says how it was made. Only the back-office sends it.
+    const via = source === 'back-office' && ((_e = req.headers) === null || _e === void 0 ? void 0 : _e['x-admin-via']) === 'assistant' ? { via: 'assistant' } : null;
+    return { actor: person !== null && person !== void 0 ? person : { type: 'guest' }, source, meta: via ? Object.assign(Object.assign({}, meta), via) : meta };
 }
 /**
  * Opens the context each request's writes are attributed in. The user is
@@ -382,17 +386,24 @@ export function installAuditHooks(collections, config) {
     }
     return tracked;
 }
-/** Removes entries older than `retentionDays`, now and then once a day. */
+/**
+ * Removes entries older than `retentionDays`, now and then once a day. Once a
+ * day across all servers: the lease is kept for most of the day, so the boot
+ * of a second server, or of the next deploy, does not purge again.
+ */
 export function scheduleAuditRetention(config) {
     const days = config.retentionDays;
     if (!days || days <= 0)
         return;
+    const DAY = 24 * 3600 * 1000;
     const purge = () => {
-        const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
-        AdminAuditLog.destroy({ where: { created_at: { [Op.lt]: cutoff } } }).catch((err) => console.error('[ETHAdminLeaf] Audit retention:', (err === null || err === void 0 ? void 0 : err.message) || err));
+        runExclusive('eth_admin.audit_retention', { ttlMs: DAY - 10 * 60 * 1000, release: false }, () => __awaiter(this, void 0, void 0, function* () {
+            const cutoff = new Date(Date.now() - days * DAY);
+            yield AdminAuditLog.destroy({ where: { created_at: { [Op.lt]: cutoff } } });
+        })).catch((err) => console.error('[ETHAdminLeaf] Audit retention:', (err === null || err === void 0 ? void 0 : err.message) || err));
     };
     purge();
-    setInterval(purge, 24 * 3600 * 1000).unref();
+    setInterval(purge, DAY).unref();
 }
 /** Joins entries to the user model so the change list names the author. */
 export function linkAuditToUsers(config) {

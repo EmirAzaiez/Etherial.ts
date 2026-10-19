@@ -93,7 +93,9 @@ let SettingsController = class SettingsController {
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
-            const schema = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getSchema();
+            // Only what this user can reach: a role sees its own collections,
+            // CRUD steps, actions and pages, not the whole map.
+            const schema = yield adminLeaf.getSchemaFor(req.user);
             return (_d = (_c = res).success) === null || _d === void 0 ? void 0 : _d.call(_c, {
                 status: 200,
                 data: schema
@@ -112,7 +114,8 @@ let SettingsController = class SettingsController {
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
-            const collection = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.serializeCollection(req.params.collection);
+            // A collection the user cannot list does not exist for them.
+            const collection = yield adminLeaf.serializeCollectionFor(req.user, req.params.collection);
             if (!collection) {
                 return (_d = (_c = res).error) === null || _d === void 0 ? void 0 : _d.call(_c, { status: 404, errors: ['collection_not_found'] });
             }
@@ -133,8 +136,8 @@ let SettingsController = class SettingsController {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
             const adminLeaf = getAdminLeaf();
-            // Check if user can access admin
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            // With roles, the dashboard is a permission of its own.
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canSeeDashboardFor(req.user));
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
@@ -151,6 +154,10 @@ let SettingsController = class SettingsController {
                     const Model = collection.model;
                     if (!Model)
                         continue;
+                    // A count says how big a table is and how fast it grows: only
+                    // for those who may open its records.
+                    if (!(yield adminLeaf.canViewCollection(req.user, collection.name)))
+                        continue;
                     // Get total count
                     const count = yield Model.count();
                     totalItems += count;
@@ -158,7 +165,6 @@ let SettingsController = class SettingsController {
                     const attributes = ((_c = Model.getAttributes) === null || _c === void 0 ? void 0 : _c.call(Model)) || Model.rawAttributes || {};
                     const hasCreatedAt = 'created_at' in attributes || 'createdAt' in attributes;
                     const createdAtField = 'created_at' in attributes ? 'created_at' : 'createdAt';
-                    console.log(Model);
                     // Try to get recent count (items created in last 7 days)
                     let recentCount;
                     if (hasCreatedAt) {

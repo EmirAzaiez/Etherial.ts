@@ -41,7 +41,7 @@ export default class ReactiveController {
     async debug(req: Request & { user: any }, res: Response): Promise<any> {
         const adminLeaf = getAdminLeaf()
 
-        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        const hasAccess = await adminLeaf?.canSeeMonitoringFor(req.user)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
@@ -107,8 +107,8 @@ export default class ReactiveController {
         const adminLeaf = getAdminLeaf()
         const reactive = getReactive()
 
-        // Check if user has access to admin
-        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        // Live monitoring: with roles, a permission of its own
+        const hasAccess = await adminLeaf?.canSeeMonitoringFor(req.user)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
@@ -149,8 +149,8 @@ export default class ReactiveController {
         const adminLeaf = getAdminLeaf()
         const reactive = getReactive()
 
-        // Check if user has access to admin
-        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        // Live monitoring: with roles, a permission of its own
+        const hasAccess = await adminLeaf?.canSeeMonitoringFor(req.user)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
@@ -181,8 +181,8 @@ export default class ReactiveController {
         const adminLeaf = getAdminLeaf()
         const reactive = getReactive()
 
-        // Check if user has access to admin
-        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        // Live monitoring: with roles, a permission of its own
+        const hasAccess = await adminLeaf?.canSeeMonitoringFor(req.user)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
@@ -264,8 +264,8 @@ export default class ReactiveController {
         const adminLeaf = getAdminLeaf()
         const reactive = getReactive()
 
-        // Check if user has access to admin
-        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        // Live monitoring: with roles, a permission of its own
+        const hasAccess = await adminLeaf?.canSeeMonitoringFor(req.user)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
@@ -303,8 +303,8 @@ export default class ReactiveController {
         const adminLeaf = getAdminLeaf()
         const reactive = getReactive()
 
-        // Check if user has access to admin
-        const hasAccess = await adminLeaf?.canAccessAdmin(req.user)
+        // Live monitoring: with roles, a permission of its own
+        const hasAccess = await adminLeaf?.canSeeMonitoringFor(req.user)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }

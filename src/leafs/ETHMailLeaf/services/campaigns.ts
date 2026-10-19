@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto'
 import { Op, col, fn } from 'sequelize'
 
+import { runExclusive } from '../../../components/database/lock.js'
+
 import { MailCampaign, MailCampaignStatus } from '../models/MailCampaign.js'
 import { MailCampaignRecipient } from '../models/MailCampaignRecipient.js'
 import { MailUnsubscribe } from '../models/MailUnsubscribe.js'
@@ -329,8 +331,9 @@ export async function scheduleCampaign(idInput: unknown, body: any, userId: numb
         { where: { id: campaign.id, status: 'draft' } }
     )
     if (!scheduled) throw new MailError('campaign_locked', 409, 'This campaign is not a draft anymore')
-    // Due now: no need to wait for the next sweep.
-    if (at.getTime() <= Date.now()) setTimeout(() => sweepOnce(), 500).unref?.()
+    // Due now: no need to wait for the next sweep to list it; the sending
+    // itself stays the sweep's, within the rate.
+    if (at.getTime() <= Date.now()) setTimeout(() => sweepOnce({ startOnly: true }), 500).unref?.()
     return readCampaign(campaign.id)
 }
 
@@ -573,13 +576,18 @@ function batchSize(): number {
     return Math.max(1, Math.floor((perMinute * SWEEP_MS) / 60_000))
 }
 
-async function sweep() {
-    // 1. Due campaigns: list their recipients.
+/** Due campaigns: list their recipients. Claimed one by one, safe on any server. */
+async function startDue() {
     const due = await MailCampaign.findAll({ where: { status: 'scheduled', scheduled_at: { [Op.lte]: new Date() } }, order: [['scheduled_at', 'ASC']], limit: 5 })
     for (const campaign of due) {
         const [taken] = await MailCampaign.update({ status: 'preparing', started_at: new Date() }, { where: { id: campaign.id, status: 'scheduled' } })
         if (taken) await prepare(campaign.id)
     }
+}
+
+async function sweep() {
+    // 1. Due campaigns: list their recipients.
+    await startDue()
 
     // 2. Listing for too long: its server stopped. Listing again is safe, one row per address.
     const stale = await MailCampaign.findAll({ where: { status: 'preparing', updated_at: { [Op.lt]: new Date(Date.now() - PREPARE_STALE_MS) } }, limit: 5 })
@@ -614,11 +622,21 @@ async function sweep() {
 let timer: NodeJS.Timeout | null = null
 let running = false
 
-async function sweepOnce() {
+/**
+ * One turn, on one server. The rows are claimed, so two servers would not send
+ * an address twice, but each would spend the whole `perMinute` budget: two
+ * servers, twice the rate the provider was promised. The lease, kept for most
+ * of the turn, makes the budget the whole cluster's.
+ *
+ * `startOnly`: just open the campaigns that are due, without sending — what
+ * scheduling one for now asks, whoever holds the lease.
+ */
+async function sweepOnce(options: { startOnly?: boolean } = {}) {
     if (running) return
     running = true
     try {
-        await sweep()
+        if (options.startOnly) await startDue()
+        else await runExclusive('eth_mail.campaign_sweep', { ttlMs: SWEEP_MS - 2_000, release: false }, sweep)
     } catch (err: any) {
         console.error('[ETHMailLeaf] Campaign sweep failed:', err?.message || err)
     } finally {
@@ -632,8 +650,8 @@ async function sweepOnce() {
  */
 export function startCampaignSweep() {
     if (!state.config.campaigns || timer) return
-    setTimeout(sweepOnce, 15_000).unref()
-    timer = setInterval(sweepOnce, SWEEP_MS)
+    setTimeout(() => sweepOnce(), 15_000).unref()
+    timer = setInterval(() => sweepOnce(), SWEEP_MS)
     timer.unref()
 }
 

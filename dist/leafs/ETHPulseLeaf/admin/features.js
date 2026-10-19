@@ -322,7 +322,13 @@ export function registerPulseActions(registry) {
     console.log('[ETHPulseLeaf] Actions:', Object.keys(pulseActions).join(', '));
 }
 export function registerPulseHooks(registry) {
+    var _a, _b;
     for (const [name, hook] of Object.entries(pulseHooks)) {
+        // With `campaigns` on, the create form only schedules and the leaf's
+        // engine sends: this hook, which sends on create, would push it twice.
+        if (name === 'pulse:send-campaign' && ((_b = (_a = getPulseLeaf()) === null || _a === void 0 ? void 0 : _a.config) === null || _b === void 0 ? void 0 : _b.campaigns)) {
+            continue;
+        }
         registry.register(name, hook);
     }
     console.log('[ETHPulseLeaf] Hooks:', Object.keys(pulseHooks).join(', '));

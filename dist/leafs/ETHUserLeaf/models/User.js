@@ -18,6 +18,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, Unique, Default, CreatedAt, UpdatedAt, DataType, } from 'etherial/components/database/provider';
 import * as crypto from 'crypto';
+const isDevelopment = () => process.env.NODE_ENV === 'development';
 export const USER_EXCLUDE_ATTRIBUTES_DEFAULT_SCOPE = [
     'password',
     'google_id',
@@ -104,16 +105,25 @@ export class UserLeafBase extends Model {
             return false;
         return ctor.verifyTokenHash(token, this.password_reset_token);
     }
+    // The defaults below send nothing: a project overrides them in its User
+    // model. The secret itself is printed in development only — in production
+    // the logs reach people and tools that must not be able to reset a password.
     sendEmailForPasswordReset(resetToken) {
         return __awaiter(this, void 0, void 0, function* () {
-            // TODO: Send email with reset token
-            console.log(`Password reset token for ${this.email}: ${resetToken}`);
+            if (isDevelopment()) {
+                console.log(`Password reset token for ${this.email}: ${resetToken}`);
+                return;
+            }
+            console.warn(`[ETHUserLeaf] Password reset requested for user ${this.id}, but no email sender is implemented (override sendEmailForPasswordReset)`);
         });
     }
     sendEmailForEmailVerification(confirmationToken) {
         return __awaiter(this, void 0, void 0, function* () {
-            // TODO: Send email with confirmation token
-            console.log(`Email confirmation token for ${this.email}: ${confirmationToken}`);
+            if (isDevelopment()) {
+                console.log(`Email confirmation token for ${this.email}: ${confirmationToken}`);
+                return;
+            }
+            console.warn(`[ETHUserLeaf] Email confirmation requested for user ${this.id}, but no email sender is implemented (override sendEmailForEmailVerification)`);
         });
     }
     sendEmailForPasswordNotification(type) {
@@ -125,7 +135,11 @@ export class UserLeafBase extends Model {
     sendSmsForPhoneVerification(code) {
         return __awaiter(this, void 0, void 0, function* () {
             // Override in your User model to send SMS verification
-            console.log(`Phone verification code for ${this.phone_temporary || this.phone}: ${code}`);
+            if (isDevelopment()) {
+                console.log(`Phone verification code for ${this.phone_temporary || this.phone}: ${code}`);
+                return;
+            }
+            console.warn(`[ETHUserLeaf] Phone verification requested for user ${this.id}, but no SMS sender is implemented (override sendSmsForPhoneVerification)`);
         });
     }
     insertAuditLog(data) {

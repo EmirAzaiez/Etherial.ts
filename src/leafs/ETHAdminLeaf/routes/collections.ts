@@ -13,6 +13,8 @@ import {
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 import { ActionContext, FieldDefinition, FieldHasMany, FieldBelongsToMany, BelongsToManyInput } from '../features/ActionRegistry.js'
 import { CollectionStat } from '../features/CollectionConfig.js'
+import { detectEditConflict } from '../features/concurrency.js'
+import { writableFields, keepWritable, lockedColumns, isSecretColumn } from '../features/access.js'
 import { Op, fn, col } from 'sequelize'
 
 const getAdminLeaf = () => (etherial as any).eth_admin_leaf
@@ -843,6 +845,142 @@ function escapeCsvValue(value: any): string {
 }
 
 /**
+ * Creates (`record` null) or updates a record the way every back-office write
+ * goes, whichever route asks — one form, a bulk edit, a duplicate:
+ *
+ *   - the body is cut to the columns the user may write, BEFORE the hooks: a
+ *     hook may still set a readonly column (a creator, a status), the client
+ *     may not;
+ *   - the before hook, the custom field types, the save with its relations
+ *     (in one transaction when there are), the after hook, the reload.
+ *
+ * `fromStoredValues` (a duplicate) keeps every stored column but the locked
+ * ones, and skips the custom field types: the values come from the table, not
+ * from a form, and converting them again would corrupt them.
+ */
+async function saveRecord(
+    collection: any,
+    record: any | null,
+    body: Record<string, any>,
+    req: any,
+    options: { fromStoredValues?: boolean } = {}
+): Promise<any> {
+    const adminLeaf = getAdminLeaf()
+    let data: Record<string, any>
+    if (options.fromStoredValues) {
+        data = { ...body }
+        for (const name of await lockedColumns(collection, req.user)) {
+            delete data[name]
+        }
+    } else {
+        const writable = await writableFields(collection, req.user)
+        data = keepWritable(normalizeEmptyValues({ ...body }, collection.fields), writable)
+    }
+    const resolvedHooks = adminLeaf.getResolvedHooks(collection.name)
+
+    // Extract hasMany fields from data
+    const hasManyFields = getHasManyFields(collection.fields)
+    const hasManyData: Map<string, any[]> = new Map()
+
+    for (const [fieldName] of hasManyFields) {
+        if (data[fieldName] !== undefined) {
+            hasManyData.set(fieldName, data[fieldName])
+            delete data[fieldName]
+        }
+    }
+
+    // Extract belongsToMany fields from data
+    const belongsToManyFields = getBelongsToManyFields(collection.fields)
+    const belongsToManyData: Map<string, BelongsToManyInput> = new Map()
+
+    for (const [fieldName] of belongsToManyFields) {
+        if (data[fieldName] !== undefined) {
+            belongsToManyData.set(fieldName, data[fieldName])
+            delete data[fieldName]
+        }
+    }
+
+    if (record && resolvedHooks?.beforeUpdate) {
+        data = await resolvedHooks.beforeUpdate(record, data, req) ?? data
+    }
+    if (!record && resolvedHooks?.beforeCreate) {
+        data = await resolvedHooks.beforeCreate(data, req) ?? data
+    }
+
+    // Process custom field types: validate then beforeSave
+    if (!options.fromStoredValues) {
+        data = await processCustomFieldTypes(data, collection.fields, 'validate')
+        data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
+    }
+
+    const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0
+    const saved = await inSaveTransaction(collection.model, withRelations, async (transaction) => {
+        const target = record
+            ? await record.update(data, { transaction })
+            : await collection.model.create(data, { transaction })
+
+        // Sync hasMany items
+        for (const [fieldName, items] of hasManyData) {
+            const hmConfig = hasManyFields.get(fieldName)!
+            await processHasManyItems(target.id, fieldName, hmConfig, items, !!record, transaction)
+        }
+
+        // Sync belongsToMany relations
+        for (const [fieldName, itemIds] of belongsToManyData) {
+            const btmConfig = belongsToManyFields.get(fieldName)!
+            await processBelongsToManyItems(target, fieldName, btmConfig, itemIds, transaction)
+        }
+
+        return target
+    })
+
+    if (record && resolvedHooks?.afterUpdate) {
+        await resolvedHooks.afterUpdate(saved, req)
+    }
+    if (!record && resolvedHooks?.afterCreate) {
+        await resolvedHooks.afterCreate(saved, req)
+    }
+
+    // Reload with relations
+    const reloadIncludes: any[] = []
+    if (hasManyData.size > 0) {
+        reloadIncludes.push(...Array.from(hasManyFields.keys()).map(name => ({ association: name })))
+    }
+    if (belongsToManyData.size > 0) {
+        reloadIncludes.push(...Array.from(belongsToManyFields.keys()).map(name => ({ association: name })))
+    }
+    if (reloadIncludes.length > 0) {
+        await saved.reload({ include: reloadIncludes })
+    }
+
+    return saved
+}
+
+/** At most this many records per bulk request: each one runs the full update. */
+const MAX_BULK_IDS = 100
+
+/**
+ * Whether a client may name `name` as a column to read or search on: a
+ * declared field that is not `secure`, the list's own search columns, `id` or
+ * `name` — or any column when the collection declares no field at all, as its
+ * forms do. Credentials never.
+ */
+function isReadableColumn(collection: any, name: string): boolean {
+    if (isSecretColumn(name)) {
+        return false
+    }
+    const fields: FieldDefinition[] = collection.fields || []
+    const declared = fields.find((f) => f.name === name)
+    if (declared) {
+        return !declared.secure
+    }
+    if (name === 'id' || name === 'name' || collection.views?.list?.search?.includes(name)) {
+        return true
+    }
+    return fields.length === 0 && !!collection.model?.rawAttributes?.[name]
+}
+
+/**
  * Admin Collections Controller
  * Single controller handling all CRUD operations for all collections
  */
@@ -1167,77 +1305,7 @@ export default class AdminCollectionsController {
         }
 
         try {
-            let data = normalizeEmptyValues({ ...req.body }, collection.fields)
-            const resolvedHooks = adminLeaf.getResolvedHooks(collectionName)
-
-            // Extract hasMany fields from data
-            const hasManyFields = getHasManyFields(collection.fields)
-            const hasManyData: Map<string, any[]> = new Map()
-
-            for (const [fieldName] of hasManyFields) {
-                if (data[fieldName] !== undefined) {
-                    hasManyData.set(fieldName, data[fieldName])
-                    delete data[fieldName]
-                }
-            }
-
-            // Extract belongsToMany fields from data
-            const belongsToManyFields = getBelongsToManyFields(collection.fields)
-            const belongsToManyData: Map<string, BelongsToManyInput> = new Map()
-
-            for (const [fieldName] of belongsToManyFields) {
-                if (data[fieldName] !== undefined) {
-                    belongsToManyData.set(fieldName, data[fieldName])
-                    delete data[fieldName]
-                }
-            }
-
-            // Run beforeCreate hook
-            if (resolvedHooks?.beforeCreate) {
-                data = await resolvedHooks.beforeCreate(data, req) ?? data
-            }
-
-            // Process custom field types: validate then beforeSave
-            data = await processCustomFieldTypes(data, collection.fields, 'validate')
-            data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
-
-            const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0
-            const record = await inSaveTransaction(collection.model, withRelations, async (transaction) => {
-                // Create parent record
-                const created = await collection.model.create(data, { transaction })
-
-                // Create hasMany items
-                for (const [fieldName, items] of hasManyData) {
-                    const hmConfig = hasManyFields.get(fieldName)!
-                    await processHasManyItems(created.id, fieldName, hmConfig, items, false, transaction)
-                }
-
-                // Sync belongsToMany relations
-                for (const [fieldName, itemIds] of belongsToManyData) {
-                    const btmConfig = belongsToManyFields.get(fieldName)!
-                    await processBelongsToManyItems(created, fieldName, btmConfig, itemIds, transaction)
-                }
-
-                return created
-            })
-
-            // Run afterCreate hook
-            if (resolvedHooks?.afterCreate) {
-                await resolvedHooks.afterCreate(record, req)
-            }
-
-            // Reload with relations
-            const reloadIncludes: any[] = []
-            if (hasManyData.size > 0) {
-                reloadIncludes.push(...Array.from(hasManyFields.keys()).map(name => ({ association: name })))
-            }
-            if (belongsToManyData.size > 0) {
-                reloadIncludes.push(...Array.from(belongsToManyFields.keys()).map(name => ({ association: name })))
-            }
-            if (reloadIncludes.length > 0) {
-                await record.reload({ include: reloadIncludes })
-            }
-
+            const record = await saveRecord(collection, null, req.body, req)
             return (res as any).success?.({ status: 201, data: record })
         } catch (err: any) {
             console.error(`[ETHAdminLeaf] Create error for ${collectionName}:`, err)
@@ -1274,75 +1342,23 @@ export default class AdminCollectionsController {
                 return (res as any).error?.({ status: 404, errors: ['not_found'] })
             }
 
-            let data = normalizeEmptyValues({ ...req.body }, collection.fields)
-            const resolvedHooks = adminLeaf.getResolvedHooks(collectionName)
-
-            // Extract hasMany fields from data
-            const hasManyFields = getHasManyFields(collection.fields)
-            const hasManyData: Map<string, any[]> = new Map()
-
-            for (const [fieldName] of hasManyFields) {
-                if (data[fieldName] !== undefined) {
-                    hasManyData.set(fieldName, data[fieldName])
-                    delete data[fieldName]
-                }
+            // A form loaded before someone else's save must not silently undo
+            // it: refuse, with the record as it is now (as the edit page loads
+            // it) so the back-office can merge or ask. No If-Match, no check.
+            const conflict = await detectEditConflict(collection, record, req.headers['if-match'])
+            if (conflict) {
+                const fresh = await collection.model.findByPk(id, {
+                    include: buildIncludesFromRelations(collection.fields, collection.views?.show?.include),
+                })
+                const plain = fresh?.toJSON ? fresh.toJSON() : { ...fresh }
+                return (res as any).error?.({
+                    status: 409,
+                    errors: ['conflict'],
+                    data: { current: applyAfterReadDeep(transformMediaUrls(plain), collection.fields), ...conflict },
+                })
             }
 
-            // Extract belongsToMany fields from data
-            const belongsToManyFields = getBelongsToManyFields(collection.fields)
-            const belongsToManyData: Map<string, BelongsToManyInput> = new Map()
-
-            for (const [fieldName] of belongsToManyFields) {
-                if (data[fieldName] !== undefined) {
-                    belongsToManyData.set(fieldName, data[fieldName])
-                    delete data[fieldName]
-                }
-            }
-
-            // Run beforeUpdate hook
-            if (resolvedHooks?.beforeUpdate) {
-                data = await resolvedHooks.beforeUpdate(record, data, req) ?? data
-            }
-
-            // Process custom field types: validate then beforeSave
-            data = await processCustomFieldTypes(data, collection.fields, 'validate')
-            data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
-
-            const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0
-            await inSaveTransaction(collection.model, withRelations, async (transaction) => {
-                // Update parent record
-                await record.update(data, { transaction })
-
-                // Sync hasMany items
-                for (const [fieldName, items] of hasManyData) {
-                    const hmConfig = hasManyFields.get(fieldName)!
-                    await processHasManyItems(record.id, fieldName, hmConfig, items, true, transaction)
-                }
-
-                // Sync belongsToMany relations
-                for (const [fieldName, itemIds] of belongsToManyData) {
-                    const btmConfig = belongsToManyFields.get(fieldName)!
-                    await processBelongsToManyItems(record, fieldName, btmConfig, itemIds, transaction)
-                }
-            })
-
-            // Run afterUpdate hook
-            if (resolvedHooks?.afterUpdate) {
-                await resolvedHooks.afterUpdate(record, req)
-            }
-
-            // Reload with relations
-            const reloadIncludes: any[] = []
-            if (hasManyData.size > 0) {
-                reloadIncludes.push(...Array.from(hasManyFields.keys()).map(name => ({ association: name })))
-            }
-            if (belongsToManyData.size > 0) {
-                reloadIncludes.push(...Array.from(belongsToManyFields.keys()).map(name => ({ association: name })))
-            }
-            if (reloadIncludes.length > 0) {
-                await record.reload({ include: reloadIncludes })
-            }
-
+            await saveRecord(collection, record, req.body, req)
             return (res as any).success?.({ status: 200, data: record })
         } catch (err: any) {
             console.error(`[ETHAdminLeaf] Update error for ${collectionName}:`, err)
@@ -1490,7 +1506,17 @@ export default class AdminCollectionsController {
                 return (res as any).error?.({ status: 404, errors: ['not_found'] })
             }
 
-            await record.update(req.body)
+            // Same cut as a record's own form: the registered collection's
+            // editable fields when there is one, else the columns the sub-list
+            // shows. Never the key, never the link to the parent.
+            const registered = adminLeaf.getCollection(subName)
+            const writable = registered && registered.model === subConfig.model
+                ? await writableFields(registered, req.user)
+                : new Set<string>(subConfig.fields)
+            writable.delete('id')
+            writable.delete(subConfig.foreignKey)
+
+            await record.update(keepWritable(req.body, writable))
 
             return (res as any).success?.({ status: 200, data: record })
         } catch (err: any) {
@@ -1696,6 +1722,12 @@ export default class AdminCollectionsController {
                 ? String(fieldsParam).split(',').map((f: string) => f.trim())
                 : (listView?.search || [])
 
+            // The searched columns are also the ones returned: a client could
+            // otherwise read (or guess, letter by letter) any column.
+            if (searchFields.some((field) => !isReadableColumn(collection, field))) {
+                return (res as any).error?.({ status: 400, errors: ['invalid_search_field'] })
+            }
+
             if (searchFields.length === 0) {
                 return (res as any).success?.({ status: 200, data: [] })
             }
@@ -1767,6 +1799,15 @@ export default class AdminCollectionsController {
 
         try {
             const { displayField, secondaryField, q, ids, limit = 100 } = req.query
+
+            // The labels are read from the query string: without this, any
+            // column of a listable table (a password hash, a token) could be
+            // asked for as the "label" of its rows.
+            for (const requested of [displayField, secondaryField]) {
+                if (requested && !isReadableColumn(collection, String(requested))) {
+                    return (res as any).error?.({ status: 400, errors: ['invalid_display_field'] })
+                }
+            }
 
             const attributes = collection.model.rawAttributes || {}
             const exists = (name?: string) => !!name && !!attributes[name]
@@ -1868,13 +1909,15 @@ export default class AdminCollectionsController {
             return (res as any).error?.({ status: 403, errors: ['export_not_enabled'] })
         }
 
-        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, 'list')
+        // A file holds every record in full: listing alone (a lookup grant,
+        // made to fill a picker) is not enough.
+        const hasAccess = await adminLeaf?.canViewCollection(req.user, collectionName)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
 
         try {
-            const { format = 'csv', fields: fieldsParam, search, ...filters } = req.query
+            const { format = 'csv', fields: fieldsParam, search, sort, order, showDeleted, exclude, ...filters } = req.query
             const listView = collection.views?.list
 
             // Build where clause (reuse advanced filters)
@@ -1904,16 +1947,41 @@ export default class AdminCollectionsController {
             }
             // Only the model's columns: a field like a map-picker is drawn by the
             // back-office from other columns, and selecting it fails the query.
+            // Credentials never leave, even when asked for by name.
             const columns = collection.model.rawAttributes || {}
-            exportFields = exportFields.filter(f => !!columns[f])
+            exportFields = exportFields.filter(f => !!columns[f] && !isSecretColumn(f))
+            if (exportFields.length === 0) {
+                exportFields = Object.keys(columns).filter(f => !secureFieldNames.has(f) && !isSecretColumn(f))
+            }
+
+            // The columns hidden on the list stay out of the file too, unless
+            // that would leave nothing to export.
+            if (exclude) {
+                const hidden = new Set(String(exclude).split(',').map(f => f.trim()))
+                const kept = exportFields.filter(f => !hidden.has(f))
+                if (kept.length > 0) {
+                    exportFields = kept
+                }
+            }
+
+            // The file comes out as the list shows it: same order, same
+            // deleted toggle (see `list`).
+            const orderClause = resolveOrder(collection.model, [
+                sort ? { field: sort, direction: order || 'ASC' } : null,
+                listView?.sort,
+            ])
+            const paranoidOption = collection.softDelete?.enabled && showDeleted === 'true'
+                ? { paranoid: false }
+                : {}
 
             const MAX_EXPORT_ROWS = 10000
             const rows = await collection.model.findAll({
                 where,
                 attributes: exportFields,
                 limit: MAX_EXPORT_ROWS,
-                order: [['id', 'ASC']],
-                raw: true
+                order: orderClause,
+                raw: true,
+                ...paranoidOption
             })
 
             if (format === 'json') {
@@ -1966,7 +2034,7 @@ export default class AdminCollectionsController {
             return (res as any).error?.({ status: 400, errors: ['action_and_ids_required'] })
         }
 
-        if (ids.length > 100) {
+        if (ids.length > MAX_BULK_IDS) {
             return (res as any).error?.({ status: 400, errors: ['max_100_ids_per_request'] })
         }
 
@@ -2007,8 +2075,24 @@ export default class AdminCollectionsController {
                 if (!data || typeof data !== 'object') {
                     return (res as any).error?.({ status: 400, errors: ['data_required_for_update'] })
                 }
-                const [updated] = await collection.model.update(data, { where: { id: { [Op.in]: ids } } })
-                return (res as any).success?.({ status: 200, data: { updated } })
+                // One record at a time, through the same path as its form: a
+                // single `Model.update()` skipped the field cut, the hooks,
+                // the validation and the per-record history.
+                const records = await collection.model.findAll({ where: { id: { [Op.in]: ids } } })
+                let updated = 0
+                const failed: { id: any; error: string }[] = []
+                for (const record of records) {
+                    try {
+                        await saveRecord(collection, record, data, req)
+                        updated++
+                    } catch (err: any) {
+                        failed.push({ id: record.id, error: err.errors?.[0]?.message || err.message })
+                    }
+                }
+                if (updated === 0 && failed.length > 0) {
+                    return (res as any).error?.({ status: 400, errors: failed.map((f) => `#${f.id}: ${f.error}`), data: { updated, failed } })
+                }
+                return (res as any).success?.({ status: 200, data: { updated, failed } })
             }
 
             return (res as any).error?.({ status: 400, errors: ['invalid_action'] })
@@ -2057,7 +2141,10 @@ export default class AdminCollectionsController {
             delete data.updatedAt
             delete data.deletedAt
 
-            const newRecord = await collection.model.create(data)
+            // Through the create path: its hooks run (a slug, an author, a
+            // sync), and the copy cannot carry a column its author could not
+            // have set himself.
+            const newRecord = await saveRecord(collection, null, data, req, { fromStoredValues: true })
 
             return (res as any).success?.({ status: 201, data: newRecord })
         } catch (err: any) {
@@ -2137,7 +2224,8 @@ export default class AdminCollectionsController {
             return (res as any).error?.({ status: 404, errors: ['collection_not_found'] })
         }
 
-        const hasAccess = await adminLeaf?.checkAccess(req.user, collectionName, 'list')
+        // Counts are reads of the whole table: a lookup grant does not cover them.
+        const hasAccess = await adminLeaf?.canViewCollection(req.user, collectionName)
         if (!hasAccess) {
             return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }

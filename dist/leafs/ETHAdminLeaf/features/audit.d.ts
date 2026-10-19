@@ -64,7 +64,11 @@ interface ModelAudit {
  * collections is recorded under the first. Returns the collections tracked.
  */
 export declare function installAuditHooks(collections: CollectionConfig[], config: AuditConfig): string[];
-/** Removes entries older than `retentionDays`, now and then once a day. */
+/**
+ * Removes entries older than `retentionDays`, now and then once a day. Once a
+ * day across all servers: the lease is kept for most of the day, so the boot
+ * of a second server, or of the next deploy, does not purge again.
+ */
 export declare function scheduleAuditRetention(config: AuditConfig): void;
 /** Joins entries to the user model so the change list names the author. */
 export declare function linkAuditToUsers(config: AuditConfig): boolean;

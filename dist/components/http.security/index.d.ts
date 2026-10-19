@@ -31,6 +31,7 @@ export interface HttpSecurityConfig {
     maxRequestSize?: number;
     logging?: boolean | ((event: SecurityEvent) => void);
     trustProxy?: boolean;
+    bruteForceStore?: 'database' | 'memory';
 }
 export interface SecurityEvent {
     type: 'rate_limit' | 'ip_blocked' | 'brute_force';
@@ -42,11 +43,14 @@ export interface SecurityEvent {
 }
 export declare class HttpSecurity implements IEtherialModule {
     private config;
-    private bruteForceStore;
+    private memoryStore;
+    private databaseStore;
+    private storeFailureLoggedAt;
     private log;
     constructor(config?: HttpSecurityConfig);
     private setupLogging;
-    private cleanupExpiredEntries;
+    private bruteForceStoreFor;
+    private logStoreFailure;
     private getClientIP;
     private logEvent;
     createRateLimiter(config: RateLimitConfig): RequestHandler;

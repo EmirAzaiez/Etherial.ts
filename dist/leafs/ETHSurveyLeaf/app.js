@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { runExclusive } from '../../components/database/lock.js';
 import { SurveyResponse } from './models/SurveyResponse.js';
 import { attachTriggers, expireDue, invite, notifyDue } from './services/invitations.js';
 import { state } from './services/state.js';
@@ -45,22 +46,26 @@ export default class ETHSurveyLeaf {
     }
     /** Lifecycle: run — routes, and the clock that opens and closes questions. */
     run({ http }) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+        var _a, _b, _c, _d, _e, _f, _g;
         (_a = http === null || http === void 0 ? void 0 : http.routes_leafs) === null || _a === void 0 ? void 0 : _a.push(...this.routes);
         const tick = () => __awaiter(this, void 0, void 0, function* () {
             try {
-                yield expireDue();
-                yield notifyDue();
+                // One server per minute: the rows are claimed one by one, so a
+                // second server would only scan the same table for nothing.
+                yield runExclusive('eth_survey.tick', { ttlMs: 50 * 1000, release: false }, () => __awaiter(this, void 0, void 0, function* () {
+                    yield expireDue();
+                    yield notifyDue();
+                }));
             }
             catch (err) {
                 console.error('[ETHSurveyLeaf] Could not open or close questions:', (err === null || err === void 0 ? void 0 : err.message) || err);
             }
         });
-        // Not at boot: the table may not be synced yet.
-        (_c = (_b = setTimeout(tick, 60 * 1000)).unref) === null || _c === void 0 ? void 0 : _c.call(_b);
-        (_e = (_d = setInterval(tick, 60 * 1000)).unref) === null || _e === void 0 ? void 0 : _e.call(_d);
-        const count = (_g = (_f = this.config.surveys) === null || _f === void 0 ? void 0 : _f.length) !== null && _g !== void 0 ? _g : 0;
-        console.log(`[ETHSurveyLeaf] ${count ? `${count} survey${count > 1 ? 's' : ''}, ${(_j = (_h = this.config.triggers) === null || _h === void 0 ? void 0 : _h.length) !== null && _j !== void 0 ? _j : 0} trigger(s)` : 'No survey yet: list them in `surveys`'}`);
+        // Not at boot: the table may not be synced yet. The first turn of the
+        // interval is a minute away (a setTimeout as well ran it twice then).
+        (_c = (_b = setInterval(tick, 60 * 1000)).unref) === null || _c === void 0 ? void 0 : _c.call(_b);
+        const count = (_e = (_d = this.config.surveys) === null || _d === void 0 ? void 0 : _d.length) !== null && _e !== void 0 ? _e : 0;
+        console.log(`[ETHSurveyLeaf] ${count ? `${count} survey${count > 1 ? 's' : ''}, ${(_g = (_f = this.config.triggers) === null || _f === void 0 ? void 0 : _f.length) !== null && _g !== void 0 ? _g : 0} trigger(s)` : 'No survey yet: list them in `surveys`'}`);
     }
     /** Lifecycle: afterRun — every model exists: hook the triggers, tell the back-office. */
     afterRun() {

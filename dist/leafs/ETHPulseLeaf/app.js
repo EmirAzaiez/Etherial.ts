@@ -24,6 +24,9 @@ import { communicationsOptions, registerCommunicationSource, } from './services/
 // Notification texts
 import { PulseText } from './models/PulseText.js';
 import { TEXTS_COLLECTION, PulseTextError, pulseText, setTextsConfig, textLocales } from './services/texts.js';
+// Push campaigns
+import { setCampaignsConfig, startCampaignSweep } from './services/campaigns.js';
+import { registerPushCampaignsAdmin } from './admin/campaigns.js';
 // Seeds
 import { getDefaultContent } from './seeds/email-template-defaults.js';
 import { UnifonicProvider } from './providers/sms/UnifonicProvider.js';
@@ -115,6 +118,11 @@ export default class ETHPulseLeaf {
             setTextsConfig(config.texts);
             this.routes.push({ route: path.join(__dirname, 'routes/texts'), methods: ['listTexts', 'saveText', 'resetText'] });
         }
+        // Push campaigns: the app reports the taps on a campaign push
+        if (config.campaigns) {
+            setCampaignsConfig(config.campaigns);
+            this.routes.push({ route: path.join(__dirname, 'routes/campaigns'), methods: ['opened'] });
+        }
         // Register email template sync route (always available when templates are configured)
         if ((_j = config.email) === null || _j === void 0 ? void 0 : _j.templates) {
             this.routes.push({
@@ -130,6 +138,12 @@ export default class ETHPulseLeaf {
     beforeRun({ database }) {
         if (this.config.texts)
             database === null || database === void 0 ? void 0 : database.addModels([PulseText]);
+        // Here rather than in afterRun: the admin leaf resolves the hooks in its
+        // run, and puts the change history on the collections that exist in its
+        // afterRun — which comes before this leaf's.
+        if (this.config.campaigns) {
+            registerPushCampaignsAdmin(etherial.eth_admin_leaf, this.config.campaigns);
+        }
     }
     // beforeRun({ database }: Etherial) {
     //     database?.addModels([
@@ -176,6 +190,9 @@ export default class ETHPulseLeaf {
             if (!adminLeaf.getCollection(TEXTS_COLLECTION))
                 adminLeaf.registerCollection(textsCollection());
             (_d = adminLeaf.setFeature) === null || _d === void 0 ? void 0 : _d.call(adminLeaf, 'pulseTexts', Object.assign(Object.assign({ collection: TEXTS_COLLECTION }, textLocales()), { count: this.config.texts.items.length }));
+        }
+        if (this.config.campaigns) {
+            startCampaignSweep();
         }
     }
     /**
@@ -446,6 +463,9 @@ export default class ETHPulseLeaf {
 export const AvailableRouteMethods = {
     devices: ['registerDevice', 'revokeDevice'],
 };
+export { CAMPAIGN_NOTIFICATION_LOCATION, dispatchCampaign, collectReceipts, refreshCampaignStats, sendCampaignTest, recordCampaignOpen, publishCampaignToInbox, } from './services/campaigns.js';
+export { BasePushCampaign, NotificationCampaignStatus, EDITABLE_CAMPAIGN_STATUSES, pushCampaignTable } from './models/PushCampaign.js';
+export { BaseNotificationCampaignDelivery, NotificationDeliveryStatus, notificationCampaignDeliveryTable } from './models/NotificationCampaignDelivery.js';
 export { PulseText } from './models/PulseText.js';
 export { MessageLog, MessageType, MessageStatus } from './models/MessageLog.js';
 export { Device, DevicePlatform, DevicePushTokenType, DevicePushTokenStatus } from './models/Device.js';

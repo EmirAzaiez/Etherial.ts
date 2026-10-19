@@ -25,6 +25,10 @@ import {
 import { PulseText } from './models/PulseText.js'
 import { PulseTextsConfig, TEXTS_COLLECTION, PulseTextError, pulseText, setTextsConfig, textLocales } from './services/texts.js'
 
+// Push campaigns
+import { PushCampaignsConfig, setCampaignsConfig, startCampaignSweep } from './services/campaigns.js'
+import { registerPushCampaignsAdmin } from './admin/campaigns.js'
+
 // Seeds
 import { getDefaultContent } from './seeds/email-template-defaults.js'
 
@@ -154,6 +158,12 @@ export default class ETHPulseLeaf {
             this.routes.push({ route: path.join(__dirname, 'routes/texts'), methods: ['listTexts', 'saveText', 'resetText'] })
         }
 
+        // Push campaigns: the app reports the taps on a campaign push
+        if (config.campaigns) {
+            setCampaignsConfig(config.campaigns)
+            this.routes.push({ route: path.join(__dirname, 'routes/campaigns'), methods: ['opened'] })
+        }
+
         // Register email template sync route (always available when templates are configured)
         if (config.email?.templates) {
             this.routes.push({
@@ -169,6 +179,13 @@ export default class ETHPulseLeaf {
      */
     beforeRun({ database }: Etherial) {
         if (this.config.texts) database?.addModels([PulseText] as any)
+
+        // Here rather than in afterRun: the admin leaf resolves the hooks in its
+        // run, and puts the change history on the collections that exist in its
+        // afterRun — which comes before this leaf's.
+        if (this.config.campaigns) {
+            registerPushCampaignsAdmin((etherial as any).eth_admin_leaf, this.config.campaigns)
+        }
     }
 
     // beforeRun({ database }: Etherial) {
@@ -218,6 +235,10 @@ export default class ETHPulseLeaf {
             })
             if (!adminLeaf.getCollection(TEXTS_COLLECTION)) adminLeaf.registerCollection(textsCollection())
             adminLeaf.setFeature?.('pulseTexts', { collection: TEXTS_COLLECTION, ...textLocales(), count: this.config.texts.items.length })
+        }
+
+        if (this.config.campaigns) {
+            startCampaignSweep()
         }
     }
 
@@ -608,9 +629,32 @@ export interface ETHPulseLeafConfig {
      * user's push, SMS, email and inbox messages next to their devices.
      */
     communications?: boolean | CommunicationsConfig
+    /**
+     * Off by default. Push campaigns from the back-office: draft, schedule or
+     * send now, a test send, per-device deliveries with Expo's receipts and
+     * the taps, and a sweep that sends what is due (one server per turn).
+     * The project keeps its models (tables `notification_campaigns` and
+     * `notification_campaign_deliveries`, extending `BasePushCampaign` and
+     * `BaseNotificationCampaignDelivery`) and says who a campaign reaches.
+     * Replaces the `pulse:send-campaign` hook, which sent on create.
+     */
+    campaigns?: PushCampaignsConfig
 }
 
 export { CommunicationsConfig, CommunicationSource, CommunicationEntry, CommunicationQuery } from './services/communications.js'
+export {
+    PushCampaignsConfig,
+    PushCampaignAudience,
+    CAMPAIGN_NOTIFICATION_LOCATION,
+    dispatchCampaign,
+    collectReceipts,
+    refreshCampaignStats,
+    sendCampaignTest,
+    recordCampaignOpen,
+    publishCampaignToInbox,
+} from './services/campaigns.js'
+export { BasePushCampaign, NotificationCampaignStatus, EDITABLE_CAMPAIGN_STATUSES, pushCampaignTable } from './models/PushCampaign.js'
+export { BaseNotificationCampaignDelivery, NotificationDeliveryStatus, notificationCampaignDeliveryTable } from './models/NotificationCampaignDelivery.js'
 export { PulseTextsConfig, PulseTextDefinition, PulseTextVariable, PulseLocalized } from './services/texts.js'
 export { PulseText } from './models/PulseText.js'
 

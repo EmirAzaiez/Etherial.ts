@@ -13,6 +13,7 @@ import { Op, fn, literal } from 'sequelize'
 
 import type { ToolDefinition } from './anthropic.js'
 import { ReadableCollection, ReadableField, describe, readable } from './catalog.js'
+import type { Proposal } from './proposals.js'
 import { state } from './state.js'
 import { timezoneOf } from './options.js'
 
@@ -51,6 +52,8 @@ export interface ToolContext {
     collections: Map<string, ReadableCollection>
     /** Collections read, for the log. */
     read: Set<string>
+    /** Changes prepared for the staff member to confirm; absent when the leaf's `proposals` is off. */
+    proposals?: Proposal[]
 }
 
 // ── Definitions ─────────────────────────────────────────────────────────────
@@ -211,7 +214,7 @@ function coerce(field: ReadableField, value: unknown): unknown {
 }
 
 /** Sequelize's where for the filters and the search; dates by the day are whole days. */
-function whereOf(collection: ReadableCollection, filters: Filter[] = [], search?: string): any {
+export function whereOf(collection: ReadableCollection, filters: Filter[] = [], search?: string): any {
     if (!Array.isArray(filters)) throw new ToolError('filters is a list')
     const like = isPostgres() ? Op.iLike : Op.like
     const and: any[] = []
@@ -326,7 +329,7 @@ function linkOf(collection: ReadableCollection, filters: Filter[] = [], search?:
 
 // ── Values as the assistant reads them ──────────────────────────────────────
 
-function formatDate(value: unknown, withTime: boolean): string | null {
+export function formatDate(value: unknown, withTime: boolean): string | null {
     if (value === null || value === undefined || value === '') return null
     const date = value instanceof Date ? value : new Date(String(value))
     if (Number.isNaN(date.getTime())) return String(value)
@@ -346,7 +349,7 @@ function formatDate(value: unknown, withTime: boolean): string | null {
 }
 
 /** The names of the records a link field points to: one query per field. */
-async function relationLabels(field: ReadableField, ids: unknown[]): Promise<Map<string, string>> {
+export async function relationLabels(field: ReadableField, ids: unknown[]): Promise<Map<string, string>> {
     const out = new Map<string, string>()
     const unique = [...new Set(ids.filter((id) => id !== null && id !== undefined && id !== ''))]
     if (!unique.length || !field.relation) return out

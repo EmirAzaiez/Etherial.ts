@@ -79,6 +79,14 @@
     "uniqid": "^5.4.0",
     "yup": "^1.7.0"
   },
+  "peerDependencies": {
+    "@sentry/node": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "@sentry/node": {
+      "optional": true
+    }
+  },
   "author": "",
   "license": "ISC",
   "devDependencies": {

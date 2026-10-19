@@ -36,7 +36,7 @@ let ReactiveController = class ReactiveController {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
             const adminLeaf = getAdminLeaf();
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canSeeMonitoringFor(req.user));
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
@@ -97,8 +97,8 @@ let ReactiveController = class ReactiveController {
             var _a, _b, _c, _d, _e, _f;
             const adminLeaf = getAdminLeaf();
             const reactive = getReactive();
-            // Check if user has access to admin
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            // Live monitoring: with roles, a permission of its own
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canSeeMonitoringFor(req.user));
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
@@ -135,8 +135,8 @@ let ReactiveController = class ReactiveController {
             var _a, _b, _c, _d, _e, _f;
             const adminLeaf = getAdminLeaf();
             const reactive = getReactive();
-            // Check if user has access to admin
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            // Live monitoring: with roles, a permission of its own
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canSeeMonitoringFor(req.user));
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
@@ -163,8 +163,8 @@ let ReactiveController = class ReactiveController {
             var _a, _b, _c, _d, _e, _f;
             const adminLeaf = getAdminLeaf();
             const reactive = getReactive();
-            // Check if user has access to admin
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            // Live monitoring: with roles, a permission of its own
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canSeeMonitoringFor(req.user));
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
@@ -228,8 +228,8 @@ let ReactiveController = class ReactiveController {
             var _a, _b, _c, _d, _e, _f;
             const adminLeaf = getAdminLeaf();
             const reactive = getReactive();
-            // Check if user has access to admin
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            // Live monitoring: with roles, a permission of its own
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canSeeMonitoringFor(req.user));
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }
@@ -262,8 +262,8 @@ let ReactiveController = class ReactiveController {
             var _a, _b, _c, _d, _e, _f;
             const adminLeaf = getAdminLeaf();
             const reactive = getReactive();
-            // Check if user has access to admin
-            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canAccessAdmin(req.user));
+            // Live monitoring: with roles, a permission of its own
+            const hasAccess = yield (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.canSeeMonitoringFor(req.user));
             if (!hasAccess) {
                 return (_b = (_a = res).error) === null || _b === void 0 ? void 0 : _b.call(_a, { status: 403, errors: ['forbidden'] });
             }

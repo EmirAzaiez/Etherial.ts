@@ -41,15 +41,9 @@ export default class AdminPagesController {
             return (res as any).error?.({ status: 404, errors: ['page_not_found'] })
         }
 
-        if (typeof page.canAccess === 'function') {
-            try {
-                const allowed = await page.canAccess(req.user)
-                if (!allowed) {
-                    return (res as any).error?.({ status: 403, errors: ['forbidden'] })
-                }
-            } catch {
-                return (res as any).error?.({ status: 403, errors: ['forbidden'] })
-            }
+        // The page's own `canAccess` and, with roles, the role's page grant.
+        if (!(await adminLeaf.canAccessPageFor(req.user, pageName))) {
+            return (res as any).error?.({ status: 403, errors: ['forbidden'] })
         }
 
         const handler = adminLeaf.getPageFormHandler(pageName)

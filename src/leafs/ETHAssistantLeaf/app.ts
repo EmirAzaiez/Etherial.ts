@@ -2,11 +2,13 @@ import etherial, { Etherial } from 'etherial'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
+import { AssistantConversation } from './models/AssistantConversation.js'
 import { AssistantRequest } from './models/AssistantRequest.js'
 import { state } from './services/state.js'
-import { ETHAssistantLeafConfig, REQUESTS_COLLECTION, aiAllowed, apiKeyOf, modelsOf } from './services/options.js'
+import { ETHAssistantLeafConfig, REQUESTS_COLLECTION, aiAllowed, apiKeyOf, historyOn, modelsOf, proposalsOn } from './services/options.js'
 
 export * from './services/options.js'
+export type { Proposal, ProposalChange, ProposalKind } from './services/proposals.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -19,8 +21,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
  * own rights, and links each figure to the list that shows it. On a record,
  * it also summarizes and drafts a reply in English or Arabic.
  *
- * Read-only. Off until `ANTHROPIC_API_KEY` is set and the admin leaf's
- * `features.ai` is on: what it reads is sent to Anthropic to be answered.
+ * It never writes. With `proposals` on, it prepares the changes asked for —
+ * a record edited or created, an action run — and the person confirms them
+ * in the panel, through the back-office's own endpoints. With `history` on,
+ * each person's conversations are kept, to reopen and carry on.
+ *
+ * Off until `ANTHROPIC_API_KEY` is set and the admin leaf's `features.ai` is
+ * on: what it reads is sent to Anthropic to be answered.
  */
 export default class ETHAssistantLeaf {
     readonly etherial_module_name = 'eth_assistant_leaf'
@@ -32,11 +39,14 @@ export default class ETHAssistantLeaf {
         this.config = config
         state.config = config
         this.routes.push({ route: path.join(__dirname, 'routes/admin'), methods: ['ask'] })
+        if (historyOn(config)) {
+            this.routes.push({ route: path.join(__dirname, 'routes/conversations'), methods: ['list', 'show', 'rename', 'remove', 'decide'] })
+        }
     }
 
-    /** Lifecycle: beforeRun — hand the log's table to the database before it syncs. */
+    /** Lifecycle: beforeRun — hand the tables to the database before it syncs: the log, and the conversations if kept. */
     beforeRun({ database }: Etherial) {
-        database?.addModels([AssistantRequest] as any)
+        database?.addModels([AssistantRequest, ...(historyOn(this.config) ? [AssistantConversation] : [])] as any)
     }
 
     /** Lifecycle: run — the route. */
@@ -64,6 +74,8 @@ export default class ETHAssistantLeaf {
             enabled,
             collection: REQUESTS_COLLECTION,
             dailyLimit: this.config.dailyLimit ?? 200,
+            proposals: enabled && proposalsOn(this.config),
+            history: enabled && historyOn(this.config),
         })
     }
 
@@ -71,10 +83,12 @@ export default class ETHAssistantLeaf {
         return [
             {
                 command: 'purge',
-                description: 'Delete the log of questions asked to the assistant (asks nothing: for test databases)',
+                description: 'Delete the log of questions asked to the assistant, and the kept conversations (asks nothing: for test databases)',
                 action: async () => {
                     const count = await AssistantRequest.destroy({ where: {}, truncate: true } as any)
-                    return { success: true, message: `Purged the assistant log (${count ?? 0} rows)` }
+                    if (!historyOn(this.config)) return { success: true, message: `Purged the assistant log (${count ?? 0} rows)` }
+                    const conversations = await AssistantConversation.destroy({ where: {}, truncate: true } as any)
+                    return { success: true, message: `Purged the assistant log (${count ?? 0} rows) and the conversations (${conversations ?? 0})` }
                 },
             },
         ]

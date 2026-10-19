@@ -2,6 +2,7 @@ import etherial, { Etherial } from 'etherial'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
+import { runExclusive } from '../../components/database/lock.js'
 import { SurveyResponse } from './models/SurveyResponse.js'
 import { InviteInput, InviteResult, attachTriggers, expireDue, invite, notifyDue } from './services/invitations.js'
 import { state } from './services/state.js'
@@ -50,14 +51,18 @@ export default class ETHSurveyLeaf {
         http?.routes_leafs?.push(...this.routes)
         const tick = async () => {
             try {
-                await expireDue()
-                await notifyDue()
+                // One server per minute: the rows are claimed one by one, so a
+                // second server would only scan the same table for nothing.
+                await runExclusive('eth_survey.tick', { ttlMs: 50 * 1000, release: false }, async () => {
+                    await expireDue()
+                    await notifyDue()
+                })
             } catch (err: any) {
                 console.error('[ETHSurveyLeaf] Could not open or close questions:', err?.message || err)
             }
         }
-        // Not at boot: the table may not be synced yet.
-        setTimeout(tick, 60 * 1000).unref?.()
+        // Not at boot: the table may not be synced yet. The first turn of the
+        // interval is a minute away (a setTimeout as well ran it twice then).
         setInterval(tick, 60 * 1000).unref?.()
 
         const count = this.config.surveys?.length ?? 0

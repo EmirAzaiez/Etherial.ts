@@ -16,29 +16,21 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import etherial from 'etherial';
 import { Controller, Post } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
+import { mayUse } from '../services/access.js';
 import { AssistantError } from '../services/anthropic.js';
-import { REQUESTS_COLLECTION } from '../services/options.js';
 import { ask, parseInput } from '../services/run.js';
-import { state } from '../services/state.js';
-/** Whoever may list what was asked may ask, unless the project says otherwise. */
-function mayUse(user) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const adminLeaf = etherial.eth_admin_leaf;
-        if (!adminLeaf || !(yield adminLeaf.canAccessAdmin(user)))
-            return false;
-        if (state.config.canUse)
-            return !!(yield state.config.canUse(user));
-        return !!(yield adminLeaf.checkAccess(user, REQUESTS_COLLECTION, 'list'));
-    });
-}
 let ETHAssistantAdminController = class ETHAssistantAdminController {
     /**
      * POST /admin/assistant/ask
-     * { task: 'ask' | 'summarize' | 'draft', messages: [{ role, content }], context?: { collection, id?, filters?, search? }, language?: 'en' | 'ar' }
-     * → { answer, steps, model, usage }
+     * { task: 'ask' | 'summarize' | 'draft', messages: [{ role, content }], context?: { collection, id?, filters?, search? }, language?: 'en' | 'ar',
+     *   conversationId?, where? }
+     * → { answer, steps, model, usage, proposals?, conversationId? }
+     *
+     * `proposals`: changes prepared for the person to confirm (leaf's `proposals` on).
+     * `conversationId`: where the turn was kept (leaf's `history` on); sent back
+     * with the next question to carry on the same conversation.
      */
     ask(req, res) {
         return __awaiter(this, void 0, void 0, function* () {

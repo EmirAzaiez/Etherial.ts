@@ -11,6 +11,7 @@ import etherial from 'etherial';
 import * as path from 'path';
 import { Op } from 'sequelize';
 import { fileURLToPath } from 'url';
+import { runExclusive } from '../../components/database/lock.js';
 import { AnalyticsEvent } from './models/AnalyticsEvent.js';
 import { AnalyticsSession } from './models/AnalyticsSession.js';
 import { Collector } from './services/collector.js';
@@ -105,11 +106,16 @@ export default class ETHAnalyticsLeaf {
         const days = (_a = this.config.retentionDays) !== null && _a !== void 0 ? _a : 395;
         if (!days || days <= 0)
             return;
+        const DAY = 24 * 3600 * 1000;
         const purge = () => __awaiter(this, void 0, void 0, function* () {
-            const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
             try {
-                yield AnalyticsEvent.destroy({ where: { created_at: { [Op.lt]: cutoff } } });
-                yield AnalyticsSession.destroy({ where: { last_seen_at: { [Op.lt]: cutoff } } });
+                // Once a day across all servers: a big DELETE run by each of
+                // them at once only fights over the same rows.
+                yield runExclusive('eth_analytics.retention', { ttlMs: DAY - 10 * 60 * 1000, release: false }, () => __awaiter(this, void 0, void 0, function* () {
+                    const cutoff = new Date(Date.now() - days * DAY);
+                    yield AnalyticsEvent.destroy({ where: { created_at: { [Op.lt]: cutoff } } });
+                    yield AnalyticsSession.destroy({ where: { last_seen_at: { [Op.lt]: cutoff } } });
+                }));
             }
             catch (err) {
                 console.error('[ETHAnalyticsLeaf] Retention:', (err === null || err === void 0 ? void 0 : err.message) || err);
@@ -117,7 +123,7 @@ export default class ETHAnalyticsLeaf {
         });
         // Not at boot: the tables may not be synced yet.
         (_c = (_b = setTimeout(purge, 60 * 1000)).unref) === null || _c === void 0 ? void 0 : _c.call(_b);
-        (_e = (_d = setInterval(purge, 24 * 3600 * 1000)).unref) === null || _e === void 0 ? void 0 : _e.call(_d);
+        (_e = (_d = setInterval(purge, DAY)).unref) === null || _e === void 0 ? void 0 : _e.call(_d);
     }
     commands() {
         return [

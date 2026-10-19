@@ -27,6 +27,12 @@ import { LOGIN_JOURNAL_COLLECTION, loginJournalOptions, loginJournalMiddleware, 
 import { AdminLoginLog } from './models/AdminLoginLog.js';
 import { AUDIT_COLLECTION, auditOptions, auditContextMiddleware, auditCollection, installAuditHooks, linkAuditToUsers, scheduleAuditRetention, } from './features/audit.js';
 import { AdminAuditLog } from './models/AdminAuditLog.js';
+import { AdminPreference } from './models/AdminPreference.js';
+import { notificationsOptions, configureNotifications, notifyAdmins, scheduleNotificationJobs, } from './features/notifications.js';
+import { AdminNotification } from './models/AdminNotification.js';
+import { AdminNote } from './models/AdminNote.js';
+import { ADMIN_ROLES_COLLECTION, rolesOptions, configureRoles, rolesConfig, resolveAccess, canAccessCollection, canAccessPage, canSeeDashboard, canSeeMonitoring, isSuperAdmin, listAdminUsers, writableFields, configureSecretColumns, secretsMiddleware, rolesGateMiddleware, linkRolesToUsers, adminRolesCollection, } from './features/access.js';
+import { AdminRole } from './models/AdminRole.js';
 export default class ETHAdminLeaf {
     constructor(config = {}) {
         this.etherial_module_name = 'eth_admin_leaf';
@@ -45,6 +51,19 @@ export default class ETHAdminLeaf {
         this._features = config.features || {};
         this._actions = new ActionRegistry();
         this._hooks = new HookRegistry();
+        configureSecretColumns(config.secretColumns);
+        // Installed now so a project setting its own checkers later wins.
+        const roles = rolesOptions(this._features.roles);
+        configureRoles(roles);
+        if (roles) {
+            this._adminAccessChecker = (user) => __awaiter(this, void 0, void 0, function* () { return !!(yield resolveAccess(user)); });
+            this._accessChecker = (user_1, _a) => __awaiter(this, [user_1, _a], void 0, function* (user, { route, method }) {
+                if (!route) {
+                    return false;
+                }
+                return canAccessCollection(yield resolveAccess(user), route, method || 'list');
+            });
+        }
         // Always register settings route
         this.routes.push({
             route: path.join(__dirname, 'routes/settings'),
@@ -54,6 +73,11 @@ export default class ETHAdminLeaf {
         this.routes.push({
             route: path.join(__dirname, 'routes/auth'),
             methods: ['checkAdminAuthAccess']
+        });
+        // Global search (the command palette): only reads what the user may list
+        this.routes.push({
+            route: path.join(__dirname, 'routes/search'),
+            methods: ['search']
         });
         // Register reactive monitoring routes (only if enabled)
         if (this._features.reactiveMonitoring) {
@@ -442,6 +466,129 @@ export default class ETHAdminLeaf {
             return this._accessChecker(user, { route, method });
         });
     }
+    /** Whether `user` may run `method` (a CRUD step or an action name) on a collection. */
+    canAccess(user, collection, method) {
+        return this.checkAccess(user, collection, method);
+    }
+    /** Everything allowed: a super admin with roles, anyone let in without. */
+    isSuperAdmin(user) {
+        return isSuperAdmin(user);
+    }
+    /** The accounts that can open the back-office, optionally only those holding a permission. */
+    listAdminUsers(filter) {
+        return listAdminUsers(filter);
+    }
+    /** The columns a create or update from the back-office may set. */
+    writableFields(collection, user) {
+        return writableFields(collection, user);
+    }
+    /**
+     * May the user open a collection's records (not only pick them in a
+     * relation)? Export, stats and counts need this.
+     */
+    canViewCollection(user, collection) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return (yield this.checkAccess(user, collection, 'list')) && (yield this.checkAccess(user, collection, 'show'));
+        });
+    }
+    canAccessPageFor(user, name) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const page = this._pages.get(name);
+            if (!page) {
+                return false;
+            }
+            if (rolesConfig() && !canAccessPage(yield resolveAccess(user), name)) {
+                return false;
+            }
+            if (typeof page.canAccess === 'function') {
+                try {
+                    return !!(yield page.canAccess(user));
+                }
+                catch (_a) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+    /** The dashboard's stats: with roles, a permission of its own. */
+    canSeeDashboardFor(user) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!rolesConfig()) {
+                return this.canAccessAdmin(user);
+            }
+            return canSeeDashboard(yield resolveAccess(user));
+        });
+    }
+    /** Live monitoring: with roles, a permission of its own. */
+    canSeeMonitoringFor(user) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!rolesConfig()) {
+                return this.canAccessAdmin(user);
+            }
+            return canSeeMonitoring(yield resolveAccess(user));
+        });
+    }
+    /**
+     * A collection as `user` sees it in the schema. Null when they cannot list
+     * it. Listed but not opened, it is a lookup (the target of a relation they
+     * work with): out of the menu, list only, so pickers and filters resolve.
+     * Otherwise it keeps the CRUD steps and actions they may use.
+     */
+    serializeCollectionFor(user, name) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const serialized = this.serializeCollection(name);
+            if (!serialized) {
+                return null;
+            }
+            if (!(yield this.checkAccess(user, name, 'list'))) {
+                return null;
+            }
+            if (!(yield this.checkAccess(user, name, 'show'))) {
+                return Object.assign(Object.assign({}, serialized), { crud: ['list'], actions: [], showInMenu: false, showInDashboard: false });
+            }
+            const crud = [];
+            for (const step of serialized.crud) {
+                if (yield this.checkAccess(user, name, step)) {
+                    crud.push(step);
+                }
+            }
+            const actions = [];
+            for (const action of serialized.actions || []) {
+                if (yield this.checkAccess(user, name, action.name)) {
+                    actions.push(action);
+                }
+            }
+            return Object.assign(Object.assign({}, serialized), { crud, actions });
+        });
+    }
+    /** The schema as `user` may see it: collections, pages and features they can reach. */
+    getSchemaFor(user) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const schema = this.getSchema();
+            const collections = [];
+            for (const collection of schema.collections) {
+                const visible = yield this.serializeCollectionFor(user, collection.name);
+                if (visible) {
+                    collections.push(visible);
+                }
+            }
+            const pages = [];
+            for (const page of schema.pages) {
+                if (yield this.canAccessPageFor(user, page.name)) {
+                    pages.push(page);
+                }
+            }
+            // Without roles the back-office shows the dashboard and monitoring to
+            // anyone it lets in, as before.
+            if (!rolesConfig()) {
+                return Object.assign(Object.assign({}, schema), { collections, pages });
+            }
+            const access = yield resolveAccess(user);
+            return Object.assign(Object.assign({}, schema), { collections,
+                pages, features: Object.assign(Object.assign({}, schema.features), { reactiveMonitoring: !!schema.features.reactiveMonitoring && canSeeMonitoring(access) }), canSeeDashboard: canSeeDashboard(access) });
+        });
+    }
     get config() {
         return this._config;
     }
@@ -457,7 +604,7 @@ export default class ETHAdminLeaf {
      */
     publicFeatures() {
         var _a;
-        const _b = this._features, { loginJournal, audit, ai } = _b, rest = __rest(_b, ["loginJournal", "audit", "ai"]);
+        const _b = this._features, { loginJournal, audit, ai, notifications, notes } = _b, rest = __rest(_b, ["loginJournal", "audit", "ai", "notifications", "notes"]);
         const auditConfig = auditOptions(audit);
         return Object.assign(Object.assign(Object.assign({}, rest), this._leafFeatures), { loginJournal: loginJournal ? { collection: LOGIN_JOURNAL_COLLECTION } : false, audit: auditConfig
                 ? {
@@ -465,7 +612,7 @@ export default class ETHAdminLeaf {
                     collections: this._auditedCollections,
                     usersCollection: (_a = auditConfig.usersCollection) !== null && _a !== void 0 ? _a : 'users',
                 }
-                : false, ai: this.aiEnabled() });
+                : false, ai: this.aiEnabled(), notifications: notificationsOptions(notifications) ? { enabled: true } : false, notes: notes === true, preferences: this._features.preferences === true, roles: !!rolesConfig() });
     }
     /** Whether the project turned the back-office's AI helpers on (`features.ai`). */
     aiEnabled() {
@@ -489,12 +636,26 @@ export default class ETHAdminLeaf {
         if (auditOptions(this._features.audit)) {
             database === null || database === void 0 ? void 0 : database.addModels([AdminAuditLog]);
         }
+        const notifications = notificationsOptions(this._features.notifications);
+        if (notifications) {
+            database === null || database === void 0 ? void 0 : database.addModels([AdminNotification]);
+            configureNotifications(notifications);
+        }
+        if (this._features.notes === true) {
+            database === null || database === void 0 ? void 0 : database.addModels([AdminNote]);
+        }
+        if (this._features.preferences === true) {
+            database === null || database === void 0 ? void 0 : database.addModels([AdminPreference]);
+        }
+        if (rolesConfig()) {
+            database === null || database === void 0 ? void 0 : database.addModels([AdminRole]);
+        }
     }
     /**
      * Lifecycle: run - register routes
      */
     run({ http }) {
-        var _a, _b;
+        var _a, _b, _c, _d;
         // Refresh hooks after all registrations
         this.refreshHooks();
         // Register collections route - always register even if collections
@@ -539,6 +700,25 @@ export default class ETHAdminLeaf {
                 methods: ['history', 'restore']
             });
         }
+        if (this._features.preferences === true) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/prefs'),
+                methods: ['list', 'put', 'remove']
+            });
+        }
+        if (notificationsOptions(this._features.notifications)) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/notifications'),
+                methods: ['list', 'unreadCount', 'markRead', 'markAllRead']
+            });
+        }
+        // `mentionable` is declared before `:collection/:id` in the controller.
+        if (this._features.notes === true) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/notes'),
+                methods: ['mentionable', 'list', 'create', 'update', 'remove']
+            });
+        }
         (_a = http === null || http === void 0 ? void 0 : http.routes_leafs) === null || _a === void 0 ? void 0 : _a.push(...this.routes);
         // Mounted now, before any controller: http.listen() registers the
         // routes later, so the journal sees the login's answer go out.
@@ -551,6 +731,22 @@ export default class ETHAdminLeaf {
         if (audit && (http === null || http === void 0 ? void 0 : http.app)) {
             http.app.use(auditContextMiddleware(audit, (_b = this._config.prefix) !== null && _b !== void 0 ? _b : '/admin'));
         }
+        // Whatever the collection and whoever asks, records go out without
+        // their credentials.
+        const prefix = (_c = this._config.prefix) !== null && _c !== void 0 ? _c : '/admin';
+        if (http === null || http === void 0 ? void 0 : http.app) {
+            http.app.use(`${prefix}/collections`, secretsMiddleware());
+            http.app.use(`${prefix}/relation-options`, secretsMiddleware());
+        }
+        if (rolesConfig()) {
+            // Before the project syncs (in its own run or afterRun).
+            if (!linkRolesToUsers()) {
+                console.warn(`[ETHAdminLeaf] Roles: no "${(_d = rolesConfig()) === null || _d === void 0 ? void 0 : _d.usersModel}" model, users are not linked to their role`);
+            }
+            // After the app's cors and body parsers: a preflight must still get its headers.
+            http === null || http === void 0 ? void 0 : http.beforeRoutes(rolesGateMiddleware(prefix));
+            console.log('[ETHAdminLeaf] Roles enabled');
+        }
         console.log(`[ETHAdminLeaf] Initialized with ${this._collections.size} collections, ${this._pages.size} pages, ${this._customFieldTypes.size} custom field types`);
         console.log(`[ETHAdminLeaf] Actions: ${this._actions.list().join(', ') || 'none'}`);
         console.log(`[ETHAdminLeaf] Hooks: ${this._hooks.list().join(', ') || 'none'}`);
@@ -562,6 +758,9 @@ export default class ETHAdminLeaf {
      */
     afterRun() {
         var _a, _b;
+        if (rolesConfig() && !this._collections.has(ADMIN_ROLES_COLLECTION)) {
+            this.registerCollection(adminRolesCollection());
+        }
         const journal = loginJournalOptions(this._features.loginJournal);
         if (journal && !this._collections.has(LOGIN_JOURNAL_COLLECTION)) {
             const linked = linkLoginJournalToUsers(journal);
@@ -577,6 +776,23 @@ export default class ETHAdminLeaf {
             scheduleAuditRetention(audit);
             console.log(`[ETHAdminLeaf] Change history on ${this._auditedCollections.length} collections`);
         }
+        // Started once the tables are synced: the purge and the digest query them.
+        const notifications = notificationsOptions(this._features.notifications);
+        if (notifications) {
+            scheduleNotificationJobs();
+            console.log(`[ETHAdminLeaf] Notifications enabled${notifications.appUrl ? '' : ' (no appUrl: no emails)'}`);
+        }
+    }
+    /**
+     * Notifies back-office users: see `NotifyInput` for who. Resolves with the
+     * number of notifications created, 0 while `features.notifications` is off.
+     */
+    notify(input) {
+        return notifyAdmins(input);
+    }
+    /** Whether `features.notifications` is on and `notify()` reaches anyone. */
+    notificationsEnabled() {
+        return !!notificationsOptions(this._features.notifications);
     }
     commands() {
         return [];

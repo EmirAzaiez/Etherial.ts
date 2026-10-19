@@ -27,6 +27,39 @@ import {
     scheduleAuditRetention,
 } from './features/audit.js'
 import { AdminAuditLog } from './models/AdminAuditLog.js'
+import { AdminPreference } from './models/AdminPreference.js'
+import {
+    NotificationsConfig,
+    NotifyInput,
+    notificationsOptions,
+    configureNotifications,
+    notifyAdmins,
+    scheduleNotificationJobs,
+} from './features/notifications.js'
+import { AdminNotification } from './models/AdminNotification.js'
+import { AdminNote } from './models/AdminNote.js'
+import {
+    RolesConfig,
+    CollectionPermission,
+    ADMIN_ROLES_COLLECTION,
+    rolesOptions,
+    configureRoles,
+    rolesConfig,
+    resolveAccess,
+    canAccessCollection,
+    canAccessPage,
+    canSeeDashboard,
+    canSeeMonitoring,
+    isSuperAdmin,
+    listAdminUsers,
+    writableFields,
+    configureSecretColumns,
+    secretsMiddleware,
+    rolesGateMiddleware,
+    linkRolesToUsers,
+    adminRolesCollection,
+} from './features/access.js'
+import { AdminRole } from './models/AdminRole.js'
 
 export type AccessChecker = (
     user: any,
@@ -47,6 +80,41 @@ export interface AdminSettings {
     footerText?: string
     copyrightText?: string
     custom?: Record<string, any>
+    /** How the back-office menu is laid out. */
+    navigation?: AdminNavigation
+}
+
+/** A menu group, matched by the `meta.group` the collections and pages declare. */
+export interface AdminNavigationGroup {
+    name: string
+    /** Shown instead of `name` (which stays the key collections refer to). */
+    label?: string
+    /** A lucide icon name, as `meta.icon`. */
+    icon?: string
+    /** Closed until opened: reference data one consults rather than works in. */
+    collapsed?: boolean
+    /**
+     * Left out of the back office's menu, search, "New" menu and dashboard: a
+     * part not in use yet. Its screens still open by link.
+     */
+    hidden?: boolean
+    /**
+     * The group's entries in reading order, whatever group they declare: a
+     * collection name, a built-in page (`analytics`, `surveys`, `emails`,
+     * `email-campaigns`, `notification-texts`, `reactive-monitoring`) or
+     * `pages/<name>` for a custom page. The group's other entries follow, in
+     * their `meta.order`. Built-in pages no group lists stay above the groups;
+     * a group may hold built-in pages only.
+     */
+    items?: string[]
+}
+
+export interface AdminNavigation {
+    /**
+     * The menu groups in reading order. Groups not listed follow, in the order
+     * the collections declaring them were registered.
+     */
+    groups?: AdminNavigationGroup[]
 }
 
 export interface AdminFeatures {
@@ -72,12 +140,45 @@ export interface AdminFeatures {
      * them and their routes refuse; a project's own AI routes ask `aiEnabled()`.
      */
     ai?: boolean
+    /**
+     * A bell in the back-office header: mentions, flow steps (`admin.notify`)
+     * and any code calling `notify()` reach staff there, and by email with
+     * `appUrl` set and a mail transport. Opt-in: the leaf adds an
+     * `admin_notifications` table.
+     */
+    notifications?: boolean | NotificationsConfig
+    /**
+     * Internal notes on every record, with `@mentions` that notify (through
+     * `notifications`, when on). Opt-in: the leaf adds an `admin_notes` table.
+     */
+    notes?: boolean
+    /**
+     * Keep each user's back-office preferences (favorites, saved views,
+     * hidden columns…) on their account instead of in one browser. Opt-in: the
+     * leaf adds an `admin_preferences` table and the `/admin/prefs` routes.
+     */
+    preferences?: boolean
+    /**
+     * Back-office roles: super admins see everything, staff get what the role
+     * linked to their account grants (per collection, page, dashboard and
+     * monitoring), configured from an `admin-roles` collection. The leaf
+     * installs the access checkers (a project may still replace them) and gates
+     * every route under its prefix. Opt-in: the leaf adds an `admin_roles`
+     * table; the users table needs the role id column.
+     */
+    roles?: boolean | RolesConfig
 }
 
 export interface ETHAdminLeafConfig {
     prefix?: string
     settings?: AdminSettings
     features?: AdminFeatures
+    /**
+     * Columns never sent back by the collection routes, on top of the
+     * credentials the leaf always holds back (`password`, the reset and
+     * confirmation tokens).
+     */
+    secretColumns?: string[]
 }
 
 export default class ETHAdminLeaf {
@@ -107,6 +208,21 @@ export default class ETHAdminLeaf {
         this._actions = new ActionRegistry()
         this._hooks = new HookRegistry()
 
+        configureSecretColumns(config.secretColumns)
+
+        // Installed now so a project setting its own checkers later wins.
+        const roles = rolesOptions(this._features.roles)
+        configureRoles(roles)
+        if (roles) {
+            this._adminAccessChecker = async (user) => !!(await resolveAccess(user))
+            this._accessChecker = async (user, { route, method }) => {
+                if (!route) {
+                    return false
+                }
+                return canAccessCollection(await resolveAccess(user), route, method || 'list')
+            }
+        }
+
         // Always register settings route
         this.routes.push({
             route: path.join(__dirname, 'routes/settings'),
@@ -117,6 +233,12 @@ export default class ETHAdminLeaf {
         this.routes.push({
             route: path.join(__dirname, 'routes/auth'),
             methods: ['checkAdminAuthAccess']
+        })
+
+        // Global search (the command palette): only reads what the user may list
+        this.routes.push({
+            route: path.join(__dirname, 'routes/search'),
+            methods: ['search']
         })
 
         // Register reactive monitoring routes (only if enabled)
@@ -553,6 +675,136 @@ export default class ETHAdminLeaf {
         return this._accessChecker(user, { route, method })
     }
 
+    /** Whether `user` may run `method` (a CRUD step or an action name) on a collection. */
+    canAccess(user: any, collection: string, method: string): Promise<boolean> {
+        return this.checkAccess(user, collection, method)
+    }
+
+    /** Everything allowed: a super admin with roles, anyone let in without. */
+    isSuperAdmin(user: any): Promise<boolean> {
+        return isSuperAdmin(user)
+    }
+
+    /** The accounts that can open the back-office, optionally only those holding a permission. */
+    listAdminUsers(filter?: { collection?: string; permission?: CollectionPermission }): Promise<any[]> {
+        return listAdminUsers(filter)
+    }
+
+    /** The columns a create or update from the back-office may set. */
+    writableFields(collection: CollectionConfig, user: any): Promise<Set<string>> {
+        return writableFields(collection, user)
+    }
+
+    /**
+     * May the user open a collection's records (not only pick them in a
+     * relation)? Export, stats and counts need this.
+     */
+    async canViewCollection(user: any, collection: string): Promise<boolean> {
+        return (await this.checkAccess(user, collection, 'list')) && (await this.checkAccess(user, collection, 'show'))
+    }
+
+    async canAccessPageFor(user: any, name: string): Promise<boolean> {
+        const page = this._pages.get(name)
+        if (!page) {
+            return false
+        }
+        if (rolesConfig() && !canAccessPage(await resolveAccess(user), name)) {
+            return false
+        }
+        if (typeof page.canAccess === 'function') {
+            try {
+                return !!(await page.canAccess(user))
+            } catch {
+                return false
+            }
+        }
+        return true
+    }
+
+    /** The dashboard's stats: with roles, a permission of its own. */
+    async canSeeDashboardFor(user: any): Promise<boolean> {
+        if (!rolesConfig()) {
+            return this.canAccessAdmin(user)
+        }
+        return canSeeDashboard(await resolveAccess(user))
+    }
+
+    /** Live monitoring: with roles, a permission of its own. */
+    async canSeeMonitoringFor(user: any): Promise<boolean> {
+        if (!rolesConfig()) {
+            return this.canAccessAdmin(user)
+        }
+        return canSeeMonitoring(await resolveAccess(user))
+    }
+
+    /**
+     * A collection as `user` sees it in the schema. Null when they cannot list
+     * it. Listed but not opened, it is a lookup (the target of a relation they
+     * work with): out of the menu, list only, so pickers and filters resolve.
+     * Otherwise it keeps the CRUD steps and actions they may use.
+     */
+    async serializeCollectionFor(user: any, name: string): Promise<SerializedCollection | null> {
+        const serialized = this.serializeCollection(name)
+        if (!serialized) {
+            return null
+        }
+        if (!(await this.checkAccess(user, name, 'list'))) {
+            return null
+        }
+        if (!(await this.checkAccess(user, name, 'show'))) {
+            return { ...serialized, crud: ['list'], actions: [], showInMenu: false, showInDashboard: false }
+        }
+
+        const crud: SerializedCollection['crud'] = []
+        for (const step of serialized.crud) {
+            if (await this.checkAccess(user, name, step)) {
+                crud.push(step)
+            }
+        }
+        const actions: SerializedAction[] = []
+        for (const action of serialized.actions || []) {
+            if (await this.checkAccess(user, name, action.name)) {
+                actions.push(action)
+            }
+        }
+        return { ...serialized, crud, actions }
+    }
+
+    /** The schema as `user` may see it: collections, pages and features they can reach. */
+    async getSchemaFor(user: any): Promise<ReturnType<ETHAdminLeaf['getSchema']> & { canSeeDashboard?: boolean }> {
+        const schema = this.getSchema()
+
+        const collections: SerializedCollection[] = []
+        for (const collection of schema.collections) {
+            const visible = await this.serializeCollectionFor(user, collection.name)
+            if (visible) {
+                collections.push(visible)
+            }
+        }
+
+        const pages: SerializedPage[] = []
+        for (const page of schema.pages) {
+            if (await this.canAccessPageFor(user, page.name)) {
+                pages.push(page)
+            }
+        }
+
+        // Without roles the back-office shows the dashboard and monitoring to
+        // anyone it lets in, as before.
+        if (!rolesConfig()) {
+            return { ...schema, collections, pages }
+        }
+
+        const access = await resolveAccess(user)
+        return {
+            ...schema,
+            collections,
+            pages,
+            features: { ...schema.features, reactiveMonitoring: !!schema.features.reactiveMonitoring && canSeeMonitoring(access) },
+            canSeeDashboard: canSeeDashboard(access),
+        }
+    }
+
     get config(): ETHAdminLeafConfig {
         return this._config
     }
@@ -570,7 +822,7 @@ export default class ETHAdminLeaf {
      * is on, never its server-side configuration.
      */
     publicFeatures(): Record<string, any> {
-        const { loginJournal, audit, ai, ...rest } = this._features
+        const { loginJournal, audit, ai, notifications, notes, ...rest } = this._features
         const auditConfig = auditOptions(audit)
         return {
             ...rest,
@@ -584,6 +836,10 @@ export default class ETHAdminLeaf {
                   }
                 : false,
             ai: this.aiEnabled(),
+            notifications: notificationsOptions(notifications) ? { enabled: true } : false,
+            notes: notes === true,
+            preferences: this._features.preferences === true,
+            roles: !!rolesConfig(),
         }
     }
 
@@ -613,6 +869,20 @@ export default class ETHAdminLeaf {
         }
         if (auditOptions(this._features.audit)) {
             database?.addModels([AdminAuditLog] as any)
+        }
+        const notifications = notificationsOptions(this._features.notifications)
+        if (notifications) {
+            database?.addModels([AdminNotification] as any)
+            configureNotifications(notifications)
+        }
+        if (this._features.notes === true) {
+            database?.addModels([AdminNote] as any)
+        }
+        if (this._features.preferences === true) {
+            database?.addModels([AdminPreference] as any)
+        }
+        if (rolesConfig()) {
+            database?.addModels([AdminRole] as any)
         }
     }
 
@@ -668,6 +938,28 @@ export default class ETHAdminLeaf {
             })
         }
 
+        if (this._features.preferences === true) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/prefs'),
+                methods: ['list', 'put', 'remove']
+            })
+        }
+
+        if (notificationsOptions(this._features.notifications)) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/notifications'),
+                methods: ['list', 'unreadCount', 'markRead', 'markAllRead']
+            })
+        }
+
+        // `mentionable` is declared before `:collection/:id` in the controller.
+        if (this._features.notes === true) {
+            this.routes.push({
+                route: path.join(__dirname, 'routes/notes'),
+                methods: ['mentionable', 'list', 'create', 'update', 'remove']
+            })
+        }
+
         http?.routes_leafs?.push(...this.routes)
 
         // Mounted now, before any controller: http.listen() registers the
@@ -683,6 +975,24 @@ export default class ETHAdminLeaf {
             http.app.use(auditContextMiddleware(audit, this._config.prefix ?? '/admin'))
         }
 
+        // Whatever the collection and whoever asks, records go out without
+        // their credentials.
+        const prefix = this._config.prefix ?? '/admin'
+        if (http?.app) {
+            http.app.use(`${prefix}/collections`, secretsMiddleware())
+            http.app.use(`${prefix}/relation-options`, secretsMiddleware())
+        }
+
+        if (rolesConfig()) {
+            // Before the project syncs (in its own run or afterRun).
+            if (!linkRolesToUsers()) {
+                console.warn(`[ETHAdminLeaf] Roles: no "${rolesConfig()?.usersModel}" model, users are not linked to their role`)
+            }
+            // After the app's cors and body parsers: a preflight must still get its headers.
+            http?.beforeRoutes(rolesGateMiddleware(prefix))
+            console.log('[ETHAdminLeaf] Roles enabled')
+        }
+
         console.log(`[ETHAdminLeaf] Initialized with ${this._collections.size} collections, ${this._pages.size} pages, ${this._customFieldTypes.size} custom field types`)
         console.log(`[ETHAdminLeaf] Actions: ${this._actions.list().join(', ') || 'none'}`)
         console.log(`[ETHAdminLeaf] Hooks: ${this._hooks.list().join(', ') || 'none'}`)
@@ -694,6 +1004,10 @@ export default class ETHAdminLeaf {
      * to the users collection.
      */
     afterRun() {
+        if (rolesConfig() && !this._collections.has(ADMIN_ROLES_COLLECTION)) {
+            this.registerCollection(adminRolesCollection())
+        }
+
         const journal = loginJournalOptions(this._features.loginJournal)
         if (journal && !this._collections.has(LOGIN_JOURNAL_COLLECTION)) {
             const linked = linkLoginJournalToUsers(journal)
@@ -710,6 +1024,26 @@ export default class ETHAdminLeaf {
             scheduleAuditRetention(audit)
             console.log(`[ETHAdminLeaf] Change history on ${this._auditedCollections.length} collections`)
         }
+
+        // Started once the tables are synced: the purge and the digest query them.
+        const notifications = notificationsOptions(this._features.notifications)
+        if (notifications) {
+            scheduleNotificationJobs()
+            console.log(`[ETHAdminLeaf] Notifications enabled${notifications.appUrl ? '' : ' (no appUrl: no emails)'}`)
+        }
+    }
+
+    /**
+     * Notifies back-office users: see `NotifyInput` for who. Resolves with the
+     * number of notifications created, 0 while `features.notifications` is off.
+     */
+    notify(input: NotifyInput): Promise<number> {
+        return notifyAdmins(input)
+    }
+
+    /** Whether `features.notifications` is on and `notify()` reaches anyone. */
+    notificationsEnabled(): boolean {
+        return !!notificationsOptions(this._features.notifications)
     }
 
     commands() {

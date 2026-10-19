@@ -41,7 +41,35 @@ export interface ETHAssistantLeafConfig {
     canUse?: (user: any) => boolean | Promise<boolean>;
     /** Back-office collection the user ids link to, in the log. Default `users`. */
     usersCollection?: string;
+    /**
+     * Let it prepare changes — edit a record, create one, run an action, edit
+     * several records at once — shown in the panel as a card the staff member
+     * confirms or cancels. It never writes itself: confirming calls the
+     * back-office's own endpoints, so the person's rights, the hooks, the
+     * validation and the audit all apply. Off by default.
+     *
+     * `maxRecords`: the most records one proposal may touch. Default 50, at
+     * most 100 (what the bulk endpoint takes).
+     */
+    proposals?: boolean | {
+        maxRecords?: number;
+    };
+    /**
+     * Keep each person's conversations, to reopen and continue them from the
+     * panel. Unlike the log, they hold the answers, made of the project's data:
+     * off by default. Each person only ever sees their own.
+     *
+     * `keepDays`: a conversation left untouched this long is deleted. Default
+     * 90; 0 keeps them.
+     */
+    history?: boolean | {
+        keepDays?: number;
+    };
 }
+export declare function proposalsOn(config: ETHAssistantLeafConfig): boolean;
+export declare function maxRecordsOf(config: ETHAssistantLeafConfig): number;
+export declare function historyOn(config: ETHAssistantLeafConfig): boolean;
+export declare function keepDaysOf(config: ETHAssistantLeafConfig): number;
 export declare const DEFAULT_MODELS: {
     smart: string;
     fast: string;

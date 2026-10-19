@@ -53,6 +53,7 @@ export declare class Http implements IEtherialModule {
     errorHandler: ErrorRequestHandler | null;
     private config;
     private registeredRoutes;
+    private routeGuards;
     private log;
     constructor(config: HttpConfig);
     private validateConfig;
@@ -73,6 +74,13 @@ export declare class Http implements IEtherialModule {
     notFoundRoute(middleware: RequestHandler): this;
     onError(handler: ErrorRequestHandler): this;
     use(middleware: RequestHandler): this;
+    /**
+     * Mounts a middleware when `listen()` starts, right before the routes.
+     * A leaf runs before the app, so one it mounts with `app.use` would come
+     * ahead of the app's cors and body parsers: an auth gate there answers
+     * preflights without CORS headers and sees no body.
+     */
+    beforeRoutes(middleware: RequestHandler): this;
     beforeRun(): Promise<void>;
     run(etherial?: IEtherial): Promise<void>;
     afterRun(): Promise<void>;

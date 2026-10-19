@@ -15,6 +15,8 @@ import {
 } from 'etherial/components/database/provider'
 import * as crypto from 'crypto'
 
+const isDevelopment = () => process.env.NODE_ENV === 'development'
+
 export const USER_EXCLUDE_ATTRIBUTES_DEFAULT_SCOPE = [
     'password',
     'google_id',
@@ -324,14 +326,23 @@ export abstract class UserLeafBase extends Model<any> {
         return ctor.verifyTokenHash(token, this.password_reset_token)
     }
 
+    // The defaults below send nothing: a project overrides them in its User
+    // model. The secret itself is printed in development only — in production
+    // the logs reach people and tools that must not be able to reset a password.
     async sendEmailForPasswordReset(resetToken: string): Promise<void> {
-        // TODO: Send email with reset token
-        console.log(`Password reset token for ${this.email}: ${resetToken}`)
+        if (isDevelopment()) {
+            console.log(`Password reset token for ${this.email}: ${resetToken}`)
+            return
+        }
+        console.warn(`[ETHUserLeaf] Password reset requested for user ${this.id}, but no email sender is implemented (override sendEmailForPasswordReset)`)
     }
 
     async sendEmailForEmailVerification(confirmationToken): Promise<void> {
-        // TODO: Send email with confirmation token
-        console.log(`Email confirmation token for ${this.email}: ${confirmationToken}`)
+        if (isDevelopment()) {
+            console.log(`Email confirmation token for ${this.email}: ${confirmationToken}`)
+            return
+        }
+        console.warn(`[ETHUserLeaf] Email confirmation requested for user ${this.id}, but no email sender is implemented (override sendEmailForEmailVerification)`)
     }
 
     async sendEmailForPasswordNotification(type: string): Promise<void> {
@@ -341,7 +352,11 @@ export abstract class UserLeafBase extends Model<any> {
 
     async sendSmsForPhoneVerification(code: string): Promise<void> {
         // Override in your User model to send SMS verification
-        console.log(`Phone verification code for ${this.phone_temporary || this.phone}: ${code}`)
+        if (isDevelopment()) {
+            console.log(`Phone verification code for ${this.phone_temporary || this.phone}: ${code}`)
+            return
+        }
+        console.warn(`[ETHUserLeaf] Phone verification requested for user ${this.id}, but no SMS sender is implemented (override sendSmsForPhoneVerification)`)
     }
 
     async insertAuditLog(data: { req?: any; action: string; status: string; resource: string; metadata?: Record<string, any> }): Promise<void> {

@@ -1,29 +1,24 @@
-import etherial from 'etherial'
 import type { Request, Response } from 'express'
 import { Controller, Post } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
+import { mayUse } from '../services/access.js'
 import { AssistantError } from '../services/anthropic.js'
-import { REQUESTS_COLLECTION } from '../services/options.js'
 import { ask, parseInput } from '../services/run.js'
-import { state } from '../services/state.js'
 
 type AuthedRequest = Request & { user: any }
-
-/** Whoever may list what was asked may ask, unless the project says otherwise. */
-async function mayUse(user: any): Promise<boolean> {
-    const adminLeaf = (etherial as any).eth_admin_leaf
-    if (!adminLeaf || !(await adminLeaf.canAccessAdmin(user))) return false
-    if (state.config.canUse) return !!(await state.config.canUse(user))
-    return !!(await adminLeaf.checkAccess(user, REQUESTS_COLLECTION, 'list'))
-}
 
 @Controller()
 export default class ETHAssistantAdminController {
     /**
      * POST /admin/assistant/ask
-     * { task: 'ask' | 'summarize' | 'draft', messages: [{ role, content }], context?: { collection, id?, filters?, search? }, language?: 'en' | 'ar' }
-     * → { answer, steps, model, usage }
+     * { task: 'ask' | 'summarize' | 'draft', messages: [{ role, content }], context?: { collection, id?, filters?, search? }, language?: 'en' | 'ar',
+     *   conversationId?, where? }
+     * → { answer, steps, model, usage, proposals?, conversationId? }
+     *
+     * `proposals`: changes prepared for the person to confirm (leaf's `proposals` on).
+     * `conversationId`: where the turn was kept (leaf's `history` on); sent back
+     * with the next question to carry on the same conversation.
      */
     @Post('/admin/assistant/ask')
     @ShouldBeAuthenticated()

@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import 'reflect-metadata';
+import { startSentry } from './components/monitoring/sentry.js';
 export class Etherial {
     constructor() {
         this.initDone = false;
@@ -59,6 +60,9 @@ export class Etherial {
     run() {
         return __awaiter(this, void 0, void 0, function* () {
             const moduleKeys = this.getModuleKeys();
+            // First, so a module that fails to start is reported too. A no-op
+            // unless SENTRY_DSN is set, and never a reason not to start.
+            yield startSentry().catch(() => undefined);
             try {
                 // Phase 1: beforeRun (all modules in parallel)
                 yield Promise.all(moduleKeys.map((key) => __awaiter(this, void 0, void 0, function* () {

@@ -10,9 +10,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { AssistantConversation } from './models/AssistantConversation.js';
 import { AssistantRequest } from './models/AssistantRequest.js';
 import { state } from './services/state.js';
-import { REQUESTS_COLLECTION, aiAllowed, apiKeyOf, modelsOf } from './services/options.js';
+import { REQUESTS_COLLECTION, aiAllowed, apiKeyOf, historyOn, modelsOf, proposalsOn } from './services/options.js';
 export * from './services/options.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /**
@@ -24,8 +25,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * own rights, and links each figure to the list that shows it. On a record,
  * it also summarizes and drafts a reply in English or Arabic.
  *
- * Read-only. Off until `ANTHROPIC_API_KEY` is set and the admin leaf's
- * `features.ai` is on: what it reads is sent to Anthropic to be answered.
+ * It never writes. With `proposals` on, it prepares the changes asked for —
+ * a record edited or created, an action run — and the person confirms them
+ * in the panel, through the back-office's own endpoints. With `history` on,
+ * each person's conversations are kept, to reopen and carry on.
+ *
+ * Off until `ANTHROPIC_API_KEY` is set and the admin leaf's `features.ai` is
+ * on: what it reads is sent to Anthropic to be answered.
  */
 export default class ETHAssistantLeaf {
     constructor(config = {}) {
@@ -34,10 +40,13 @@ export default class ETHAssistantLeaf {
         this.config = config;
         state.config = config;
         this.routes.push({ route: path.join(__dirname, 'routes/admin'), methods: ['ask'] });
+        if (historyOn(config)) {
+            this.routes.push({ route: path.join(__dirname, 'routes/conversations'), methods: ['list', 'show', 'rename', 'remove', 'decide'] });
+        }
     }
-    /** Lifecycle: beforeRun — hand the log's table to the database before it syncs. */
+    /** Lifecycle: beforeRun — hand the tables to the database before it syncs: the log, and the conversations if kept. */
     beforeRun({ database }) {
-        database === null || database === void 0 ? void 0 : database.addModels([AssistantRequest]);
+        database === null || database === void 0 ? void 0 : database.addModels([AssistantRequest, ...(historyOn(this.config) ? [AssistantConversation] : [])]);
     }
     /** Lifecycle: run — the route. */
     run({ http }) {
@@ -63,16 +72,21 @@ export default class ETHAssistantLeaf {
             enabled,
             collection: REQUESTS_COLLECTION,
             dailyLimit: (_d = this.config.dailyLimit) !== null && _d !== void 0 ? _d : 200,
+            proposals: enabled && proposalsOn(this.config),
+            history: enabled && historyOn(this.config),
         });
     }
     commands() {
         return [
             {
                 command: 'purge',
-                description: 'Delete the log of questions asked to the assistant (asks nothing: for test databases)',
+                description: 'Delete the log of questions asked to the assistant, and the kept conversations (asks nothing: for test databases)',
                 action: () => __awaiter(this, void 0, void 0, function* () {
                     const count = yield AssistantRequest.destroy({ where: {}, truncate: true });
-                    return { success: true, message: `Purged the assistant log (${count !== null && count !== void 0 ? count : 0} rows)` };
+                    if (!historyOn(this.config))
+                        return { success: true, message: `Purged the assistant log (${count !== null && count !== void 0 ? count : 0} rows)` };
+                    const conversations = yield AssistantConversation.destroy({ where: {}, truncate: true });
+                    return { success: true, message: `Purged the assistant log (${count !== null && count !== void 0 ? count : 0} rows) and the conversations (${conversations !== null && conversations !== void 0 ? conversations : 0})` };
                 }),
             },
         ];

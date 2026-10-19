@@ -12,12 +12,14 @@ import http from 'http';
 import { promises as fs } from 'fs';
 import cors from 'cors';
 import { createTranslationMiddleware } from '../translation/index.js';
+import { captureError } from '../monitoring/sentry.js';
 export class Http {
     constructor(config) {
         this.routes_leafs = [];
         this.notFoundRouteMiddleware = null;
         this.errorHandler = null;
         this.registeredRoutes = [];
+        this.routeGuards = [];
         this.validateConfig(config);
         this.config = config;
         this.app = express();
@@ -238,6 +240,11 @@ export class Http {
     listen() {
         return __awaiter(this, void 0, void 0, function* () {
             const startTime = Date.now();
+            // After everything the app mounted before listening (cors, body
+            // parsers), before the first route.
+            for (const guard of this.routeGuards) {
+                this.app.use(guard);
+            }
             // Load and register controllers
             const controllers = yield this.loadControllers();
             for (const { controller, route } of controllers) {
@@ -307,6 +314,17 @@ export class Http {
                     });
                 });
             }
+            // Report the server's own errors (Sentry, when on), then hand them on
+            // unchanged to whichever handler answers. A client's mistake — bad
+            // JSON, a body too large — carries a 4xx status and is not reported.
+            this.app.use(((err, req, _res, next) => {
+                var _a, _b;
+                const status = Number((_b = (_a = err === null || err === void 0 ? void 0 : err.status) !== null && _a !== void 0 ? _a : err === null || err === void 0 ? void 0 : err.statusCode) !== null && _b !== void 0 ? _b : 500);
+                if (!(status >= 400 && status < 500)) {
+                    captureError(err, req);
+                }
+                next(err);
+            }));
             // Error handler
             if (this.errorHandler) {
                 this.app.use(this.errorHandler);
@@ -363,6 +381,16 @@ export class Http {
     }
     use(middleware) {
         this.app.use(middleware);
+        return this;
+    }
+    /**
+     * Mounts a middleware when `listen()` starts, right before the routes.
+     * A leaf runs before the app, so one it mounts with `app.use` would come
+     * ahead of the app's cors and body parsers: an auth gate there answers
+     * preflights without CORS headers and sees no body.
+     */
+    beforeRoutes(middleware) {
+        this.routeGuards.push(middleware);
         return this;
     }
     beforeRun() {

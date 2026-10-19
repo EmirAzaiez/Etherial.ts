@@ -5,6 +5,7 @@ import { registerNotifyNodes } from './notify.js';
 import { registerHttpNodes } from './http.js';
 import { registerAINodes } from './ai.js';
 import { registerActionNodes } from './action.js';
+import { registerAdminNodes } from './admin.js';
 export function registerBuiltinNodes() {
     registerConditionNodes();
     registerFlowNodes();
@@ -13,4 +14,5 @@ export function registerBuiltinNodes() {
     registerHttpNodes();
     registerAINodes();
     registerActionNodes();
+    registerAdminNodes();
 }

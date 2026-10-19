@@ -5,6 +5,8 @@ import { CollectionConfig, SerializedCollection } from './features/CollectionCon
 import { PageConfig, SerializedPage } from './features/PageConfig.js';
 import { LoginJournalConfig } from './features/loginJournal.js';
 import { AuditConfig } from './features/audit.js';
+import { NotificationsConfig, NotifyInput } from './features/notifications.js';
+import { RolesConfig, CollectionPermission } from './features/access.js';
 export type AccessChecker = (user: any, context: {
     route: string;
     method: string;
@@ -22,6 +24,39 @@ export interface AdminSettings {
     footerText?: string;
     copyrightText?: string;
     custom?: Record<string, any>;
+    /** How the back-office menu is laid out. */
+    navigation?: AdminNavigation;
+}
+/** A menu group, matched by the `meta.group` the collections and pages declare. */
+export interface AdminNavigationGroup {
+    name: string;
+    /** Shown instead of `name` (which stays the key collections refer to). */
+    label?: string;
+    /** A lucide icon name, as `meta.icon`. */
+    icon?: string;
+    /** Closed until opened: reference data one consults rather than works in. */
+    collapsed?: boolean;
+    /**
+     * Left out of the back office's menu, search, "New" menu and dashboard: a
+     * part not in use yet. Its screens still open by link.
+     */
+    hidden?: boolean;
+    /**
+     * The group's entries in reading order, whatever group they declare: a
+     * collection name, a built-in page (`analytics`, `surveys`, `emails`,
+     * `email-campaigns`, `notification-texts`, `reactive-monitoring`) or
+     * `pages/<name>` for a custom page. The group's other entries follow, in
+     * their `meta.order`. Built-in pages no group lists stay above the groups;
+     * a group may hold built-in pages only.
+     */
+    items?: string[];
+}
+export interface AdminNavigation {
+    /**
+     * The menu groups in reading order. Groups not listed follow, in the order
+     * the collections declaring them were registered.
+     */
+    groups?: AdminNavigationGroup[];
 }
 export interface AdminFeatures {
     reactiveMonitoring?: boolean;
@@ -46,11 +81,44 @@ export interface AdminFeatures {
      * them and their routes refuse; a project's own AI routes ask `aiEnabled()`.
      */
     ai?: boolean;
+    /**
+     * A bell in the back-office header: mentions, flow steps (`admin.notify`)
+     * and any code calling `notify()` reach staff there, and by email with
+     * `appUrl` set and a mail transport. Opt-in: the leaf adds an
+     * `admin_notifications` table.
+     */
+    notifications?: boolean | NotificationsConfig;
+    /**
+     * Internal notes on every record, with `@mentions` that notify (through
+     * `notifications`, when on). Opt-in: the leaf adds an `admin_notes` table.
+     */
+    notes?: boolean;
+    /**
+     * Keep each user's back-office preferences (favorites, saved views,
+     * hidden columns…) on their account instead of in one browser. Opt-in: the
+     * leaf adds an `admin_preferences` table and the `/admin/prefs` routes.
+     */
+    preferences?: boolean;
+    /**
+     * Back-office roles: super admins see everything, staff get what the role
+     * linked to their account grants (per collection, page, dashboard and
+     * monitoring), configured from an `admin-roles` collection. The leaf
+     * installs the access checkers (a project may still replace them) and gates
+     * every route under its prefix. Opt-in: the leaf adds an `admin_roles`
+     * table; the users table needs the role id column.
+     */
+    roles?: boolean | RolesConfig;
 }
 export interface ETHAdminLeafConfig {
     prefix?: string;
     settings?: AdminSettings;
     features?: AdminFeatures;
+    /**
+     * Columns never sent back by the collection routes, on top of the
+     * credentials the leaf always holds back (`password`, the reset and
+     * confirmation tokens).
+     */
+    secretColumns?: string[];
 }
 export default class ETHAdminLeaf {
     readonly etherial_module_name = "eth_admin_leaf";
@@ -167,6 +235,38 @@ export default class ETHAdminLeaf {
      * Check if a user can access a specific route/method
      */
     checkAccess(user: any, route: string, method: string): Promise<boolean>;
+    /** Whether `user` may run `method` (a CRUD step or an action name) on a collection. */
+    canAccess(user: any, collection: string, method: string): Promise<boolean>;
+    /** Everything allowed: a super admin with roles, anyone let in without. */
+    isSuperAdmin(user: any): Promise<boolean>;
+    /** The accounts that can open the back-office, optionally only those holding a permission. */
+    listAdminUsers(filter?: {
+        collection?: string;
+        permission?: CollectionPermission;
+    }): Promise<any[]>;
+    /** The columns a create or update from the back-office may set. */
+    writableFields(collection: CollectionConfig, user: any): Promise<Set<string>>;
+    /**
+     * May the user open a collection's records (not only pick them in a
+     * relation)? Export, stats and counts need this.
+     */
+    canViewCollection(user: any, collection: string): Promise<boolean>;
+    canAccessPageFor(user: any, name: string): Promise<boolean>;
+    /** The dashboard's stats: with roles, a permission of its own. */
+    canSeeDashboardFor(user: any): Promise<boolean>;
+    /** Live monitoring: with roles, a permission of its own. */
+    canSeeMonitoringFor(user: any): Promise<boolean>;
+    /**
+     * A collection as `user` sees it in the schema. Null when they cannot list
+     * it. Listed but not opened, it is a lookup (the target of a relation they
+     * work with): out of the menu, list only, so pickers and filters resolve.
+     * Otherwise it keeps the CRUD steps and actions they may use.
+     */
+    serializeCollectionFor(user: any, name: string): Promise<SerializedCollection | null>;
+    /** The schema as `user` may see it: collections, pages and features they can reach. */
+    getSchemaFor(user: any): Promise<ReturnType<ETHAdminLeaf['getSchema']> & {
+        canSeeDashboard?: boolean;
+    }>;
     get config(): ETHAdminLeafConfig;
     get settings(): AdminSettings;
     get features(): AdminFeatures;
@@ -199,6 +299,13 @@ export default class ETHAdminLeaf {
      * to the users collection.
      */
     afterRun(): void;
+    /**
+     * Notifies back-office users: see `NotifyInput` for who. Resolves with the
+     * number of notifications created, 0 while `features.notifications` is off.
+     */
+    notify(input: NotifyInput): Promise<number>;
+    /** Whether `features.notifications` is on and `notify()` reaches anyone. */
+    notificationsEnabled(): boolean;
     commands(): any[];
 }
 export * from './features/index.js';

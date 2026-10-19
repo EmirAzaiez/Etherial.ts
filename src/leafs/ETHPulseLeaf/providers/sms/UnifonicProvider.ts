@@ -12,9 +12,6 @@ export class UnifonicProvider implements ISmsProvider {
     private baseUrl = 'https://el.cloud.unifonic.com/rest/SMS/messages'
 
     constructor(config: UnifonicConfig) {
-
-        console.log(config)
-
         if (!config.appSid || !config.senderId) {
             throw new Error('UnifonicProvider: appSid and senderId are required')
         }
