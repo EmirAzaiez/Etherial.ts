@@ -126,6 +126,37 @@ function targetDevices(campaign_1) {
     });
 }
 /**
+ * Counts what `targetDevices` would send to, for a campaign not saved yet: the
+ * form's targeting columns, read by the project's own audience rule, so the
+ * count is the one the send will find (give or take the phones that change in
+ * between).
+ */
+export function previewCampaignAudience(campaign) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const devices = yield targetDevices(campaign, { pushOnly: false });
+        const preview = { phones: 0, people: 0, guests: 0, arabic: 0, off: 0 };
+        const people = new Set();
+        for (const device of devices) {
+            if (device.push_token_status !== DevicePushTokenStatus.ENABLED) {
+                preview.off++;
+                continue;
+            }
+            preview.phones++;
+            if (device.user_id == null) {
+                preview.guests++;
+            }
+            else {
+                people.add(device.user_id);
+            }
+            if (isArabic(device)) {
+                preview.arabic++;
+            }
+        }
+        preview.people = people.size;
+        return preview;
+    });
+}
+/**
  * Sends one message per device and returns what Expo said about each one. A
  * chunk that fails as a whole marks all its devices failed.
  */

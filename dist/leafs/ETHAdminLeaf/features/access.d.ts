@@ -109,8 +109,8 @@ export declare function listAdminUsers(filter?: {
 export declare function rolesGateMiddleware(prefix: string): (req: Request, res: Response, next: NextFunction) => void;
 /**
  * The columns a write from the back-office may set on a collection: its
- * declared, editable fields, the columns a map picker writes next to itself,
- * and `extraWritable`. A super admin also gets the protected columns.
+ * declared, editable fields, the columns a map picker or another widget writes
+ * next to itself, and `extraWritable`. A super admin also gets the protected columns.
  *
  * The routes hand what is left to `record.update()`: without this cut, a role
  * allowed to edit orders could set any column of the table, its own

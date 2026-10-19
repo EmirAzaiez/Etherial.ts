@@ -380,8 +380,8 @@ export function rolesGateMiddleware(prefix) {
 const TIMESTAMP_COLUMNS = new Set(['created_at', 'updated_at', 'deleted_at', 'createdAt', 'updatedAt', 'deletedAt']);
 /**
  * The columns a write from the back-office may set on a collection: its
- * declared, editable fields, the columns a map picker writes next to itself,
- * and `extraWritable`. A super admin also gets the protected columns.
+ * declared, editable fields, the columns a map picker or another widget writes
+ * next to itself, and `extraWritable`. A super admin also gets the protected columns.
  *
  * The routes hand what is left to `record.update()`: without this cut, a role
  * allowed to edit orders could set any column of the table, its own
@@ -389,7 +389,7 @@ const TIMESTAMP_COLUMNS = new Set(['created_at', 'updated_at', 'deleted_at', 'cr
  */
 export function writableFields(collection, user) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
+        var _a, _b;
         const out = new Set();
         const fields = collection.fields || [];
         // A collection that declares nothing takes its columns from the model, as
@@ -414,6 +414,9 @@ export function writableFields(collection, user) {
                 if (field.map.addressField) {
                     out.add(field.map.addressField);
                 }
+            }
+            for (const name of (_b = field.companions) !== null && _b !== void 0 ? _b : []) {
+                out.add(name);
             }
         }
         for (const name of collection.extraWritable || []) {

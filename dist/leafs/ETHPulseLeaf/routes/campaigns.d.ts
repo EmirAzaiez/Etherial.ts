@@ -1,4 +1,7 @@
 import { Request, Response } from 'etherial/components/http/provider';
+type AuthedRequest = Request & {
+    user: any;
+};
 export default class ETHPulseCampaignsController {
     /**
      * A campaign push was tapped. Called by the app with its installation id
@@ -14,4 +17,11 @@ export default class ETHPulseCampaignsController {
             device?: string;
         };
     }, res: Response): Promise<any>;
+    /**
+     * Who the campaign being written would reach: the targeting of the form,
+     * one query key per targeting field, the others at the model's defaults.
+     * Takes the right to read the campaigns.
+     */
+    audience(req: AuthedRequest, res: Response): Promise<any>;
 }
+export {};

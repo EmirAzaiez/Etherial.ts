@@ -30,7 +30,7 @@ const dispatchInBackground = (campaignId) => {
     dispatchCampaign(campaignId).catch((err) => console.error('[Campaigns] dispatch failed:', err));
 };
 /** The model's literal defaults, so the project's rules see the campaign as it will be saved. */
-function modelDefaults(model) {
+export function modelDefaults(model) {
     var _a, _b, _c;
     const defaults = {};
     const attributes = (_c = (_b = (_a = model === null || model === void 0 ? void 0 : model.getAttributes) === null || _a === void 0 ? void 0 : _a.call(model)) !== null && _b !== void 0 ? _b : model === null || model === void 0 ? void 0 : model.rawAttributes) !== null && _c !== void 0 ? _c : {};
@@ -355,18 +355,28 @@ function campaignFields(cfg, targeting) {
     const overrides = (_b = (_a = cfg.admin) === null || _a === void 0 ? void 0 : _a.fields) !== null && _b !== void 0 ? _b : {};
     return fields.map((field) => (overrides[field.name] ? Object.assign(Object.assign({}, field), overrides[field.name]) : field));
 }
+/** The targeting fields of the form, the project's or the leaf's two boxes. */
+export const campaignTargeting = (cfg) => { var _a, _b; return (_b = (_a = cfg.admin) === null || _a === void 0 ? void 0 : _a.targeting) !== null && _b !== void 0 ? _b : DEFAULT_TARGETING; };
+/** The back-office widget that draws the whole targeting, with its live count. */
+export const PUSH_AUDIENCE_WIDGET = 'push-audience';
 function campaignsCollection(cfg) {
-    var _a, _b, _c;
-    const targeting = (_b = (_a = cfg.admin) === null || _a === void 0 ? void 0 : _a.targeting) !== null && _b !== void 0 ? _b : DEFAULT_TARGETING;
+    var _a;
+    const targeting = campaignTargeting(cfg);
     const targetingNames = targeting.map((field) => field.name);
     const content = ['title', 'message', 'title_ar', 'message_ar', 'url', 'show_in_notifications'];
+    // The form draws the targeting as one block, the audience widget, carried
+    // by the first field: it fills in the others and counts the phones they
+    // reach as they change. The show page keeps the fields, one by one.
+    const fields = campaignFields(cfg, targeting).map((field) => field.name === targetingNames[0]
+        ? Object.assign(Object.assign({}, field), { widget: PUSH_AUDIENCE_WIDGET, companions: targetingNames.slice(1), col: 12 }) : field);
+    const audience = targetingNames.length > 0 ? [{ title: 'Audience', fields: [targetingNames[0]] }] : [];
     return {
         name: CAMPAIGNS_COLLECTION,
         model: cfg.models.campaign,
         crud: ['list', 'show', 'create', 'update', 'delete'],
         actions: ['campaigns:send-test', 'campaigns:send-now', 'campaigns:schedule', 'campaigns:unschedule', 'campaigns:refresh-results'],
-        meta: Object.assign({ label: 'Push campaign', labelPlural: 'Push campaigns', icon: 'megaphone', description: 'Send push notifications to your users — now, later, or as a draft to test first', group: 'Notifications', order: 1, showInDashboard: true }, (_c = cfg.admin) === null || _c === void 0 ? void 0 : _c.meta),
-        fields: campaignFields(cfg, targeting),
+        meta: Object.assign({ label: 'Push campaign', labelPlural: 'Push campaigns', icon: 'megaphone', description: 'Send push notifications to your users — now, later, or as a draft to test first', group: 'Notifications', order: 1, showInDashboard: true }, (_a = cfg.admin) === null || _a === void 0 ? void 0 : _a.meta),
+        fields,
         views: {
             list: {
                 fields: ['id', 'message', 'status', 'scheduled_at', 'sent_count', 'delivered_count', 'opened_count', 'open_rate', 'sent_at'],
@@ -396,12 +406,14 @@ function campaignsCollection(cfg) {
                 ],
             },
             create: {
-                fields: [...content, ...targetingNames, 'send_mode', 'scheduled_at'],
+                layout: 'sections',
+                sections: [...audience, { title: 'Message', fields: content }, { title: 'When', fields: ['send_mode', 'scheduled_at'] }],
             },
             edit: {
                 // No `send_mode` here: a draft is scheduled with the Schedule
                 // action, a scheduled campaign just gets its date moved.
-                fields: [...content, ...targetingNames, 'scheduled_at'],
+                layout: 'sections',
+                sections: [...audience, { title: 'Message', fields: content }, { title: 'When', fields: ['scheduled_at'] }],
             },
         },
     };

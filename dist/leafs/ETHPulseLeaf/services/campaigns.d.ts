@@ -92,6 +92,26 @@ export declare const CAMPAIGN_NOTIFICATION_LOCATION = "Campaign";
 export declare function setCampaignsConfig(value: PushCampaignsConfig | undefined): void;
 export declare function campaignsConfig(): PushCampaignsConfig;
 export declare const defaultCampaignTitle: () => string;
+/** Who a campaign would reach if it went out now: the back-office form's count. */
+export interface CampaignAudiencePreview {
+    /** Phones that would get the push. */
+    phones: number;
+    /** Signed-in people behind them (one person, several phones). */
+    people: number;
+    /** Of the phones, those nobody is signed in on. */
+    guests: number;
+    /** Of the phones, those getting the Arabic copy. */
+    arabic: number;
+    /** Targeted phones that turned notifications off: left out of the push. */
+    off: number;
+}
+/**
+ * Counts what `targetDevices` would send to, for a campaign not saved yet: the
+ * form's targeting columns, read by the project's own audience rule, so the
+ * count is the one the send will find (give or take the phones that change in
+ * between).
+ */
+export declare function previewCampaignAudience(campaign: any): Promise<CampaignAudiencePreview>;
 /**
  * Leaves the campaign in the notification centre of every signed-in user it
  * targets, one entry per user (not per device), in the language of the device

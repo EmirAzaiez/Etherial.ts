@@ -121,7 +121,7 @@ export default class ETHPulseLeaf {
         // Push campaigns: the app reports the taps on a campaign push
         if (config.campaigns) {
             setCampaignsConfig(config.campaigns);
-            this.routes.push({ route: path.join(__dirname, 'routes/campaigns'), methods: ['opened'] });
+            this.routes.push({ route: path.join(__dirname, 'routes/campaigns'), methods: ['opened', 'audience'] });
         }
         // Register email template sync route (always available when templates are configured)
         if ((_j = config.email) === null || _j === void 0 ? void 0 : _j.templates) {

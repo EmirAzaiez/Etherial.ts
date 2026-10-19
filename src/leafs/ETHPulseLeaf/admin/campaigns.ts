@@ -38,7 +38,7 @@ const dispatchInBackground = (campaignId: number): void => {
 }
 
 /** The model's literal defaults, so the project's rules see the campaign as it will be saved. */
-function modelDefaults(model: any): Record<string, any> {
+export function modelDefaults(model: any): Record<string, any> {
     const defaults: Record<string, any> = {}
     const attributes = model?.getAttributes?.() ?? model?.rawAttributes ?? {}
     for (const [name, attribute] of Object.entries<any>(attributes)) {
@@ -381,10 +381,26 @@ function campaignFields(cfg: PushCampaignsConfig, targeting: FieldDefinition[]):
     return fields.map((field) => (overrides[field.name] ? { ...field, ...overrides[field.name] } : field))
 }
 
+/** The targeting fields of the form, the project's or the leaf's two boxes. */
+export const campaignTargeting = (cfg: PushCampaignsConfig): FieldDefinition[] => cfg.admin?.targeting ?? DEFAULT_TARGETING
+
+/** The back-office widget that draws the whole targeting, with its live count. */
+export const PUSH_AUDIENCE_WIDGET = 'push-audience'
+
 function campaignsCollection(cfg: PushCampaignsConfig): CollectionConfig {
-    const targeting = cfg.admin?.targeting ?? DEFAULT_TARGETING
+    const targeting = campaignTargeting(cfg)
     const targetingNames = targeting.map((field) => field.name)
     const content = ['title', 'message', 'title_ar', 'message_ar', 'url', 'show_in_notifications']
+
+    // The form draws the targeting as one block, the audience widget, carried
+    // by the first field: it fills in the others and counts the phones they
+    // reach as they change. The show page keeps the fields, one by one.
+    const fields = campaignFields(cfg, targeting).map((field) =>
+        field.name === targetingNames[0]
+            ? { ...field, widget: PUSH_AUDIENCE_WIDGET, companions: targetingNames.slice(1), col: 12 }
+            : field
+    )
+    const audience = targetingNames.length > 0 ? [{ title: 'Audience', fields: [targetingNames[0]] }] : []
 
     return {
         name: CAMPAIGNS_COLLECTION,
@@ -401,7 +417,7 @@ function campaignsCollection(cfg: PushCampaignsConfig): CollectionConfig {
             showInDashboard: true,
             ...cfg.admin?.meta,
         },
-        fields: campaignFields(cfg, targeting),
+        fields,
         views: {
             list: {
                 fields: ['id', 'message', 'status', 'scheduled_at', 'sent_count', 'delivered_count', 'opened_count', 'open_rate', 'sent_at'],
@@ -431,12 +447,14 @@ function campaignsCollection(cfg: PushCampaignsConfig): CollectionConfig {
                 ],
             },
             create: {
-                fields: [...content, ...targetingNames, 'send_mode', 'scheduled_at'],
+                layout: 'sections',
+                sections: [...audience, { title: 'Message', fields: content }, { title: 'When', fields: ['send_mode', 'scheduled_at'] }],
             },
             edit: {
                 // No `send_mode` here: a draft is scheduled with the Schedule
                 // action, a scheduled campaign just gets its date moved.
-                fields: [...content, ...targetingNames, 'scheduled_at'],
+                layout: 'sections',
+                sections: [...audience, { title: 'Message', fields: content }, { title: 'When', fields: ['scheduled_at'] }],
             },
         },
     } as CollectionConfig

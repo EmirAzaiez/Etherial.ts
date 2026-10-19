@@ -459,8 +459,8 @@ const TIMESTAMP_COLUMNS = new Set(['created_at', 'updated_at', 'deleted_at', 'cr
 
 /**
  * The columns a write from the back-office may set on a collection: its
- * declared, editable fields, the columns a map picker writes next to itself,
- * and `extraWritable`. A super admin also gets the protected columns.
+ * declared, editable fields, the columns a map picker or another widget writes
+ * next to itself, and `extraWritable`. A super admin also gets the protected columns.
  *
  * The routes hand what is left to `record.update()`: without this cut, a role
  * allowed to edit orders could set any column of the table, its own
@@ -493,6 +493,9 @@ export async function writableFields(collection: CollectionConfig, user: any): P
             if (field.map.addressField) {
                 out.add(field.map.addressField)
             }
+        }
+        for (const name of field.companions ?? []) {
+            out.add(name)
         }
     }
 

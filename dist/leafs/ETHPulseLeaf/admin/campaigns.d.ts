@@ -1,3 +1,4 @@
+import type { FieldDefinition } from '../../ETHAdminLeaf/features/ActionRegistry.js';
 import { PushCampaignsConfig } from '../services/campaigns.js';
 /**
  * The back-office side of push campaigns: the "Push campaigns" and "Push
@@ -9,6 +10,12 @@ import { PushCampaignsConfig } from '../services/campaigns.js';
  */
 export declare const CAMPAIGNS_COLLECTION = "campaigns";
 export declare const CAMPAIGN_DELIVERIES_COLLECTION = "campaign-deliveries";
+/** The model's literal defaults, so the project's rules see the campaign as it will be saved. */
+export declare function modelDefaults(model: any): Record<string, any>;
+/** The targeting fields of the form, the project's or the leaf's two boxes. */
+export declare const campaignTargeting: (cfg: PushCampaignsConfig) => FieldDefinition[];
+/** The back-office widget that draws the whole targeting, with its live count. */
+export declare const PUSH_AUDIENCE_WIDGET = "push-audience";
 /**
  * Registers the actions, hooks and both collections. Called from the leaf's
  * beforeRun: before the admin leaf resolves the hooks (its run) and installs

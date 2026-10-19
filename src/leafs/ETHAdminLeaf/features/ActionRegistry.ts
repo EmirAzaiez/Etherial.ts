@@ -301,6 +301,12 @@ export interface FieldDefinition {
      * readable list.
      */
     widget?: string
+    /**
+     * The other columns `widget` fills in beside this one (an audience picker
+     * setting a segment and two boxes). They are left out of the form, which
+     * draws only the widget, and saved with it.
+     */
+    companions?: string[]
     label?: string
     required?: boolean
     readonly?: boolean

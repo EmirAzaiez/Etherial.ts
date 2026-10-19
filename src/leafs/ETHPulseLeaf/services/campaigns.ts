@@ -223,6 +223,49 @@ async function targetDevices(campaign: any, { pushOnly = true, inbox = false } =
     return Device.findAll({ where, include: [userInclude(audience.userWhere)] })
 }
 
+/** Who a campaign would reach if it went out now: the back-office form's count. */
+export interface CampaignAudiencePreview {
+    /** Phones that would get the push. */
+    phones: number
+    /** Signed-in people behind them (one person, several phones). */
+    people: number
+    /** Of the phones, those nobody is signed in on. */
+    guests: number
+    /** Of the phones, those getting the Arabic copy. */
+    arabic: number
+    /** Targeted phones that turned notifications off: left out of the push. */
+    off: number
+}
+
+/**
+ * Counts what `targetDevices` would send to, for a campaign not saved yet: the
+ * form's targeting columns, read by the project's own audience rule, so the
+ * count is the one the send will find (give or take the phones that change in
+ * between).
+ */
+export async function previewCampaignAudience(campaign: any): Promise<CampaignAudiencePreview> {
+    const devices = await targetDevices(campaign, { pushOnly: false })
+    const preview: CampaignAudiencePreview = { phones: 0, people: 0, guests: 0, arabic: 0, off: 0 }
+    const people = new Set<number>()
+    for (const device of devices) {
+        if (device.push_token_status !== DevicePushTokenStatus.ENABLED) {
+            preview.off++
+            continue
+        }
+        preview.phones++
+        if (device.user_id == null) {
+            preview.guests++
+        } else {
+            people.add(device.user_id)
+        }
+        if (isArabic(device)) {
+            preview.arabic++
+        }
+    }
+    preview.people = people.size
+    return preview
+}
+
 type Outcome = { device: any; ticket: ExpoPushTicket | null; error?: string }
 
 /**
