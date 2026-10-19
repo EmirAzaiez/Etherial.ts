@@ -115,6 +115,15 @@ export interface AdminNavigation {
      * the collections declaring them were registered.
      */
     groups?: AdminNavigationGroup[]
+    /**
+     * Entries kept out of the menu, the "New" menu and the dashboard, by the
+     * keys `items` uses: lists looked up rather than worked in (a log, the
+     * cities a project picks from). Search still finds them, their screens
+     * open by link and from their records.
+     */
+    outOfMenu?: string[]
+    /** What the back office calls an entry instead of its own name, by the keys `items` uses: `{ 'notification-texts': 'Prog. Notification' }`. */
+    labels?: Record<string, string>
 }
 
 export interface AdminFeatures {
