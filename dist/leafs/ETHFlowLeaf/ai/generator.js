@@ -141,13 +141,17 @@ function layout(nodes, edges) {
         node.position = { x: -360, y: orphanRow++ * 170 };
     }
 }
-export function generateFlow(prompt, existing) {
-    return __awaiter(this, void 0, void 0, function* () {
+/**
+ * A graph from a sentence. `run` is the model to ask, the workspace's AI
+ * provider unless given: the back-office assistant passes its own.
+ */
+export function generateFlow(prompt_1, existing_1) {
+    return __awaiter(this, arguments, void 0, function* (prompt, existing, run = complete) {
         var _a, _b, _c, _d, _e, _f, _g, _h;
         const context = ((_a = existing === null || existing === void 0 ? void 0 : existing.nodes) === null || _a === void 0 ? void 0 : _a.length)
             ? `\n\nThe user is editing this automation. Return the whole thing, changed:\n${JSON.stringify(existing)}`
             : '';
-        const answer = yield complete({
+        const answer = yield run({
             system: SYSTEM,
             prompt: `${catalogue()}\n\n## Request\n${prompt}${context}`,
             json: true,

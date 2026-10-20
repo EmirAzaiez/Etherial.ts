@@ -163,7 +163,7 @@ Il ne fait pas d'autre lecture. La réponse rédigée fait moins de 120 mots et 
 config: { proposals: true }            // ou { maxRecords: 50 } : plafond d'une modification groupée (100 au plus)
 ```
 
-Désactivé par défaut. Activé, l'assistant reçoit quatre outils qui **n'écrivent rien** :
+Désactivé par défaut. Activé, l'assistant reçoit quatre outils (cinq avec les automatisations) qui **n'écrivent rien** :
 
 | Outil | Ce qu'il prépare |
 |---|---|
@@ -171,14 +171,25 @@ Désactivé par défaut. Activé, l'assistant reçoit quatre outils qui **n'écr
 | `propose_bulk_update` | Le même changement sur plusieurs fiches, par ids ou par filtres (`maxRecords` au plus). |
 | `propose_create` | Une nouvelle fiche. |
 | `propose_action` | Lancer une action de la collection sur une ou plusieurs fiches (une seule si l'action est `danger`). |
+| `propose_flow` | Une automatisation, avec `ETHFlowLeaf` installé et la page `flows` ouverte à la personne (voir plus bas). |
 
-Avant de préparer quoi que ce soit, l'outil vérifie ce que l'endpoint vérifierait : la collection est lisible par la personne, `crud` et `checkAccess` l'autorisent, les champs sont dans `writableFields(collection, user)` du leaf admin (rôles, colonnes protégées), les fiches existent et ne sont pas supprimées, les valeurs sont valides (choix, liens, dates dans le fuseau du projet). Les actions de catégorie `security` (mot de passe, clé) se lancent à la main, depuis la fiche. Une modification qui ne changerait rien est refusée.
+Avant de préparer quoi que ce soit, l'outil vérifie ce que l'endpoint vérifierait : la collection est lisible par la personne, `crud` et `checkAccess` l'autorisent, les champs sont dans `writableFields(collection, user)` du leaf admin (rôles, colonnes protégées), les fiches existent et ne sont pas supprimées, les valeurs sont valides (choix, liens, dates dans le fuseau du projet).
+
+Une heure s'écrit `HH:mm`, un texte riche en HTML. Un champ traduit (`translations`) prend un objet langue → texte : sur une fiche existante, une langue absente garde son texte ; sur une nouvelle fiche, chaque langue est donnée.
+
+Une **sous-liste** (`hasMany` affiché dans le formulaire, comme les horaires d'un planning) se donne en entier, dans l'ordre : `{ id, …champs changés }` garde un élément et le modifie, `{ id }` le garde tel quel, un élément sans `id` est ajouté, un élément absent est retiré (`_deleted`). `get_record` renvoie ses éléments avec leur id (50 au plus). Les champs obligatoires des nouveaux éléments, `min` et `max` sont vérifiés. La carte liste les éléments ajoutés, changés et retirés, ou le nouvel ordre.
+
+Un choix multiple prend la liste de ses valeurs. Un lien multiple (`belongsToMany` sans `pivotFields`, comme les projets d'un segment) prend la liste des ids de toutes les fiches liées, et remplace la liste entière. `describe_collection` le liste dans `can_prepare.lists_of_links`. Un lien multiple, une sous-liste ou un champ traduit se change fiche par fiche, jamais dans une modification groupée. Les actions de catégorie `security` (mot de passe, clé) se lancent à la main, depuis la fiche. Une modification qui ne changerait rien est refusée.
 
 Le back-office reçoit une **carte** dans la conversation : le résumé, un tableau champ / avant / après formaté comme dans le back-office, les fiches concernées, et les boutons Confirmer / Annuler. Confirmer passe par les endpoints habituels (`PUT`, `POST`, `/actions`), avec les droits, les hooks et la validation des formulaires, et l'en-tête `X-Admin-Via: assistant`. L'historique des modifications l'enregistre au nom de la personne, avec `meta.via = 'assistant'` (badge « Via assistant »). Une modification groupée est enregistrée fiche par fiche.
 
+**Remplir le formulaire.** Sur le formulaire d'une nouvelle fiche, ou d'une fiche en cours de modification, le back-office envoie `context.view` (`create` ou `edit`) et `context.form`, ce que le formulaire contient à ce moment (enregistré ou non). L'assistant sait alors que sa carte peut remplir ce formulaire, et part de ce qui est tapé (« traduis ce que j'ai écrit »). Le leaf ne garde de `context.form` que les champs lisibles de la collection et de ses sous-listes, et l'ignore au-delà de 12 000 caractères. La carte d'une création, ou d'une modification d'une seule fiche, propose « Fill the form » quand ce formulaire est ouvert, et « Open in the form » ailleurs. Rien n'est enregistré : la personne vérifie et enregistre elle-même, et la décision est gardée comme `filled`.
+
+**Les automatisations.** Avec `ETHFlowLeaf` installé, l'assistant reçoit aussi `propose_flow`, pour qui peut ouvrir la page `flows`. Il décrit l'automatisation ; le générateur du leaf flow la dessine (déclencheur, étapes, liens), appelé avec la clé et le modèle `smart` de l'assistant. La carte liste le déclencheur et les étapes, et ce qu'il reste à vérifier. Elle ne s'enregistre jamais : « Fill the builder » la met dans le constructeur ouvert, « Open in the builder » l'ouvre ailleurs. La personne la vérifie, l'enregistre et l'active là. Dans le constructeur, le back-office envoie `context.flow` (`{ id?, name?, graph }`) : l'assistant modifie ce qui est sur le canevas.
+
 Chaque carte garde la version (`updated_at`) des fiches lues. Le back-office l'envoie en `If-Match` : si quelqu'un a modifié la fiche entre-temps, l'enregistrement est refusé (409) au lieu d'écraser son travail.
 
-Ce que la personne a décidé est renvoyé à Claude avec la question suivante, sur une ligne « [Back office: …] ». Il sait ainsi si la modification a été enregistrée, annulée ou refusée, et ne prétend jamais qu'une modification est faite avant la confirmation.
+Ce que la personne a décidé est renvoyé à Claude avec la question suivante, sur une ligne « [Back office: …] ». Il sait ainsi si la modification a été enregistrée, annulée, refusée ou mise dans le formulaire, et ne prétend jamais qu'une modification est faite avant la confirmation.
 
 Le back-office lit `features.assistant.proposals`. Sans lui, il n'affiche aucune carte.
 
@@ -202,7 +213,7 @@ Routes, toutes réservées à leur propriétaire (404 sinon) :
 | `GET /admin/assistant/conversations/:id` | Une conversation et ses tours. |
 | `PUT /admin/assistant/conversations/:id` | `{ title }` : la renommer. |
 | `DELETE /admin/assistant/conversations/:id` | La supprimer. |
-| `POST /admin/assistant/conversations/:id/decisions` | `{ proposal, status, error?, createdId? }` : ce qui a été décidé sur une carte. |
+| `POST /admin/assistant/conversations/:id/decisions` | `{ proposal, status, error?, createdId? }` : ce qui a été décidé sur une carte (`confirmed`, `cancelled`, `failed` ou `filled`). |
 
 ---
 
@@ -268,7 +279,7 @@ La commande `purge` du leaf vide le journal (et les conversations, avec `history
 
 - `task` : `ask` (question), `summarize` (résumé) ou `draft` (réponse rédigée).
 - `messages` : la conversation, la dernière question en dernier. Les 12 derniers messages comptent.
-- `context` : la page ouverte. Pour `summarize` et `draft`, `collection` et `id` sont obligatoires.
+- `context` : la page ouverte (`collection`, `id`, `filters`, `search`, et `view` : `create` ou `edit` sur un formulaire). Pour `summarize` et `draft`, `collection` et `id` sont obligatoires.
 - `language` : `en` ou `ar`, pour `summarize` et `draft`. Une question reçoit une réponse dans sa propre langue.
 - `conversationId` (avec `history`) : la conversation à continuer. `where` : la page, telle que le panneau la nomme.
 
@@ -286,7 +297,7 @@ Réponse :
 }
 ```
 
-Avec `proposals`, `data.proposals` liste les cartes : `{ id, kind, collection, recordId?, recordIds?, action?, data, diff: [{ field, label, before, after }], summary, title, collectionLabel, actionLabel?, tone?, records?, link?, versions? }`. Avec `history`, `data.conversationId` dit où le tour a été gardé.
+Avec `proposals`, `data.proposals` liste les cartes : `{ id, kind, collection, recordId?, recordIds?, action?, data, diff: [{ field, label, before, after }], summary, title, collectionLabel, actionLabel?, tone?, records?, link?, notes?, versions? }` (`kind` : `update`, `create`, `action`, `bulk_update` ou `flow`). Avec `history`, `data.conversationId` dit où le tour a été gardé.
 
 Erreurs (`errors[0]`) :
 

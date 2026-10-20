@@ -9,12 +9,23 @@ export interface AskInput {
         role: 'user' | 'assistant';
         content: string;
     }[];
-    /** The page they are on. */
+    /**
+     * The page they are on; `view` when it is a record's form, new or being
+     * edited, and `form`, what that form holds now.
+     */
     context?: {
         collection?: string;
         id?: string | number;
         filters?: Record<string, unknown>;
         search?: string;
+        view?: 'create' | 'edit';
+        form?: Record<string, unknown>;
+        /** The automation builder, when it is open: the automation and its canvas. */
+        flow?: {
+            id?: string;
+            name?: string;
+            graph?: any;
+        };
     };
     /** Of a summary or a draft. A question is answered in its own language. */
     language?: 'en' | 'ar';

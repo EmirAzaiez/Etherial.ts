@@ -1,6 +1,7 @@
 import type { Proposal } from './proposals.js';
 import type { AskInput, AskOutput } from './run.js';
-export type Decision = 'confirmed' | 'cancelled' | 'failed';
+/** `filled`: put into the form on their screen, not saved — what they do there is theirs. */
+export type Decision = 'confirmed' | 'cancelled' | 'failed' | 'filled';
 export declare const DECISIONS: Decision[];
 export interface StoredProposal extends Proposal {
     status?: Decision;

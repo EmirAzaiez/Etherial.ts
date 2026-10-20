@@ -5,7 +5,7 @@ type AuthedRequest = Request & {
 export default class ETHAssistantAdminController {
     /**
      * POST /admin/assistant/ask
-     * { task: 'ask' | 'summarize' | 'draft', messages: [{ role, content }], context?: { collection, id?, filters?, search? }, language?: 'en' | 'ar',
+     * { task: 'ask' | 'summarize' | 'draft', messages: [{ role, content }], context?: { collection, id?, filters?, search?, view?, form?, flow? }, language?: 'en' | 'ar',
      *   conversationId?, where? }
      * → { answer, steps, model, usage, proposals?, conversationId? }
      *

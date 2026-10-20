@@ -13,6 +13,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 import { Op } from 'sequelize';
 import { AssistantConversation } from '../models/AssistantConversation.js';
 import { keepDaysOf } from './options.js';
@@ -22,7 +33,7 @@ const MAX_TURNS = 100;
 const MAX_LISTED = 100;
 const MAX_TITLE = 200;
 const PURGE_EVERY = 3600 * 1000;
-export const DECISIONS = ['confirmed', 'cancelled', 'failed'];
+export const DECISIONS = ['confirmed', 'cancelled', 'failed', 'filled'];
 const ownedBy = (userId, id) => ({ id: Number(id), user_id: userId });
 function titleOf(input, where) {
     var _a, _b, _c;
@@ -47,6 +58,11 @@ function purgeOld() {
         }
     });
 }
+/** Where the question was asked, without what the form or the canvas held then. */
+function keptContext(_a) {
+    var { form, flow } = _a, context = __rest(_a, ["form", "flow"]);
+    return Object.assign(Object.assign({}, context), (flow ? { flow: Object.assign(Object.assign({}, (flow.id ? { id: flow.id } : {})), (flow.name ? { name: flow.name } : {})) } : {}));
+}
 /**
  * Adds an answered turn to the person's conversation — a new one when none is
  * named, or when the one named is not theirs (or no longer exists). Returns
@@ -55,7 +71,7 @@ function purgeOld() {
 export function saveTurn(userId, input, output, conversationId, where) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c;
-        const turn = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id: `t_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, task: input.task, prompt: (_b = (_a = [...input.messages].reverse().find((m) => m.role === 'user')) === null || _a === void 0 ? void 0 : _a.content) !== null && _b !== void 0 ? _b : '' }, (input.context ? { context: input.context } : {})), (where ? { where } : {})), (input.language ? { language: input.language } : {})), { answer: { answer: output.answer, steps: output.steps, model: output.model } }), (((_c = output.proposals) === null || _c === void 0 ? void 0 : _c.length) ? { proposals: output.proposals } : {})), { at: new Date().toISOString() });
+        const turn = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id: `t_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, task: input.task, prompt: (_b = (_a = [...input.messages].reverse().find((m) => m.role === 'user')) === null || _a === void 0 ? void 0 : _a.content) !== null && _b !== void 0 ? _b : '' }, (input.context ? { context: keptContext(input.context) } : {})), (where ? { where } : {})), (input.language ? { language: input.language } : {})), { answer: { answer: output.answer, steps: output.steps, model: output.model } }), (((_c = output.proposals) === null || _c === void 0 ? void 0 : _c.length) ? { proposals: output.proposals } : {})), { at: new Date().toISOString() });
         try {
             const existing = conversationId ? yield AssistantConversation.findOne({ where: ownedBy(userId, conversationId) }) : null;
             if (existing) {

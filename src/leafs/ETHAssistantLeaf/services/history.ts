@@ -19,8 +19,9 @@ const MAX_LISTED = 100
 const MAX_TITLE = 200
 const PURGE_EVERY = 3600 * 1000
 
-export type Decision = 'confirmed' | 'cancelled' | 'failed'
-export const DECISIONS: Decision[] = ['confirmed', 'cancelled', 'failed']
+/** `filled`: put into the form on their screen, not saved — what they do there is theirs. */
+export type Decision = 'confirmed' | 'cancelled' | 'failed' | 'filled'
+export const DECISIONS: Decision[] = ['confirmed', 'cancelled', 'failed', 'filled']
 
 export interface StoredProposal extends Proposal {
     status?: Decision
@@ -66,6 +67,11 @@ async function purgeOld(): Promise<void> {
     }
 }
 
+/** Where the question was asked, without what the form or the canvas held then. */
+function keptContext({ form, flow, ...context }: NonNullable<AskInput['context']>): NonNullable<AskInput['context']> {
+    return { ...context, ...(flow ? { flow: { ...(flow.id ? { id: flow.id } : {}), ...(flow.name ? { name: flow.name } : {}) } } : {}) }
+}
+
 /**
  * Adds an answered turn to the person's conversation — a new one when none is
  * named, or when the one named is not theirs (or no longer exists). Returns
@@ -76,7 +82,7 @@ export async function saveTurn(userId: number, input: AskInput, output: AskOutpu
         id: `t_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
         task: input.task,
         prompt: [...input.messages].reverse().find((m) => m.role === 'user')?.content ?? '',
-        ...(input.context ? { context: input.context } : {}),
+        ...(input.context ? { context: keptContext(input.context) } : {}),
         ...(where ? { where } : {}),
         ...(input.language ? { language: input.language } : {}),
         answer: { answer: output.answer, steps: output.steps, model: output.model },

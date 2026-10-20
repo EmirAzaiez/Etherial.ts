@@ -22,23 +22,53 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import { randomBytes } from 'crypto';
 import { Op } from 'sequelize';
+import { MAX_ITEMS } from './catalog.js';
 import { maxRecordsOf, timezoneOf } from './options.js';
 import { state } from './state.js';
-import { ToolError, formatDate, relationLabels, whereOf } from './tools.js';
+import { ToolError, clockOf, formatDate, linkedIds, relationLabels, subListRows, whereOf } from './tools.js';
+import { FLOW_TOOL, proposeFlow } from './flows.js';
 const adminLeaf = () => etherial.eth_admin_leaf;
-/** What a sentence can set. Files, JSON, multi-choice and sub-lists stay in the form. */
-const SETTABLE_TYPES = new Set(['string', 'text', 'number', 'integer', 'boolean', 'date', 'datetime', 'email', 'url', 'phone', 'select', 'relation']);
+/** What a sentence can set, besides sub-lists. Files and JSON stay in the form. */
+const SETTABLE_TYPES = new Set([
+    'string',
+    'text',
+    'richtext',
+    'number',
+    'integer',
+    'boolean',
+    'date',
+    'datetime',
+    'time',
+    'email',
+    'url',
+    'phone',
+    'select',
+    'multiselect',
+    'relation',
+    'translations',
+]);
+/** Set as a whole list: several choices, or the records a many-to-many links to. */
+const LIST_TYPES = new Set(['multiselect', 'belongsToMany']);
 /** Stamped by the database, never set. */
 const STAMPS = new Set(['id', 'created_at', 'updated_at', 'deleted_at', 'createdAt', 'updatedAt', 'deletedAt']);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const CLOCK = /^(\d{1,2})[:h](\d{2})(?::\d{2})?$/;
 const WALL_CLOCK = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Cards one answer may hold: past it, the person should decide on those first. */
 const MAX_PROPOSALS = 5;
 const MAX_SUMMARY = 240;
 const SHOWN_TEXT = 300;
+/** Lines one sub-list adds to a card: past it, one line says how many more. */
+const MAX_ITEM_LINES = 12;
 // ── Definitions ─────────────────────────────────────────────────────────────
-const VALUES_DESCRIPTION = "Field name → new value. A choice takes its value or its label. null empties a field. A date is YYYY-MM-DD, a date and time YYYY-MM-DD HH:mm in the project's time zone. A link takes the id of the record it points to (find it with query_records first).";
+const VALUES_DESCRIPTION = [
+    'Field name → new value. A choice takes its value or its label; a multiple choice, a list of them. null empties a field.',
+    "A date is YYYY-MM-DD, a date and time YYYY-MM-DD HH:mm in the project's time zone, a time of day HH:mm. A rich text is HTML.",
+    'A text in several languages (languages in describe_collection) takes an object, language → text: on an edit, a language left out keeps its text; on a new record, give every language.',
+    'A link takes the id of the record it points to; a list of links (lists_of_links) takes the ids of every record it should point to, and replaces the whole list. Find ids with query_records first.',
+    "A sub-list (sub_lists) takes its items as they should be, in order: an item already there is named by its id, as get_record gives it, with only the fields that change ({ id } alone keeps it as it is); an item without an id is added; an item left out is removed. Read the record's items with get_record first.",
+].join(' ');
 const SUMMARY_SCHEMA = {
     type: 'string',
     description: "One short sentence, in the staff member's language, saying what this does and why: shown on the card.",
@@ -103,7 +133,9 @@ export const PROPOSAL_TOOLS = [
         },
     },
 ];
-export const isProposalTool = (name) => PROPOSAL_TOOLS.some((t) => t.name === name);
+export const isProposalTool = (name) => name === FLOW_TOOL.name || PROPOSAL_TOOLS.some((t) => t.name === name);
+/** The tools this person may prepare changes with. */
+export const proposalToolsFor = (context) => (context.flows ? [...PROPOSAL_TOOLS, FLOW_TOOL] : PROPOSAL_TOOLS);
 /** What describe_collection adds when proposals are on: what this person may prepare there. */
 export function writableSide(collection, context) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -117,7 +149,15 @@ export function writableSide(collection, context) {
             crud.includes('update') && leaf.checkAccess(context.user, config.name, 'update'),
             crud.includes('create') && leaf.checkAccess(context.user, config.name, 'create'),
         ]);
-        const fields = canUpdate || canCreate ? [...(yield settableFields(collection, config, context.user)).keys()] : [];
+        const settable = canUpdate || canCreate ? yield settableFields(collection, config, context.user) : new Map();
+        const fields = [...settable.values()].filter((f) => f.type !== 'hasMany').map((f) => f.name);
+        // Not among the fields read: describe_collection would not tell them otherwise.
+        const links = [...settable.values()]
+            .filter((f) => f.type === 'belongsToMany')
+            .map((f) => ({ name: f.name, label: f.label, links_to: f.relation.collection, takes: 'a list of ids' }));
+        const subLists = [...settable.values()]
+            .filter((f) => f.type === 'hasMany')
+            .map((f) => (Object.assign({ name: f.name, label: f.label, item_fields: [...f.itemFields.keys()] }, (requiredOf(f).length ? { required_on_new_items: requiredOf(f).map((d) => d.name) } : {}))));
         const actions = [];
         for (const name of (_b = config.actions) !== null && _b !== void 0 ? _b : []) {
             const serialized = (_d = (_c = leaf.actions) === null || _c === void 0 ? void 0 : _c.serialize) === null || _d === void 0 ? void 0 : _d.call(_c, name);
@@ -128,23 +168,33 @@ export function writableSide(collection, context) {
             actions.push(Object.assign({ key: name, label: (_g = (_f = serialized.meta) === null || _f === void 0 ? void 0 : _f.label) !== null && _g !== void 0 ? _g : name }, (((_h = serialized.form) === null || _h === void 0 ? void 0 : _h.length) ? { form: serialized.form.map((f) => { var _a; return (((_a = f.options) === null || _a === void 0 ? void 0 : _a.length) ? `${f.name} (${f.options.map((o) => o.value).join(' | ')})` : f.name); }) } : {})));
         }
         return {
-            can_prepare: Object.assign(Object.assign({ edit: !!canUpdate, create: !!canCreate }, (fields.length ? { settable_fields: fields } : {})), (actions.length ? { actions } : {})),
+            can_prepare: Object.assign(Object.assign(Object.assign(Object.assign({ edit: !!canUpdate, create: !!canCreate }, (fields.length ? { settable_fields: fields } : {})), (links.length ? { lists_of_links: links } : {})), (subLists.length ? { sub_lists: subLists } : {})), (actions.length ? { actions } : {})),
         };
     });
 }
 // ── Running a proposal ──────────────────────────────────────────────────────
 export function runProposal(name, input, context) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e;
         const proposals = context.proposals;
         if (!proposals)
             throw new ToolError('Preparing changes is turned off: say where in the back office it is done.');
         if (proposals.length >= MAX_PROPOSALS)
             throw new ToolError(`${MAX_PROPOSALS} changes are already waiting: let the staff member decide on those first.`);
+        if (name === FLOW_TOOL.name) {
+            if (!context.flows)
+                throw new ToolError('This staff member cannot build automations: tell them so.');
+            const { proposal, step } = yield proposeFlow(input, context);
+            proposals.push(proposal);
+            return {
+                result: Object.assign(Object.assign({ proposal: proposal.id, status: 'waiting for the staff member', steps: (_a = proposal.diff) === null || _a === void 0 ? void 0 : _a.map((c) => `${c.label}: ${c.after}`) }, (((_b = proposal.notes) === null || _b === void 0 ? void 0 : _b.length) ? { to_check: proposal.notes } : {})), { note: 'Nothing is saved. The staff member now sees a card that puts this automation in the builder; they check it there, then save it and turn it on. Say in one or two sentences what it does and what they should check (to_check), and never say it is done or running.' }),
+                step,
+            };
+        }
         const collection = context.collections.get(input === null || input === void 0 ? void 0 : input.collection);
         if (!collection)
             throw new ToolError(`No readable collection "${String(input === null || input === void 0 ? void 0 : input.collection)}". Use a key from the list of collections.`);
-        const config = (_a = adminLeaf()) === null || _a === void 0 ? void 0 : _a.getCollection(collection.name);
+        const config = (_c = adminLeaf()) === null || _c === void 0 ? void 0 : _c.getCollection(collection.name);
         if (!config)
             throw new ToolError(`${collection.labelPlural} cannot be changed from the back office`);
         context.read.add(collection.name);
@@ -166,9 +216,9 @@ export function runProposal(name, input, context) {
                 throw new ToolError(`Unknown tool ${name}`);
         }
         proposals.push(proposal);
-        const count = (_b = proposal.recordIds) === null || _b === void 0 ? void 0 : _b.length;
+        const count = (_d = proposal.recordIds) === null || _d === void 0 ? void 0 : _d.length;
         return {
-            result: Object.assign(Object.assign(Object.assign({ proposal: proposal.id, status: 'waiting for the staff member' }, (((_c = proposal.diff) === null || _c === void 0 ? void 0 : _c.length) ? { changes: proposal.diff.map((c) => { var _a, _b; return `${c.label}: ${(_a = c.before) !== null && _a !== void 0 ? _a : 'empty'} → ${(_b = c.after) !== null && _b !== void 0 ? _b : 'empty'}`; }) } : {})), (count ? { records: count } : {})), { note: 'Nothing has changed yet. The staff member now sees this as a card with Confirm and Cancel. Say in one sentence what you prepared and ask them to check it and confirm. Never say it is done.' }),
+            result: Object.assign(Object.assign(Object.assign({ proposal: proposal.id, status: 'waiting for the staff member' }, (((_e = proposal.diff) === null || _e === void 0 ? void 0 : _e.length) ? { changes: proposal.diff.map((c) => { var _a, _b; return `${c.label}: ${(_a = c.before) !== null && _a !== void 0 ? _a : 'empty'} → ${(_b = c.after) !== null && _b !== void 0 ? _b : 'empty'}`; }) } : {})), (count ? { records: count } : {})), { note: 'Nothing has changed yet. The staff member now sees this as a card with Confirm and Cancel. Say in one sentence what you prepared and ask them to check it and confirm. Never say it is done.' }),
             step: Object.assign({ tool: name, label: proposal.title, collection: collection.name }, (proposal.link ? { link: proposal.link } : {})),
         };
     });
@@ -178,8 +228,11 @@ function proposeUpdate(collection, config, input, context) {
         yield allowed(config, context.user, 'update', `edit ${collection.labelPlural.toLowerCase()}`);
         const record = yield recordOf(collection, config, input === null || input === void 0 ? void 0 : input.id);
         const settable = yield settableFields(collection, config, context.user);
-        const data = yield valuesOf(collection, settable, input === null || input === void 0 ? void 0 : input.changes, 'changes');
-        const before = plain(record);
+        const asked = (input === null || input === void 0 ? void 0 : input.changes) && typeof input.changes === 'object' ? Object.keys(input.changes) : [];
+        const before = Object.assign(Object.assign(Object.assign({}, plain(record)), (yield linksOf(record, settable, asked))), (yield itemsNow(record, collection, settable, asked)));
+        // A text in several languages is merged into what the form shows, unsaved edits included.
+        const form = context.form && context.form.collection === collection.name && context.form.id === String(input.id) ? context.form.values : undefined;
+        const data = yield valuesOf(collection, settable, input === null || input === void 0 ? void 0 : input.changes, 'changes', before, form);
         const changed = Object.keys(data).filter((name) => !same(settable.get(name), before[name], data[name]));
         if (!changed.length)
             throw new ToolError(`Nothing would change: ${collection.label} #${input.id} already has these values.`);
@@ -196,14 +249,15 @@ function proposeCreate(collection, config, input, context) {
         const settable = yield settableFields(collection, config, context.user);
         const data = yield valuesOf(collection, settable, input === null || input === void 0 ? void 0 : input.values, 'values');
         // What the form would refuse to save, said now rather than on Confirm.
-        const missing = ((_a = config.fields) !== null && _a !== void 0 ? _a : []).filter((f) => (f === null || f === void 0 ? void 0 : f.required) && !f.readonly && f.defaultValue === undefined && (data[f.name] === undefined || data[f.name] === null || data[f.name] === ''));
+        const shown = formFields(config, 'create');
+        const missing = ((_a = config.fields) !== null && _a !== void 0 ? _a : []).filter((f) => (f === null || f === void 0 ? void 0 : f.required) && !f.readonly && f.defaultValue === undefined && (!shown || shown.has(f.name)) && isEmpty(data[f.name]));
         const unsettable = missing.filter((f) => !settable.has(f.name));
         if (unsettable.length) {
             throw new ToolError(`A new ${collection.label.toLowerCase()} needs ${unsettable.map((f) => f.label || f.name).join(', ')}, which only its form can fill in: send the staff member to /${collection.name}/create`);
         }
         if (missing.length)
             throw new ToolError(`Required: ${missing.map((f) => f.name).join(', ')}`);
-        const names = Object.keys(data).filter((name) => data[name] !== null);
+        const names = Object.keys(data).filter((name) => !isEmpty(data[name]));
         if (!names.length)
             throw new ToolError('Give the values of the new record');
         const title = `New ${collection.label.toLowerCase()}`;
@@ -271,7 +325,10 @@ function proposeBulkUpdate(collection, config, input, context) {
     return __awaiter(this, void 0, void 0, function* () {
         yield allowed(config, context.user, 'update', `edit ${collection.labelPlural.toLowerCase()}`);
         const settable = yield settableFields(collection, config, context.user);
-        const data = yield valuesOf(collection, settable, input === null || input === void 0 ? void 0 : input.changes, 'changes');
+        const data = yield valuesOf(collection, settable, input === null || input === void 0 ? void 0 : input.changes, 'changes', {}, undefined, true);
+        const lists = Object.keys(data).filter((name) => ['belongsToMany', 'hasMany', 'translations'].includes(settable.get(name).type));
+        if (lists.length)
+            throw new ToolError(`${lists.map((name) => settable.get(name).label).join(', ')} is changed one record at a time, with propose_update`);
         const max = maxRecordsOf(state.config);
         let rows;
         if (Array.isArray(input === null || input === void 0 ? void 0 : input.ids) && input.ids.length) {
@@ -317,6 +374,18 @@ function allowed(config, user, method, what) {
     });
 }
 let warnedFallback = false;
+/** The fields a form view shows, when it names them; null when it shows every editable field. */
+function formFields(config, view) {
+    var _a, _b, _c;
+    const form = (_a = config.views) === null || _a === void 0 ? void 0 : _a[view];
+    if ((_b = form === null || form === void 0 ? void 0 : form.sections) === null || _b === void 0 ? void 0 : _b.length)
+        return new Set(form.sections.flatMap((s) => { var _a; return (_a = s.fields) !== null && _a !== void 0 ? _a : []; }));
+    if ((_c = form === null || form === void 0 ? void 0 : form.fields) === null || _c === void 0 ? void 0 : _c.length)
+        return new Set(form.fields);
+    return null;
+}
+/** A sub-list's item fields that a new item cannot go without. */
+const requiredOf = (field) => field.list.definitions.filter((d) => { var _a; return (d.required || ((_a = d.validation) === null || _a === void 0 ? void 0 : _a.required)) && !d.readonly; });
 /**
  * The fields a proposal may set: those the person's own form may write — the
  * admin leaf's `writableFields`, which knows roles and protected columns —
@@ -324,7 +393,7 @@ let warnedFallback = false;
  */
 function settableFields(collection, config, user) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
+        var _a, _b, _c, _d, _e;
         const leaf = adminLeaf();
         let writable;
         if (typeof (leaf === null || leaf === void 0 ? void 0 : leaf.writableFields) === 'function') {
@@ -345,12 +414,48 @@ function settableFields(collection, config, user) {
                 continue;
             out.set(field.name, field);
         }
+        // A many-to-many (a segment's projects) is no column the assistant reads,
+        // but a list of ids the form sets: it may set it too. Not with data on the
+        // link itself (pivot fields), which only the form shows.
+        const excluded = new Set((_c = (_b = state.config.excludeFields) === null || _b === void 0 ? void 0 : _b[config.name]) !== null && _c !== void 0 ? _c : []);
+        for (const field of (_d = config.fields) !== null && _d !== void 0 ? _d : []) {
+            const link = (field === null || field === void 0 ? void 0 : field.type) === 'belongsToMany' ? field.belongsToMany : undefined;
+            if (!(link === null || link === void 0 ? void 0 : link.collection) || ((_e = link.pivotFields) === null || _e === void 0 ? void 0 : _e.length) || field.secure || excluded.has(field.name) || !writable.has(field.name))
+                continue;
+            out.set(field.name, {
+                name: field.name,
+                label: field.label || field.name,
+                type: 'belongsToMany',
+                relation: { collection: link.collection, displayField: link.displayField || 'id' },
+                listFilter: false,
+            });
+        }
+        // A sub-list, item by item: what its rows hold, but for what only the form can fill in (files).
+        for (const list of collection.subLists) {
+            if (!writable.has(list.name))
+                continue;
+            const itemFields = new Map();
+            for (const field of list.fields) {
+                const definition = list.definitions.find((d) => d.name === field.name);
+                if ((definition === null || definition === void 0 ? void 0 : definition.readonly) || STAMPS.has(field.name))
+                    continue;
+                if (field.type === 'belongsToMany' || SETTABLE_TYPES.has(field.type))
+                    itemFields.set(field.name, field);
+            }
+            if (itemFields.size)
+                out.set(list.name, { name: list.name, label: list.label, type: 'hasMany', listFilter: false, list, itemFields });
+        }
         return out;
     });
 }
-/** The values asked for, as the endpoint takes them; throws on the first that cannot be. */
-function valuesOf(collection, settable, raw, key) {
-    return __awaiter(this, void 0, void 0, function* () {
+/**
+ * The values asked for, as the endpoint takes them; throws on the first that
+ * cannot be. `before` holds the record's values, its sub-lists' items among
+ * them; `form`, what its open form shows.
+ */
+function valuesOf(collection_1, settable_1, raw_1, key_1) {
+    return __awaiter(this, arguments, void 0, function* (collection, settable, raw, key, before = {}, form, bulk = false) {
+        var _a;
         if (!raw || typeof raw !== 'object' || Array.isArray(raw))
             throw new ToolError(`${key} is an object: field name → value`);
         const entries = Object.entries(raw);
@@ -360,22 +465,164 @@ function valuesOf(collection, settable, raw, key) {
         for (const [name, value] of entries) {
             const field = settable.get(name);
             if (!field) {
-                const known = collection.fields.some((f) => f.name === name);
+                const known = collection.fields.some((f) => f.name === name) || collection.subLists.some((l) => l.name === name);
                 throw new ToolError(known
                     ? `${name} cannot be set here: ${settable.size ? `settable fields are ${[...settable.keys()].join(', ')}` : 'nothing in this collection can be'}. Say it is done in the form.`
                     : `${collection.name} has no field "${name}". Call describe_collection.`);
             }
-            out[name] = yield valueOf(field, value);
+            if (bulk && field.type === 'hasMany')
+                continue;
+            out[name] =
+                field.type === 'hasMany'
+                    ? yield itemsOfList(field, value, (_a = before[name]) !== null && _a !== void 0 ? _a : [])
+                    : field.type === 'translations'
+                        ? textsOf(field, value, isTexts(form === null || form === void 0 ? void 0 : form[name]) ? form[name] : before[name], !bulk && before[pkOf(collection)] !== undefined)
+                        : yield valueOf(field, value);
         }
         return out;
+    });
+}
+const isTexts = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+/**
+ * A text in several languages, as one object with every language: the model
+ * may replace them all at once. On an edit, a language not given keeps the
+ * text it has now; on a new record, it stays out.
+ */
+function textsOf(field, value, current, merge) {
+    var _a;
+    const locales = (_a = field.locales) !== null && _a !== void 0 ? _a : [];
+    let given = value;
+    if (typeof value === 'string' && value.trim().startsWith('{')) {
+        try {
+            given = JSON.parse(value);
+        }
+        catch (_b) {
+            // Plain text: refused below.
+        }
+    }
+    const shape = `{ ${locales.map((l) => `"${l}": "…"`).join(', ')} }`;
+    if (given === null)
+        return Object.fromEntries(locales.map((l) => [l, '']));
+    if (!isTexts(given))
+        throw new ToolError(`${field.name} takes a text per language: ${shape}`);
+    const unknown = Object.keys(given).filter((l) => !locales.includes(l));
+    if (unknown.length)
+        throw new ToolError(`${field.name} has no language ${unknown.join(', ')}: it takes ${shape}`);
+    const out = {};
+    for (const locale of locales) {
+        if (locale in given) {
+            const text = given[locale];
+            out[locale] = text === null || text === undefined ? '' : String(text);
+        }
+        else if (merge) {
+            const text = isTexts(current) ? current[locale] : undefined;
+            out[locale] = text === null || text === undefined ? '' : String(text);
+        }
+    }
+    return out;
+}
+/** A sub-list's items now, for the sub-lists among `names`: what an edit starts from. */
+function itemsNow(record, collection, settable, names) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const out = {};
+        for (const name of names) {
+            const list = (_a = settable.get(name)) === null || _a === void 0 ? void 0 : _a.list;
+            if (!list)
+                continue;
+            const { rows, total } = yield subListRows(list, record.get(pkOf(collection)), MAX_ITEMS + 1);
+            if (total > MAX_ITEMS)
+                throw new ToolError(`${list.label} holds ${total} items: too many to edit from here. Say it is done in the record's form.`);
+            out[name] = rows;
+        }
+        return out;
+    });
+}
+/**
+ * A sub-list as the endpoint takes it: the items kept, changed or added, in
+ * their new order, then the ones removed, flagged `_deleted` — an item left
+ * out of the payload would be kept as it is.
+ */
+function itemsOfList(field, value, rows) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const list = field.list;
+        const itemFields = field.itemFields;
+        const pk = list.model.primaryKeyAttribute || 'id';
+        const byId = new Map(rows.map((row) => [String(row[pk]), row]));
+        const given = itemsOf(value);
+        const out = [];
+        const kept = new Set();
+        for (const [index, raw] of given.entries()) {
+            const where = `${list.label}, item ${index + 1}`;
+            if (!isTexts(raw))
+                throw new ToolError(`${where}: an item is an object, item field → value, with the id of one already there`);
+            const id = raw.id === undefined || raw.id === null || raw.id === '' ? undefined : String(raw.id);
+            const existing = id === undefined ? undefined : byId.get(id);
+            if (id !== undefined && !existing)
+                throw new ToolError(`${where}: this record has no item #${id} in ${list.label}. get_record lists them; an item without an id is a new one.`);
+            if (id !== undefined && kept.has(id))
+                throw new ToolError(`${where}: item #${id} is listed twice`);
+            if (id !== undefined)
+                kept.add(id);
+            const item = existing ? { id: existing[pk] } : {};
+            for (const [key, v] of Object.entries(raw)) {
+                if (key === 'id' || key === pk)
+                    continue;
+                const itemField = itemFields.get(key);
+                if (!itemField)
+                    throw new ToolError(`${where}: no settable field "${key}". Its items take ${[...itemFields.keys()].join(', ')}.`);
+                let next;
+                try {
+                    next = itemField.type === 'translations' ? textsOf(itemField, v, existing === null || existing === void 0 ? void 0 : existing[key], !!existing) : yield valueOf(itemField, v);
+                }
+                catch (err) {
+                    if (err instanceof ToolError)
+                        throw new ToolError(`${where}: ${err.message}`);
+                    throw err;
+                }
+                // On an item already there, only what changes.
+                if (!existing || !same(itemField, existing[key], next))
+                    item[key] = next;
+            }
+            if (!existing) {
+                // A new item starts from the defaults, as one added in the form.
+                for (const definition of list.definitions) {
+                    if (definition.defaultValue !== undefined && item[definition.name] === undefined && itemFields.has(definition.name))
+                        item[definition.name] = definition.defaultValue;
+                }
+            }
+            for (const definition of requiredOf(field)) {
+                const missing = existing ? definition.name in item && blank(item[definition.name]) : blank(item[definition.name]) && definition.defaultValue === undefined;
+                if (!missing)
+                    continue;
+                throw new ToolError(itemFields.has(definition.name)
+                    ? `${where}: ${definition.label || definition.name} is required`
+                    : `${where}: a new item needs ${definition.label || definition.name}, which only the form can fill in. Say it is added in the record's form.`);
+            }
+            out.push(item);
+        }
+        if (list.max !== undefined && out.length > list.max)
+            throw new ToolError(`${list.label} holds at most ${list.max} items, not ${out.length}`);
+        if (list.min !== undefined && out.length < list.min)
+            throw new ToolError(`${list.label} needs at least ${list.min} items, not ${out.length}`);
+        const removed = rows.filter((row) => !kept.has(String(row[pk]))).map((row) => ({ id: row[pk], _deleted: true }));
+        return [...out, ...removed];
     });
 }
 function valueOf(field, value) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h;
-        if (value === null || value === undefined || (value === '' && field.type !== 'string' && field.type !== 'text'))
+        if (LIST_TYPES.has(field.type))
+            return listValueOf(field, value);
+        if (value === null || value === undefined || (value === '' && !['string', 'text', 'richtext'].includes(field.type)))
             return null;
         switch (field.type) {
+            case 'time': {
+                const match = CLOCK.exec(String(value).trim());
+                if (!match || Number(match[1]) > 23 || Number(match[2]) > 59)
+                    throw new ToolError(`${field.name} is a time of day, HH:mm, not "${String(value)}"`);
+                return `${match[1].padStart(2, '0')}:${match[2]}`;
+            }
             case 'integer':
             case 'number': {
                 const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
@@ -428,6 +675,74 @@ function valueOf(field, value) {
             default:
                 return String(value);
         }
+    });
+}
+/** A whole list, as the form sends it: null or nothing empties it. */
+function listValueOf(field, value) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c;
+        const given = itemsOf(value);
+        if (field.type === 'multiselect') {
+            const options = (_a = field.options) !== null && _a !== void 0 ? _a : [];
+            const values = given.map((v) => {
+                var _a;
+                const match = (_a = options.find((o) => String(o.value) === String(v))) !== null && _a !== void 0 ? _a : options.find((o) => o.label.toLowerCase() === String(v).toLowerCase());
+                if (!match && options.length)
+                    throw new ToolError(`${field.name} takes values among: ${options.map((o) => (String(o.value) === o.label ? o.value : `${o.value} (${o.label})`)).join(', ')}`);
+                return match ? match.value : String(v);
+            });
+            return [...new Set(values)];
+        }
+        const collection = field.relation.collection;
+        const ids = [...new Set(given.map((v) => String(v).trim()))];
+        if (ids.some((id) => !/^\d+$/.test(id)))
+            throw new ToolError(`${field.name} takes the ids of ${collection} records (whole numbers): find them with query_records`);
+        const target = (_c = (_b = adminLeaf()) === null || _b === void 0 ? void 0 : _b.getCollection(collection)) === null || _c === void 0 ? void 0 : _c.model;
+        if (target && ids.length) {
+            const pk = target.primaryKeyAttribute || 'id';
+            const found = yield target.findAll({ where: { [pk]: { [Op.in]: ids } }, attributes: [pk], raw: true });
+            const missing = ids.filter((id) => !found.some((row) => String(row[pk]) === id));
+            if (missing.length)
+                throw new ToolError(`No ${collection} ${missing.map((id) => `#${id}`).join(', ')}`);
+        }
+        return ids.map(Number);
+    });
+}
+/** The items of a list value: an array, JSON text holding one, or a single value. */
+function itemsOf(value) {
+    if (value === null || value === undefined || value === '')
+        return [];
+    if (typeof value === 'string' && value.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed))
+                return parsed;
+        }
+        catch (_a) {
+            // Plain text that happens to start with a bracket.
+        }
+    }
+    return (Array.isArray(value) ? value : [value]).filter((v) => v !== null && v !== undefined && v !== '');
+}
+const isEmpty = (value) => value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+/** Empty, or a text in several languages with none written. */
+const blank = (value) => isEmpty(value) || (isTexts(value) && Object.values(value).every(isEmpty));
+/** What a record's many-to-many fields among `names` hold now, read through their association. */
+function linksOf(record, settable, names) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const out = {};
+        for (const name of names) {
+            if (((_a = settable.get(name)) === null || _a === void 0 ? void 0 : _a.type) !== 'belongsToMany')
+                continue;
+            // The admin leaf names the association after the field: it saves through the same setter.
+            const get = record[`get${name.charAt(0).toUpperCase()}${name.slice(1)}`];
+            if (typeof get !== 'function')
+                throw new ToolError(`${settable.get(name).label} is changed in the record's form`);
+            const linked = yield get.call(record, { joinTableAttributes: [] });
+            out[name] = linked.map((row) => { var _a, _b, _c; return (_c = (_a = row.get) === null || _a === void 0 ? void 0 : _a.call(row, ((_b = row.constructor) === null || _b === void 0 ? void 0 : _b.primaryKeyAttribute) || 'id')) !== null && _c !== void 0 ? _c : row.id; });
+        }
+        return out;
     });
 }
 /** "2026-10-20 10:00" is read in the project's zone; a time with its own offset as it says. */
@@ -550,6 +865,24 @@ function nameOf(collection, row) {
 }
 // ── Before and after ────────────────────────────────────────────────────────
 function same(field, before, after) {
+    var _a;
+    if (field.type === 'hasMany') {
+        // Nothing changed, removed, added or moved.
+        const rows = Array.isArray(before) ? before : [];
+        const items = Array.isArray(after) ? after : [];
+        const pk = field.list.model.primaryKeyAttribute || 'id';
+        return items.length === rows.length && items.every((item, i) => { var _a; return !item._deleted && Object.keys(item).length === 1 && String(item.id) === String((_a = rows[i]) === null || _a === void 0 ? void 0 : _a[pk]); });
+    }
+    if (field.type === 'translations') {
+        const a = isTexts(before) ? before : {};
+        const b = isTexts(after) ? after : {};
+        return ((_a = field.locales) !== null && _a !== void 0 ? _a : []).every((l) => { var _a, _b; return !(l in b) || String((_a = a[l]) !== null && _a !== void 0 ? _a : '') === String((_b = b[l]) !== null && _b !== void 0 ? _b : ''); });
+    }
+    if (LIST_TYPES.has(field.type)) {
+        const a = itemsOf(before).map(String).sort();
+        const b = itemsOf(after).map(String).sort();
+        return a.length === b.length && a.every((v, i) => v === b[i]);
+    }
     const empty = (v) => v === null || v === undefined || v === '';
     if (empty(before) || empty(after))
         return empty(before) && empty(after);
@@ -563,13 +896,15 @@ function same(field, before, after) {
         case 'integer':
         case 'number':
             return Number(before) === Number(after);
+        case 'time':
+            return clockOf(before) === clockOf(after);
         default:
             return String(before) === String(after);
     }
 }
 /** A value as the back-office shows it. */
 function shown(field, value, names) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     if (value === null || value === undefined || value === '')
         return null;
     switch (field.type) {
@@ -579,10 +914,35 @@ function shown(field, value, names) {
             return (_c = (_b = (_a = field.options) === null || _a === void 0 ? void 0 : _a.find((o) => String(o.value) === String(value))) === null || _b === void 0 ? void 0 : _b.label) !== null && _c !== void 0 ? _c : String(value);
         case 'relation':
             return (_d = names.get(String(value))) !== null && _d !== void 0 ? _d : `#${value}`;
+        case 'multiselect':
+        case 'belongsToMany': {
+            const items = itemsOf(value).map((v) => { var _a, _b, _c, _d; return field.type === 'multiselect' ? (_c = (_b = (_a = field.options) === null || _a === void 0 ? void 0 : _a.find((o) => String(o.value) === String(v))) === null || _b === void 0 ? void 0 : _b.label) !== null && _c !== void 0 ? _c : String(v) : (_d = names.get(String(v))) !== null && _d !== void 0 ? _d : `#${v}`; });
+            const s = items.join(', ');
+            return !s ? null : s.length > SHOWN_TEXT ? `${s.slice(0, SHOWN_TEXT)}…` : s;
+        }
         case 'date':
             return formatDate(value, false);
         case 'datetime':
             return formatDate(value, true);
+        case 'time':
+            return clockOf(value);
+        case 'translations': {
+            if (!isTexts(value))
+                return null;
+            const s = ((_e = field.locales) !== null && _e !== void 0 ? _e : Object.keys(value))
+                .filter((l) => !isEmpty(value[l]))
+                .map((l) => `${l.toUpperCase()}: ${String(value[l])}`)
+                .join(' · ');
+            return !s ? null : s.length > SHOWN_TEXT ? `${s.slice(0, SHOWN_TEXT)}…` : s;
+        }
+        case 'richtext': {
+            const s = String(value)
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return !s ? null : s.length > SHOWN_TEXT ? `${s.slice(0, SHOWN_TEXT)}…` : s;
+        }
         default: {
             const s = typeof value === 'object' ? JSON.stringify(value) : String(value);
             return s.length > SHOWN_TEXT ? `${s.slice(0, SHOWN_TEXT)}…` : s;
@@ -595,11 +955,17 @@ function shown(field, value, names) {
  */
 function diffOf(settable, names, rows, data) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b;
+        var _a, _b, _c;
         const out = [];
         for (const name of names) {
             const field = settable.get(name);
-            const labels = field.type === 'relation' ? yield relationLabels(field, [data[name], ...rows.map((r) => r[name])]) : new Map();
+            if (field.type === 'hasMany') {
+                out.push(...(yield itemsDiff(field, rows.length === 1 ? (_a = rows[0][name]) !== null && _a !== void 0 ? _a : [] : [], data[name])));
+                continue;
+            }
+            const labels = field.type === 'relation' || field.type === 'belongsToMany'
+                ? yield relationLabels(field, [data[name], ...rows.map((r) => r[name])].flatMap(itemsOf))
+                : new Map();
             let before = null;
             if (rows.length === 1) {
                 before = shown(field, rows[0][name], labels);
@@ -607,8 +973,8 @@ function diffOf(settable, names, rows, data) {
             else if (rows.length > 1) {
                 const counts = new Map();
                 for (const row of rows) {
-                    const value = (_a = shown(field, row[name], labels)) !== null && _a !== void 0 ? _a : 'empty';
-                    counts.set(value, ((_b = counts.get(value)) !== null && _b !== void 0 ? _b : 0) + 1);
+                    const value = (_b = shown(field, row[name], labels)) !== null && _b !== void 0 ? _b : 'empty';
+                    counts.set(value, ((_c = counts.get(value)) !== null && _c !== void 0 ? _c : 0) + 1);
                 }
                 const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
                 before = sorted
@@ -621,6 +987,63 @@ function diffOf(settable, names, rows, data) {
             out.push({ field: name, label: field.label, before, after: shown(field, data[name], labels) });
         }
         return out;
+    });
+}
+/**
+ * A sub-list's lines: an item added (its values), changed (the fields that
+ * change), removed (what it held); one line when only the order changes.
+ */
+function itemsDiff(field, rows, items) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const list = field.list;
+        const itemFields = [...field.itemFields.values()];
+        const pk = list.model.primaryKeyAttribute || 'id';
+        const byId = new Map(rows.map((row) => [String(row[pk]), row]));
+        const labels = new Map();
+        for (const f of itemFields) {
+            if (f.type !== 'relation' && f.type !== 'belongsToMany')
+                continue;
+            labels.set(f.name, yield relationLabels(f, [...rows, ...items].flatMap((item) => (f.type === 'relation' ? [item[f.name]] : linkedIds(item[f.name])))));
+        }
+        const text = (item, only) => {
+            const s = itemFields
+                .filter((f) => !only || only.includes(f.name))
+                .map((f) => {
+                var _a;
+                const value = shown(f, f.type === 'belongsToMany' ? linkedIds(item[f.name]) : item[f.name], (_a = labels.get(f.name)) !== null && _a !== void 0 ? _a : new Map());
+                return value === null ? (only ? `${f.label}: empty` : '') : `${f.label}: ${value}`;
+            })
+                .filter(Boolean)
+                .join(' · ');
+            return !s ? null : s.length > SHOWN_TEXT ? `${s.slice(0, SHOWN_TEXT)}…` : s;
+        };
+        const lines = [];
+        const kept = items.filter((item) => !item._deleted);
+        kept.forEach((item, i) => {
+            const label = `${list.label} ${i + 1}`;
+            const existing = item.id === undefined ? undefined : byId.get(String(item.id));
+            if (!existing) {
+                lines.push({ field: field.name, label: `${label} (new)`, before: null, after: text(item) });
+                return;
+            }
+            const changed = Object.keys(item).filter((key) => key !== 'id');
+            if (changed.length)
+                lines.push({ field: field.name, label, before: text(existing, changed), after: text(item, changed) });
+        });
+        for (const item of items.filter((item) => item._deleted)) {
+            const existing = byId.get(String(item.id));
+            if (existing)
+                lines.push({ field: field.name, label: `${list.label} (removed)`, before: text(existing), after: null });
+        }
+        if (!lines.length) {
+            // Only the order changes.
+            lines.push({ field: field.name, label: list.label, before: 'Current order', after: 'New order' });
+        }
+        if (lines.length > MAX_ITEM_LINES) {
+            const more = lines.length - (MAX_ITEM_LINES - 1);
+            lines.splice(MAX_ITEM_LINES - 1, lines.length, { field: field.name, label: list.label, before: null, after: `${more} more changes` });
+        }
+        return lines;
     });
 }
 function summaryOf(given, fallback) {

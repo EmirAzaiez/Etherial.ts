@@ -141,8 +141,9 @@ export interface CollectionStat {
  */
 export interface CollectionAssistants {
     /**
-     * A "Fill with AI" button above the form: the user describes what they want
-     * in prose, the endpoint answers with a patch to apply to the fields.
+     * @deprecated The back-office no longer draws a "Fill with AI" button: the
+     * assistant (ETHAssistantLeaf) fills every form from its cards. Still
+     * accepted so an older project compiles; it does nothing.
      */
     fill?: {
         enabled: boolean
@@ -191,7 +192,7 @@ export interface CollectionConfig {
      */
     softDelete?: { enabled: boolean; deletedAtField?: string }
     /**
-     * Assistants attached to this collection's form (AI fill, preview)
+     * Helpers attached to this collection's form (the preview)
      */
     assistants?: CollectionAssistants
     /**
@@ -323,7 +324,7 @@ export interface SerializedCollection {
      */
     softDelete?: { enabled: boolean; deletedAtField?: string }
     /**
-     * Assistants attached to this collection's form (AI fill, preview)
+     * Helpers attached to this collection's form (the preview)
      */
     assistants?: CollectionAssistants
 }

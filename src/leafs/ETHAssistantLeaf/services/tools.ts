@@ -1,8 +1,9 @@
 // ──────────────────────────────────────────────────────────────────────────
 // The look-ups the assistant may make: describe a collection, count its
 // records (by group, by day or month), list them, open one. Read-only, run as
-// the staff member, on the fields `catalog.ts` lets through. Each answer says
-// where to see the same thing in the back-office.
+// the staff member, on the fields `catalog.ts` lets through. A record comes
+// with its sub-lists. Each answer says where to see the same thing in the
+// back-office.
 //
 // Days are cut the way the back-office lists cut them, in the database's time
 // zone, so that "42 bookings" here is 42 rows behind the link.
@@ -12,7 +13,9 @@ import etherial from 'etherial'
 import { Op, fn, literal } from 'sequelize'
 
 import type { ToolDefinition } from './anthropic.js'
-import { ReadableCollection, ReadableField, describe, readable } from './catalog.js'
+import { MAX_ITEMS, ReadableCollection, ReadableField, SubList, describe, readable } from './catalog.js'
+import type { Usage } from './anthropic.js'
+import type { FlowGraph } from '../../ETHFlowLeaf/types.js'
 import type { Proposal } from './proposals.js'
 import { state } from './state.js'
 import { timezoneOf } from './options.js'
@@ -20,7 +23,7 @@ import { timezoneOf } from './options.js'
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const OPS = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'is_null', 'not_null'] as const
 const BUCKETS = ['day', 'week', 'month', 'year'] as const
-const TEXT_TYPES = new Set(['string', 'text', 'email', 'url', 'phone'])
+const TEXT_TYPES = new Set(['string', 'text', 'richtext', 'email', 'url', 'phone'])
 const MAX_ROWS = 25
 const MAX_GROUPS = 40
 /** What one look-up may hand back, in characters: past it, rows are dropped. */
@@ -54,6 +57,14 @@ export interface ToolContext {
     read: Set<string>
     /** Changes prepared for the staff member to confirm; absent when the leaf's `proposals` is off. */
     proposals?: Proposal[]
+    /** The record form open on their screen, with what it holds now, saved or not. */
+    form?: { collection: string; id?: string; values: Record<string, unknown> }
+    /** They may build automations: propose_flow is offered. */
+    flows?: boolean
+    /** The automation builder open on their screen, with its canvas. */
+    flow?: { id?: string; name?: string; graph?: FlowGraph }
+    /** Tokens spent by a tool's own model calls, counted with the answer's. */
+    usage?: Usage
 }
 
 // ── Definitions ─────────────────────────────────────────────────────────────
@@ -160,7 +171,20 @@ function collectionOf(name: unknown, context: ToolContext): ReadableCollection {
 
 function fieldOf(collection: ReadableCollection, name: unknown): ReadableField {
     const field = collection.fields.find((f) => f.name === name)
-    if (!field) throw new ToolError(`${collection.name} has no readable field "${String(name)}". Call describe_collection.`)
+    if (!field) {
+        const list = collection.subLists.find((l) => l.name === name)
+        if (list) throw new ToolError(`${list.label} is a sub-list: it is read with each record (get_record), not filtered, sorted or listed`)
+        throw new ToolError(`${collection.name} has no readable field "${String(name)}". Call describe_collection.`)
+    }
+    return field
+}
+
+/** A field the database can filter, sort or group on: a column, not a value the model computes. */
+function columnFieldOf(collection: ReadableCollection, name: unknown): ReadableField {
+    const field = fieldOf(collection, name)
+    if (field.virtual || field.type === 'translations') {
+        throw new ToolError(`${field.label} is not a column: it cannot be filtered, sorted or grouped on${field.type === 'translations' ? '. Use the plain field it translates' : ''}`)
+    }
     return field
 }
 
@@ -219,7 +243,7 @@ export function whereOf(collection: ReadableCollection, filters: Filter[] = [], 
     const like = isPostgres() ? Op.iLike : Op.like
     const and: any[] = []
     for (const filter of filters) {
-        const field = fieldOf(collection, filter?.field)
+        const field = columnFieldOf(collection, filter?.field)
         const op: FilterOp = filter.op ?? 'eq'
         if (!OPS.includes(op)) throw new ToolError(`Unknown op "${op}"`)
         const name = field.name
@@ -368,12 +392,31 @@ export async function relationLabels(field: ReadableField, ids: unknown[]): Prom
     return out
 }
 
-async function present(collection: ReadableCollection, records: any[], names: string[], textLimit: number): Promise<Record<string, unknown>[]> {
-    const fields = names.map((n) => fieldOf(collection, n))
+/** A time of day as HH:mm, from minutes after midnight (a column of minutes) or a TIME's "09:00:00". */
+export function clockOf(value: unknown): string | null {
+    if (value === null || value === undefined || value === '') return null
+    const pad = (n: number) => String(n).padStart(2, '0')
+    if (typeof value === 'number' && Number.isFinite(value)) return `${pad(Math.floor(value / 60))}:${pad(Math.round(value) % 60)}`
+    const match = /^(\d{1,2})[:h](\d{2})/.exec(String(value).trim())
+    return match ? `${match[1].padStart(2, '0')}:${match[2]}` : String(value)
+}
+
+/** The ids a many-to-many holds, as an include returns them (rows) or a form keeps them (ids). */
+export function linkedIds(value: unknown): unknown[] {
+    if (!Array.isArray(value)) return []
+    return value.map((entry) => (entry && typeof entry === 'object' ? (entry as any).id : entry)).filter((id) => id !== null && id !== undefined)
+}
+
+async function present(fields: ReadableField[], records: any[], textLimit: number): Promise<Record<string, unknown>[]> {
     const plain = records.map((r) => (r?.get ? r.get({ plain: true }) : r))
     const labels = new Map<string, Map<string, string>>()
     for (const field of fields) {
         if (field.type === 'relation') labels.set(field.name, await relationLabels(field, plain.map((r) => r[field.name])))
+        if (field.type === 'belongsToMany') labels.set(field.name, await relationLabels(field, plain.flatMap((r) => linkedIds(r[field.name]))))
+    }
+    const cut = (value: unknown) => {
+        const s = String(value)
+        return s.length > textLimit ? `${s.slice(0, textLimit)}…` : s
     }
     return plain.map((row) => {
         const out: Record<string, unknown> = {}
@@ -400,12 +443,27 @@ async function present(collection: ReadableCollection, records: any[], names: st
                     out[field.name] = label ? `${label} (#${value})` : `#${value}`
                     break
                 }
-                case 'text':
-                case 'string': {
-                    const s = String(value)
-                    out[field.name] = s.length > textLimit ? `${s.slice(0, textLimit)}…` : s
+                case 'belongsToMany':
+                    out[field.name] = linkedIds(value).map((id) => {
+                        const label = labels.get(field.name)?.get(String(id))
+                        return label ? `${label} (#${id})` : `#${id}`
+                    })
+                    break
+                case 'time':
+                    out[field.name] = clockOf(value)
+                    break
+                case 'translations': {
+                    const texts = typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+                    out[field.name] = Object.fromEntries(
+                        (field.locales ?? Object.keys(texts)).map((locale) => [locale, texts[locale] === null || texts[locale] === undefined || texts[locale] === '' ? null : cut(texts[locale])])
+                    )
                     break
                 }
+                case 'text':
+                case 'richtext':
+                case 'string':
+                    out[field.name] = cut(value)
+                    break
                 default:
                     out[field.name] = typeof value === 'object' ? JSON.stringify(value).slice(0, textLimit) : value
             }
@@ -423,7 +481,7 @@ async function count(collection: ReadableCollection, input: any): Promise<{ resu
     const step: Step = { tool: 'count_records', label: `Counted ${collection.labelPlural}`, collection: collection.name, count: total, link }
     if (!input?.group_by) return { result: { total, ...(link ? { link } : {}) }, step }
 
-    const field = fieldOf(collection, input.group_by)
+    const field = columnFieldOf(collection, input.group_by)
     const column = columnOf(collection, field.name)
     const quoted = sequelize().getQueryInterface().quoteIdentifier(column)
     step.label = `Counted ${collection.labelPlural} by ${field.label.toLowerCase()}`
@@ -497,7 +555,7 @@ async function query(collection: ReadableCollection, input: any): Promise<{ resu
 
     let order: [string, string][]
     if (input?.sort?.field) {
-        order = [[fieldOf(collection, input.sort.field).name, input.sort.direction === 'asc' ? 'ASC' : 'DESC']]
+        order = [[columnFieldOf(collection, input.sort.field).name, input.sort.direction === 'asc' ? 'ASC' : 'DESC']]
     } else {
         const attributes = collection.model.rawAttributes
         order = attributes.created_at ? [['created_at', 'DESC']] : [[pk, 'DESC']]
@@ -505,9 +563,9 @@ async function query(collection: ReadableCollection, input: any): Promise<{ resu
 
     const [total, records] = await Promise.all([
         collection.model.count({ where }),
-        collection.model.findAll({ where, attributes: [...new Set([pk, ...names])], order, limit }),
+        collection.model.findAll({ where, attributes: attributesOf(collection, [pk, ...names]), order, limit }),
     ])
-    let rows = await present(collection, records, names, 300)
+    let rows = await present(names.map((n) => fieldOf(collection, n)), records, 300)
     if (!pkReadable) rows = rows.map((row, i) => ({ [pk]: records[i].get(pk), ...row }))
     // Past the budget, the last rows go: the total still says how many there are.
     while (rows.length > 1 && JSON.stringify(rows).length > MAX_RESULT) rows = rows.slice(0, Math.ceil(rows.length * 0.7))
@@ -517,7 +575,36 @@ async function query(collection: ReadableCollection, input: any): Promise<{ resu
     }
 }
 
-/** One record, every readable field; null when it is not there. */
+/**
+ * The columns to select. A value the model computes (a VIRTUAL) reads columns
+ * it does not name: with one among them, the whole row is read, and only the
+ * readable fields are shown from it.
+ */
+function attributesOf(collection: ReadableCollection, names: string[]): string[] | undefined {
+    const fields = names.map((n) => collection.fields.find((f) => f.name === n))
+    return fields.some((f) => f?.virtual) ? undefined : [...new Set(names)]
+}
+
+/** A sub-list's items, in the form's order, with the ids their own many-to-manys link to. */
+export async function subListRows(list: SubList, parentId: unknown, limit?: number): Promise<{ rows: Record<string, any>[]; total: number }> {
+    const pk: string = list.model.primaryKeyAttribute || 'id'
+    const where = { [list.foreignKey]: parentId }
+    const include = list.fields
+        .filter((f) => f.type === 'belongsToMany')
+        .map((f) => ({ association: f.name, attributes: [list.model.associations[f.name].target.primaryKeyAttribute || 'id'], through: { attributes: [] } }))
+    const [total, found] = await Promise.all([
+        list.model.count({ where }),
+        list.model.findAll({ where, include, order: list.orderField ? [[list.orderField, 'ASC'], [pk, 'ASC']] : [[pk, 'ASC']], ...(limit ? { limit } : {}) }),
+    ])
+    const rows = found.map((row: any) => {
+        const plain = row.get({ plain: true })
+        for (const field of list.fields) if (field.type === 'belongsToMany') plain[field.name] = linkedIds(plain[field.name])
+        return plain
+    })
+    return { rows, total }
+}
+
+/** One record, every readable field and its sub-lists; null when it is not there. */
 export async function readRecord(collection: ReadableCollection, id: unknown, textLimit = 2000): Promise<Record<string, unknown> | null> {
     if (id === null || id === undefined || id === '') return null
     const pk: string = collection.model.primaryKeyAttribute || 'id'
@@ -525,11 +612,22 @@ export async function readRecord(collection: ReadableCollection, id: unknown, te
     if (/INT/.test(pkType) && !/^\d+$/.test(String(id))) throw new ToolError(`An id of ${collection.name} is a whole number, not "${String(id)}"`)
     const record = await collection.model.findOne({
         where: { [pk]: id },
-        attributes: [...new Set([pk, ...collection.fields.map((f) => f.name)])],
+        attributes: attributesOf(collection, [pk, ...collection.fields.map((f) => f.name)]),
     })
     if (!record) return null
-    const [row] = await present(collection, [record], collection.fields.map((f) => f.name), textLimit)
-    return collection.fields.some((f) => f.name === pk) ? row : { [pk]: record.get(pk), ...row }
+    const [row] = await present(collection.fields, [record], textLimit)
+    const out: Record<string, unknown> = collection.fields.some((f) => f.name === pk) ? row : { [pk]: record.get(pk), ...row }
+    const notes: string[] = []
+    for (const list of collection.subLists) {
+        const { rows, total } = await subListRows(list, record.get(pk), MAX_ITEMS)
+        const itemPk: string = list.model.primaryKeyAttribute || 'id'
+        const shown = await present(list.fields, rows, Math.min(textLimit, 500))
+        // Each item by its id: an edit names the ones it changes.
+        out[list.name] = shown.map((item, i) => ({ [itemPk]: rows[i][itemPk], ...item }))
+        if (total > rows.length) notes.push(`${list.label}: the first ${rows.length} of ${total} items`)
+    }
+    if (notes.length) out._note = notes.join('; ')
+    return out
 }
 
 async function getRecord(collection: ReadableCollection, id: unknown): Promise<{ result: unknown; step: Step }> {

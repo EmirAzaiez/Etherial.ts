@@ -13,6 +13,7 @@ import { registry } from '../registry/Registry.js'
 import { validateFlow } from '../engine/validate.js'
 import { listCollections, collectionLabel } from '../registry/admin.js'
 import { complete, parseJSON } from './provider.js'
+import type { FlowAICompletion } from './provider.js'
 import type { FieldDefinition, FlowGraph, GraphEdge, GraphNode } from '../types.js'
 
 /** One field, in as few characters as still describe it. */
@@ -153,12 +154,20 @@ function layout(nodes: GraphNode[], edges: GraphEdge[]): void {
     }
 }
 
-export async function generateFlow(prompt: string, existing?: FlowGraph): Promise<FlowDraft> {
+/**
+ * A graph from a sentence. `run` is the model to ask, the workspace's AI
+ * provider unless given: the back-office assistant passes its own.
+ */
+export async function generateFlow(
+    prompt: string,
+    existing?: FlowGraph,
+    run: (args: FlowAICompletion) => Promise<string> = complete
+): Promise<FlowDraft> {
     const context = existing?.nodes?.length
         ? `\n\nThe user is editing this automation. Return the whole thing, changed:\n${JSON.stringify(existing)}`
         : ''
 
-    const answer = await complete({
+    const answer = await run({
         system: SYSTEM,
         prompt: `${catalogue()}\n\n## Request\n${prompt}${context}`,
         json: true,

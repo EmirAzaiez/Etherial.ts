@@ -1,8 +1,9 @@
 // ──────────────────────────────────────────────────────────────────────────
 // The look-ups the assistant may make: describe a collection, count its
 // records (by group, by day or month), list them, open one. Read-only, run as
-// the staff member, on the fields `catalog.ts` lets through. Each answer says
-// where to see the same thing in the back-office.
+// the staff member, on the fields `catalog.ts` lets through. A record comes
+// with its sub-lists. Each answer says where to see the same thing in the
+// back-office.
 //
 // Days are cut the way the back-office lists cut them, in the database's time
 // zone, so that "42 bookings" here is 42 rows behind the link.
@@ -18,13 +19,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import etherial from 'etherial';
 import { Op, fn, literal } from 'sequelize';
-import { describe, readable } from './catalog.js';
+import { MAX_ITEMS, describe, readable } from './catalog.js';
 import { state } from './state.js';
 import { timezoneOf } from './options.js';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const OPS = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'is_null', 'not_null'];
 const BUCKETS = ['day', 'week', 'month', 'year'];
-const TEXT_TYPES = new Set(['string', 'text', 'email', 'url', 'phone']);
+const TEXT_TYPES = new Set(['string', 'text', 'richtext', 'email', 'url', 'phone']);
 const MAX_ROWS = 25;
 const MAX_GROUPS = 40;
 /** What one look-up may hand back, in characters: past it, rows are dropped. */
@@ -131,8 +132,20 @@ function collectionOf(name, context) {
 }
 function fieldOf(collection, name) {
     const field = collection.fields.find((f) => f.name === name);
-    if (!field)
+    if (!field) {
+        const list = collection.subLists.find((l) => l.name === name);
+        if (list)
+            throw new ToolError(`${list.label} is a sub-list: it is read with each record (get_record), not filtered, sorted or listed`);
         throw new ToolError(`${collection.name} has no readable field "${String(name)}". Call describe_collection.`);
+    }
+    return field;
+}
+/** A field the database can filter, sort or group on: a column, not a value the model computes. */
+function columnFieldOf(collection, name) {
+    const field = fieldOf(collection, name);
+    if (field.virtual || field.type === 'translations') {
+        throw new ToolError(`${field.label} is not a column: it cannot be filtered, sorted or grouped on${field.type === 'translations' ? '. Use the plain field it translates' : ''}`);
+    }
     return field;
 }
 const sequelize = () => { var _a; return (_a = etherial.database) === null || _a === void 0 ? void 0 : _a.sequelize; };
@@ -193,7 +206,7 @@ export function whereOf(collection, filters = [], search) {
     const like = isPostgres() ? Op.iLike : Op.like;
     const and = [];
     for (const filter of filters) {
-        const field = fieldOf(collection, filter === null || filter === void 0 ? void 0 : filter.field);
+        const field = columnFieldOf(collection, filter === null || filter === void 0 ? void 0 : filter.field);
         const op = (_a = filter.op) !== null && _a !== void 0 ? _a : 'eq';
         if (!OPS.includes(op))
             throw new ToolError(`Unknown op "${op}"`);
@@ -379,17 +392,38 @@ export function relationLabels(field, ids) {
         return out;
     });
 }
-function present(collection, records, names, textLimit) {
+/** A time of day as HH:mm, from minutes after midnight (a column of minutes) or a TIME's "09:00:00". */
+export function clockOf(value) {
+    if (value === null || value === undefined || value === '')
+        return null;
+    const pad = (n) => String(n).padStart(2, '0');
+    if (typeof value === 'number' && Number.isFinite(value))
+        return `${pad(Math.floor(value / 60))}:${pad(Math.round(value) % 60)}`;
+    const match = /^(\d{1,2})[:h](\d{2})/.exec(String(value).trim());
+    return match ? `${match[1].padStart(2, '0')}:${match[2]}` : String(value);
+}
+/** The ids a many-to-many holds, as an include returns them (rows) or a form keeps them (ids). */
+export function linkedIds(value) {
+    if (!Array.isArray(value))
+        return [];
+    return value.map((entry) => (entry && typeof entry === 'object' ? entry.id : entry)).filter((id) => id !== null && id !== undefined);
+}
+function present(fields, records, textLimit) {
     return __awaiter(this, void 0, void 0, function* () {
-        const fields = names.map((n) => fieldOf(collection, n));
         const plain = records.map((r) => ((r === null || r === void 0 ? void 0 : r.get) ? r.get({ plain: true }) : r));
         const labels = new Map();
         for (const field of fields) {
             if (field.type === 'relation')
                 labels.set(field.name, yield relationLabels(field, plain.map((r) => r[field.name])));
+            if (field.type === 'belongsToMany')
+                labels.set(field.name, yield relationLabels(field, plain.flatMap((r) => linkedIds(r[field.name]))));
         }
+        const cut = (value) => {
+            const s = String(value);
+            return s.length > textLimit ? `${s.slice(0, textLimit)}…` : s;
+        };
         return plain.map((row) => {
-            var _a, _b;
+            var _a, _b, _c;
             const out = {};
             for (const field of fields) {
                 const value = row[field.name];
@@ -414,12 +448,26 @@ function present(collection, records, names, textLimit) {
                         out[field.name] = label ? `${label} (#${value})` : `#${value}`;
                         break;
                     }
-                    case 'text':
-                    case 'string': {
-                        const s = String(value);
-                        out[field.name] = s.length > textLimit ? `${s.slice(0, textLimit)}…` : s;
+                    case 'belongsToMany':
+                        out[field.name] = linkedIds(value).map((id) => {
+                            var _a;
+                            const label = (_a = labels.get(field.name)) === null || _a === void 0 ? void 0 : _a.get(String(id));
+                            return label ? `${label} (#${id})` : `#${id}`;
+                        });
+                        break;
+                    case 'time':
+                        out[field.name] = clockOf(value);
+                        break;
+                    case 'translations': {
+                        const texts = typeof value === 'object' && !Array.isArray(value) ? value : {};
+                        out[field.name] = Object.fromEntries(((_c = field.locales) !== null && _c !== void 0 ? _c : Object.keys(texts)).map((locale) => [locale, texts[locale] === null || texts[locale] === undefined || texts[locale] === '' ? null : cut(texts[locale])]));
                         break;
                     }
+                    case 'text':
+                    case 'richtext':
+                    case 'string':
+                        out[field.name] = cut(value);
+                        break;
                     default:
                         out[field.name] = typeof value === 'object' ? JSON.stringify(value).slice(0, textLimit) : value;
                 }
@@ -437,7 +485,7 @@ function count(collection, input) {
         const step = { tool: 'count_records', label: `Counted ${collection.labelPlural}`, collection: collection.name, count: total, link };
         if (!(input === null || input === void 0 ? void 0 : input.group_by))
             return { result: Object.assign({ total }, (link ? { link } : {})), step };
-        const field = fieldOf(collection, input.group_by);
+        const field = columnFieldOf(collection, input.group_by);
         const column = columnOf(collection, field.name);
         const quoted = sequelize().getQueryInterface().quoteIdentifier(column);
         step.label = `Counted ${collection.labelPlural} by ${field.label.toLowerCase()}`;
@@ -514,7 +562,7 @@ function query(collection, input) {
             names.unshift(pk);
         let order;
         if ((_a = input === null || input === void 0 ? void 0 : input.sort) === null || _a === void 0 ? void 0 : _a.field) {
-            order = [[fieldOf(collection, input.sort.field).name, input.sort.direction === 'asc' ? 'ASC' : 'DESC']];
+            order = [[columnFieldOf(collection, input.sort.field).name, input.sort.direction === 'asc' ? 'ASC' : 'DESC']];
         }
         else {
             const attributes = collection.model.rawAttributes;
@@ -522,9 +570,9 @@ function query(collection, input) {
         }
         const [total, records] = yield Promise.all([
             collection.model.count({ where }),
-            collection.model.findAll({ where, attributes: [...new Set([pk, ...names])], order, limit }),
+            collection.model.findAll({ where, attributes: attributesOf(collection, [pk, ...names]), order, limit }),
         ]);
-        let rows = yield present(collection, records, names, 300);
+        let rows = yield present(names.map((n) => fieldOf(collection, n)), records, 300);
         if (!pkReadable)
             rows = rows.map((row, i) => (Object.assign({ [pk]: records[i].get(pk) }, row)));
         // Past the budget, the last rows go: the total still says how many there are.
@@ -536,7 +584,38 @@ function query(collection, input) {
         };
     });
 }
-/** One record, every readable field; null when it is not there. */
+/**
+ * The columns to select. A value the model computes (a VIRTUAL) reads columns
+ * it does not name: with one among them, the whole row is read, and only the
+ * readable fields are shown from it.
+ */
+function attributesOf(collection, names) {
+    const fields = names.map((n) => collection.fields.find((f) => f.name === n));
+    return fields.some((f) => f === null || f === void 0 ? void 0 : f.virtual) ? undefined : [...new Set(names)];
+}
+/** A sub-list's items, in the form's order, with the ids their own many-to-manys link to. */
+export function subListRows(list, parentId, limit) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const pk = list.model.primaryKeyAttribute || 'id';
+        const where = { [list.foreignKey]: parentId };
+        const include = list.fields
+            .filter((f) => f.type === 'belongsToMany')
+            .map((f) => ({ association: f.name, attributes: [list.model.associations[f.name].target.primaryKeyAttribute || 'id'], through: { attributes: [] } }));
+        const [total, found] = yield Promise.all([
+            list.model.count({ where }),
+            list.model.findAll(Object.assign({ where, include, order: list.orderField ? [[list.orderField, 'ASC'], [pk, 'ASC']] : [[pk, 'ASC']] }, (limit ? { limit } : {}))),
+        ]);
+        const rows = found.map((row) => {
+            const plain = row.get({ plain: true });
+            for (const field of list.fields)
+                if (field.type === 'belongsToMany')
+                    plain[field.name] = linkedIds(plain[field.name]);
+            return plain;
+        });
+        return { rows, total };
+    });
+}
+/** One record, every readable field and its sub-lists; null when it is not there. */
 export function readRecord(collection_1, id_1) {
     return __awaiter(this, arguments, void 0, function* (collection, id, textLimit = 2000) {
         var _a, _b, _c, _d;
@@ -548,12 +627,25 @@ export function readRecord(collection_1, id_1) {
             throw new ToolError(`An id of ${collection.name} is a whole number, not "${String(id)}"`);
         const record = yield collection.model.findOne({
             where: { [pk]: id },
-            attributes: [...new Set([pk, ...collection.fields.map((f) => f.name)])],
+            attributes: attributesOf(collection, [pk, ...collection.fields.map((f) => f.name)]),
         });
         if (!record)
             return null;
-        const [row] = yield present(collection, [record], collection.fields.map((f) => f.name), textLimit);
-        return collection.fields.some((f) => f.name === pk) ? row : Object.assign({ [pk]: record.get(pk) }, row);
+        const [row] = yield present(collection.fields, [record], textLimit);
+        const out = collection.fields.some((f) => f.name === pk) ? row : Object.assign({ [pk]: record.get(pk) }, row);
+        const notes = [];
+        for (const list of collection.subLists) {
+            const { rows, total } = yield subListRows(list, record.get(pk), MAX_ITEMS);
+            const itemPk = list.model.primaryKeyAttribute || 'id';
+            const shown = yield present(list.fields, rows, Math.min(textLimit, 500));
+            // Each item by its id: an edit names the ones it changes.
+            out[list.name] = shown.map((item, i) => (Object.assign({ [itemPk]: rows[i][itemPk] }, item)));
+            if (total > rows.length)
+                notes.push(`${list.label}: the first ${rows.length} of ${total} items`);
+        }
+        if (notes.length)
+            out._note = notes.join('; ');
+        return out;
     });
 }
 function getRecord(collection, id) {
