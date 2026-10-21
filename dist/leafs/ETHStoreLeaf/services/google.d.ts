@@ -1,8 +1,8 @@
 import type { StoreAppInfo } from '../models/StoreStatus.js';
 import { DayMetrics, DayRow, ReviewRow, SourceKey } from './common.js';
-import { GoogleServiceAccount, GoogleStoreConfig } from './options.js';
-/** The service account from the config: the object, its JSON, or that JSON in base64. */
+import { GoogleServiceAccount, GoogleStoreConfig, GoogleUserAccount } from './options.js';
 export declare function serviceAccountOf(c: GoogleStoreConfig): GoogleServiceAccount;
+export declare function reportsAccountOf(c: GoogleStoreConfig): GoogleUserAccount;
 /** `gs://pubsite_prod_rev_0123/stats` → `pubsite_prod_rev_0123`. */
 export declare function bucketOf(c: GoogleStoreConfig): string;
 /** Play Console writes its reports in UTF-16 with a byte-order mark; older ones in UTF-8. */

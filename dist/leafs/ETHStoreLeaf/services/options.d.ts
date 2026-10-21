@@ -28,6 +28,12 @@ export interface GoogleServiceAccount {
     private_key: string;
     token_uri?: string;
 }
+/** A person's Google account, signed in once: what `gcloud auth application-default login` saves. */
+export interface GoogleUserAccount {
+    client_id: string;
+    client_secret: string;
+    refresh_token: string;
+}
 export interface GoogleStoreConfig {
     /** The app's package name: `com.example.app`. */
     packageName?: string;
@@ -41,6 +47,15 @@ export interface GoogleStoreConfig {
      * account's Google Cloud project.
      */
     serviceAccount?: string | GoogleServiceAccount;
+    /**
+     * A person's Google account that reads the bucket in place of the service
+     * account, for when Play Console never opens it to the service account:
+     * the file `gcloud auth application-default login` writes (`authorized_user`),
+     * as the object, the JSON text or that text in base64. Invited in Play
+     * Console with the same permission. The service account still reads the
+     * app's name and version.
+     */
+    reportsAccount?: string | GoogleUserAccount;
 }
 export interface ETHStoreLeafConfig {
     apple?: AppleStoreConfig;

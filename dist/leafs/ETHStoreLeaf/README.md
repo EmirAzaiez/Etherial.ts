@@ -71,6 +71,7 @@ export function storesConfig(): ETHStoreLeafConfig {
             packageName: 'sa.com.retal.app',
             bucket: process.env.GOOGLE_PLAY_BUCKET,
             serviceAccount: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT,
+            reportsAccount: process.env.GOOGLE_PLAY_REPORTS_ACCOUNT, // facultatif
         },
     }
 }
@@ -130,8 +131,18 @@ Le leaf lit les rapports *Standard* : *App Store Discovery and Engagement*, *App
 | `packageName` | L'identifiant de l'app. |
 | `serviceAccount` | Un compte de service Google Cloud (fichier JSON de clé), en JSON ou en base64. |
 | `bucket` | Play Console › Download reports › Statistics › « Copy Cloud Storage URI » (`gs://pubsite_prod_rev_…`). Le chemin après le nom est ignoré. |
+| `reportsAccount` | Facultatif. Un compte Google classique qui lit le bucket à la place du compte de service (voir plus bas), en JSON ou en base64. |
 
 Le compte de service doit être invité dans Play Console › Users and permissions, avec la permission **View app information and download bulk reports**. Il faut parfois attendre jusqu'à 24 h avant que le bucket l'accepte.
+
+**Si le bucket refuse toujours le compte de service** (403 alors que la permission est donnée), un compte Google classique peut lire les fichiers à sa place. Google ouvre le bucket aux personnes invitées, même quand il ne l'ouvre pas au compte de service.
+
+1. Créez un compte Google dédié, par exemple `stats.app@gmail.com`.
+2. Invitez-le dans Play Console avec la même permission, puis acceptez l'invitation depuis sa boîte mail.
+3. Connectez-le une fois : `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/cloud-platform`.
+4. Mettez le fichier écrit par gcloud (`~/.config/gcloud/application_default_credentials.json`) dans `reportsAccount`.
+
+Le compte de service lit toujours le nom et la version de l'app.
 
 Pour le nom et la version de l'app, il faut activer la **Google Play Developer Reporting API** dans le projet Google Cloud du compte de service. C'est facultatif.
 
@@ -209,6 +220,6 @@ Le code du projet peut aussi appeler `etherial.eth_store_leaf.sync()`.
 `src/stores.ts` lit les variables d'environnement suivantes :
 
 - `APPLE_STORE_ISSUER_ID`, `APPLE_STORE_KEY_ID`, `APPLE_STORE_PRIVATE_KEY` (clé **Admin**), `APPLE_STORE_VENDOR_NUMBER` ;
-- `GOOGLE_PLAY_BUCKET`, `GOOGLE_PLAY_SERVICE_ACCOUNT`.
+- `GOOGLE_PLAY_BUCKET`, `GOOGLE_PLAY_SERVICE_ACCOUNT`, et `GOOGLE_PLAY_REPORTS_ACCOUNT` (facultatif).
 
 Tant qu'elles manquent, la page montre seulement la note publique d'Apple.

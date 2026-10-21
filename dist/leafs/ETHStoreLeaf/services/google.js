@@ -20,27 +20,69 @@ import { pem } from './options.js';
 const TOKEN_URI = 'https://oauth2.googleapis.com/token';
 const SCOPES = ['https://www.googleapis.com/auth/devstorage.read_only', 'https://www.googleapis.com/auth/playdeveloperreporting'].join(' ');
 const REPORTING = 'https://playdeveloperreporting.googleapis.com/v1beta1';
-let cached = null;
-/** The service account from the config: the object, its JSON, or that JSON in base64. */
-export function serviceAccountOf(c) {
-    let account = c.serviceAccount;
-    if (typeof account === 'string') {
-        const text = account.trim();
-        try {
-            account = JSON.parse(text.startsWith('{') ? text : Buffer.from(text, 'base64').toString('utf8'));
-        }
-        catch (_a) {
-            throw new StoreError('The Google service account is not a JSON key (the file downloaded from Google Cloud)');
-        }
+/** Access tokens by account (a service account's email, a person's refresh token), until they expire. */
+const cached = new Map();
+/** A credential from the config: the object, its JSON, or that JSON in base64. */
+function jsonOf(value, notJson) {
+    if (typeof value !== 'string')
+        return value;
+    const text = value.trim();
+    try {
+        return JSON.parse(text.startsWith('{') ? text : Buffer.from(text, 'base64').toString('utf8'));
     }
+    catch (_a) {
+        throw new StoreError(notJson);
+    }
+}
+export function serviceAccountOf(c) {
+    const account = jsonOf(c.serviceAccount, 'The Google service account is not a JSON key (the file downloaded from Google Cloud)');
     if (!(account === null || account === void 0 ? void 0 : account.client_email) || !(account === null || account === void 0 ? void 0 : account.private_key))
         throw new StoreError('The Google service account has no client_email or private_key');
     return account;
 }
+export function reportsAccountOf(c) {
+    const account = jsonOf(c.reportsAccount, 'The Google account for the reports is not JSON (the file gcloud auth application-default login writes)');
+    if (!(account === null || account === void 0 ? void 0 : account.client_id) || !(account === null || account === void 0 ? void 0 : account.client_secret) || !(account === null || account === void 0 ? void 0 : account.refresh_token)) {
+        throw new StoreError('The Google account for the reports has no client_id, client_secret or refresh_token');
+    }
+    return account;
+}
+function keep(key, body) {
+    cached.set(key, { token: body.access_token, until: Date.now() + (Number(body.expires_in) || 3600) * 1000 - 60 * 1000 });
+    return body.access_token;
+}
+function fresh(key) {
+    const hit = cached.get(key);
+    return hit && hit.until > Date.now() ? hit.token : null;
+}
+/** A token for the person's account, from its refresh token. */
+function userToken(account) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const hit = fresh(account.refresh_token);
+        if (hit)
+            return hit;
+        const res = yield request(TOKEN_URI, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                client_id: account.client_id,
+                client_secret: account.client_secret,
+                refresh_token: account.refresh_token,
+            }),
+        });
+        const body = yield res.json().catch(() => ({}));
+        if (!res.ok || !body.access_token) {
+            throw new StoreError(`Google refused the account for the reports (${res.status}): ${body.error_description || body.error || 'no token'}. Sign it in again with gcloud auth application-default login`);
+        }
+        return keep(account.refresh_token, body);
+    });
+}
 function googleToken(account) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (cached && cached.email === account.client_email && cached.until > Date.now())
-            return cached.token;
+        const hit = fresh(account.client_email);
+        if (hit)
+            return hit;
         const now = Math.floor(Date.now() / 1000);
         let assertion;
         try {
@@ -60,8 +102,7 @@ function googleToken(account) {
         if (!res.ok || !body.access_token) {
             throw new StoreError(`Google refused the service account (${res.status}): ${body.error_description || body.error || 'no token'}`);
         }
-        cached = { email: account.client_email, token: body.access_token, until: Date.now() + (Number(body.expires_in) || 3600) * 1000 - 60 * 1000 };
-        return cached.token;
+        return keep(account.client_email, body);
     });
 }
 /** `gs://pubsite_prod_rev_0123/stats` → `pubsite_prod_rev_0123`. */
@@ -82,7 +123,7 @@ export function decode(buffer) {
 /** One file of the bucket, or null when it is not there: a month not started yet. */
 function readObject(c, name) {
     return __awaiter(this, void 0, void 0, function* () {
-        const token = yield googleToken(serviceAccountOf(c));
+        const token = c.reportsAccount ? yield userToken(reportsAccountOf(c)) : yield googleToken(serviceAccountOf(c));
         const bucket = bucketOf(c);
         const res = yield request(`https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(name)}?alt=media`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -90,7 +131,8 @@ function readObject(c, name) {
         if (res.status === 404)
             return null;
         if (res.status === 401 || res.status === 403) {
-            throw new StoreError(`The service account may not read ${bucket}: invite it in Play Console › Users and permissions with "View app information and download bulk reports" (it can take a day to apply)`);
+            const who = c.reportsAccount ? 'The account for the reports' : 'The service account';
+            throw new StoreError(`${who} may not read ${bucket}: invite it in Play Console › Users and permissions with "View app information and download bulk reports" (it can take a day to apply)`);
         }
         if (!res.ok)
             throw new StoreError(`Google Cloud Storage answered ${res.status} for ${name}`);
