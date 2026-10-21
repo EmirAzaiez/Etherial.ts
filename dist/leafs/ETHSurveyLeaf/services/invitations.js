@@ -86,9 +86,23 @@ export function invite(input) {
         }
     });
 }
+/** Outside `notifyHours`, in the leaf's time zone: nobody is told at night. */
+function quietAt(at) {
+    const hours = state.config.notifyHours;
+    if (!hours)
+        return false;
+    const [from, to] = hours;
+    const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: state.config.timezone || 'UTC', hour: 'numeric', hourCycle: 'h23' }).format(at)) % 24;
+    // [21, 8] runs across midnight.
+    return from <= to ? hour < from || hour >= to : hour < from && hour >= to;
+}
+function invitationOf(row) {
+    return { id: row.id, survey: row.survey, user_id: row.user_id, subject_label: row.subject_label };
+}
 /**
  * Tells people their question is open, once each. A row is claimed before
- * `notify` runs, so two servers never send the same push.
+ * `notify` runs, so two servers never send the same push. Outside
+ * `notifyHours` the rows wait, unclaimed, for the first minute inside.
  */
 export function notifyDue() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -96,6 +110,8 @@ export function notifyDue() {
         if (!notify)
             return;
         const now = new Date();
+        if (quietAt(now))
+            return;
         const due = yield SurveyResponse.findAll({
             where: { status: 'pending', notified_at: null, available_at: { [Op.lte]: now }, expires_at: { [Op.gt]: now } },
             order: [['available_at', 'ASC']],
@@ -110,7 +126,7 @@ export function notifyDue() {
             if (!(survey === null || survey === void 0 ? void 0 : survey.active))
                 continue;
             try {
-                yield notify({ id: row.id, survey: row.survey, user_id: row.user_id, subject_label: row.subject_label }, infoOf(survey));
+                yield notify(invitationOf(row), infoOf(survey));
             }
             catch (err) {
                 console.error(`[ETHSurveyLeaf] Could not tell user ${row.user_id} about survey ${row.survey}:`, (err === null || err === void 0 ? void 0 : err.message) || err);
@@ -121,10 +137,27 @@ export function notifyDue() {
 /** Questions left open past their date are closed, so the lists and the response rate stay right. */
 export function expireDue() {
     return __awaiter(this, void 0, void 0, function* () {
-        const [count] = yield SurveyResponse.update({ status: 'expired' }, {
+        const [count, rows] = yield SurveyResponse.update({ status: 'expired' }, {
             where: { status: 'pending', expires_at: { [Op.lte]: new Date() } },
+            returning: true,
         });
+        for (const row of rows !== null && rows !== void 0 ? rows : [])
+            yield tellClosed(row, 'expired');
         return count;
+    });
+}
+/** Tells the project a question is closed. Its failure closes nothing less. */
+export function tellClosed(row, status) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const closed = state.config.closed;
+        if (!closed)
+            return;
+        try {
+            yield closed(invitationOf(row), status);
+        }
+        catch (err) {
+            console.error(`[ETHSurveyLeaf] Could not close survey ${row.survey} for user ${row.user_id}:`, (err === null || err === void 0 ? void 0 : err.message) || err);
+        }
     });
 }
 /** Hooks each event on its model. Unknown models are reported, not fatal. */

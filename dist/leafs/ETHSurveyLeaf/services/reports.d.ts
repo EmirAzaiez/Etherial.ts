@@ -49,6 +49,14 @@ export declare function overview(query: any): Promise<{
     questions: any[];
 }>;
 /**
+ * Each survey's numbers over the period, for the list of surveys: how many
+ * were asked and answered, its score, and the questions open right now.
+ */
+export declare function bySurvey(query: any): Promise<{
+    range: Range;
+    surveys: Record<string, unknown>;
+}>;
+/**
  * What people wrote, the latest answers first; `group` keeps the high, middle
  * or low scores, `all=1` the answers without a comment too. `limit` up to 50.
  */

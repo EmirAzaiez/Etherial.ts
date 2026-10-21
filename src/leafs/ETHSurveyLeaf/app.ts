@@ -46,7 +46,7 @@ export default class ETHSurveyLeaf {
         state.config = config
         this.routes.push(
             { route: path.join(__dirname, 'routes/app'), methods: ['pending', 'answer', 'dismiss'] },
-            { route: path.join(__dirname, 'routes/admin'), methods: ['list', 'targets', 'overview', 'comments', 'user'] }
+            { route: path.join(__dirname, 'routes/admin'), methods: ['list', 'targets', 'overview', 'stats', 'comments', 'user'] }
         )
         const keys = (config.events ?? []).map((e) => e.key)
         const twice = keys.filter((k, i) => keys.indexOf(k) !== i)

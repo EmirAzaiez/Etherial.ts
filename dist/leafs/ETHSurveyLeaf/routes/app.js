@@ -23,6 +23,7 @@ import { SurveyResponse } from '../models/SurveyResponse.js';
 import { activeKeys, questionsFor, readAnswers, surveyByKey } from '../services/forms.js';
 import { defaultLocaleOf, kindOf, languageOf, scaleOf } from '../services/options.js';
 import { state } from '../services/state.js';
+import { tellClosed } from '../services/invitations.js';
 function userIdOf(req) {
     var _a, _b;
     return Number(typeof ((_a = req.user) === null || _a === void 0 ? void 0 : _a.get) === 'function' ? req.user.get('id') : (_b = req.user) === null || _b === void 0 ? void 0 : _b.id);
@@ -87,6 +88,11 @@ let ETHSurveyAppController = class ETHSurveyAppController {
                     scale: scaleOf(kind),
                     questions,
                     subject_label: row.subject_label,
+                    // What it follows, for the app to ask it on that record's page too.
+                    subject_type: row.subject_type || null,
+                    subject_id: row.subject_id || null,
+                    available_at: row.available_at,
+                    expires_at: row.expires_at,
                     locale,
                     // Read by the app before several questions: the score, then one comment.
                     question: questions[0].label,
@@ -122,17 +128,20 @@ let ETHSurveyAppController = class ETHSurveyAppController {
                 app_version: clip(req.headers['x-app-version'], 32),
                 answered_at: new Date(),
             });
+            void tellClosed(row, 'answered');
             return res.success({ status: 200, data: { id: row.id, status: row.status } });
         });
     }
-    /** POST /surveys/:id/dismiss — "Not now": the question is not asked again. */
+    /** POST /surveys/:id/dismiss — the person does not want to answer: the question is not asked again. */
     dismiss(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             const row = yield ownRow(req);
             if (!row)
                 return res.error({ status: 404, errors: ['not_found'] });
-            if (row.status === 'pending')
+            if (row.status === 'pending') {
                 yield row.update({ status: 'dismissed' });
+                void tellClosed(row, 'dismissed');
+            }
             return res.success({ status: 200, data: { id: row.id, status: row.status } });
         });
     }

@@ -12,7 +12,7 @@ export default class ETHSurveyAppController {
     pending(req: AuthedRequest, res: Response): Promise<any>;
     /** POST /surveys/:id/answer { answers: { <question id>: value } } — or `{ score, comment? }` from an older app. */
     answer(req: AuthedRequest, res: Response): Promise<any>;
-    /** POST /surveys/:id/dismiss — "Not now": the question is not asked again. */
+    /** POST /surveys/:id/dismiss — the person does not want to answer: the question is not asked again. */
     dismiss(req: AuthedRequest, res: Response): Promise<any>;
 }
 export {};

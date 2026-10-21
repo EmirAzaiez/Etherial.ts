@@ -21,7 +21,7 @@ import { Controller, Get } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 import { FORMS_COLLECTION, RESPONSES_COLLECTION } from '../services/options.js';
 import { adminInfoOf, allSurveys, eventOf } from '../services/forms.js';
-import { ReportError, comments, ensurePostgres, overview, userResponses } from '../services/reports.js';
+import { ReportError, bySurvey, comments, ensurePostgres, overview, userResponses } from '../services/reports.js';
 /** Whoever may list the answers may read the reports: one switch in a role's permissions. */
 const readsAnswers = (adminLeaf, user) => adminLeaf.checkAccess(user, RESPONSES_COLLECTION, 'list');
 /** Whoever may write a survey may see what it can be narrowed to. */
@@ -77,6 +77,12 @@ let ETHSurveyAdminController = class ETHSurveyAdminController {
             return guard(req, res, () => overview(req.query));
         });
     }
+    /** GET /admin/surveys/stats?from=YYYY-MM-DD&to=YYYY-MM-DD — each survey's numbers, for their list. */
+    stats(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return guard(req, res, () => bySurvey(req.query));
+        });
+    }
     /** GET /admin/surveys/comments?survey=&from=&to=&group=high|mid|low&all=1&limit=&before= */
     comments(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -114,6 +120,13 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], ETHSurveyAdminController.prototype, "overview", null);
+__decorate([
+    Get('/admin/surveys/stats'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], ETHSurveyAdminController.prototype, "stats", null);
 __decorate([
     Get('/admin/surveys/comments'),
     ShouldBeAuthenticated(),

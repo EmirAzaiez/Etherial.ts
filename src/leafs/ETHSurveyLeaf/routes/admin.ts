@@ -5,7 +5,7 @@ import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
 import { FORMS_COLLECTION, RESPONSES_COLLECTION } from '../services/options.js'
 import { adminInfoOf, allSurveys, eventOf } from '../services/forms.js'
-import { ReportError, comments, ensurePostgres, overview, userResponses } from '../services/reports.js'
+import { ReportError, bySurvey, comments, ensurePostgres, overview, userResponses } from '../services/reports.js'
 
 type AuthedRequest = Request & { user: any }
 
@@ -72,6 +72,13 @@ export default class ETHSurveyAdminController {
     @ShouldBeAuthenticated()
     async overview(req: AuthedRequest, res: Response) {
         return guard(req, res, () => overview(req.query))
+    }
+
+    /** GET /admin/surveys/stats?from=YYYY-MM-DD&to=YYYY-MM-DD — each survey's numbers, for their list. */
+    @Get('/admin/surveys/stats')
+    @ShouldBeAuthenticated()
+    async stats(req: AuthedRequest, res: Response) {
+        return guard(req, res, () => bySurvey(req.query))
     }
 
     /** GET /admin/surveys/comments?survey=&from=&to=&group=high|mid|low&all=1&limit=&before= */

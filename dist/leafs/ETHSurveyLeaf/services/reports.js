@@ -180,6 +180,61 @@ export function overview(query) {
     });
 }
 /**
+ * Each survey's numbers over the period, for the list of surveys: how many
+ * were asked and answered, its score, and the questions open right now.
+ */
+export function bySurvey(query) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c;
+        const range = rangeOf(query);
+        const surveys = yield allSurveys();
+        const keys = surveys.map((s) => s.key);
+        if (!keys.length)
+            return { range, surveys: {} };
+        const [asked, scores, open] = yield Promise.all([
+            rows(`SELECT survey, count(*)::int AS asked,
+                    count(*) FILTER (WHERE status = 'answered')::int AS answered_of_asked,
+                    count(*) FILTER (WHERE status = 'pending')::int AS pending
+               FROM ${TABLE} WHERE survey IN (:keys) AND ${within('available_at')}
+              GROUP BY survey`, Object.assign({ keys }, params(range))),
+            rows(`SELECT survey, score, count(*)::int AS n FROM ${TABLE}
+              WHERE survey IN (:keys) AND status = 'answered' AND ${within('answered_at')}
+              GROUP BY survey, score`, Object.assign({ keys }, params(range))),
+            // Whatever the period: what waits in the app now, and the last answer ever.
+            rows(`SELECT survey,
+                    count(*) FILTER (WHERE status = 'pending' AND available_at <= now() AND expires_at > now())::int AS waiting,
+                    max(answered_at) AS last_answer_at
+               FROM ${TABLE} WHERE survey IN (:keys)
+              GROUP BY survey`, { keys }),
+        ]);
+        const result = {};
+        for (const survey of surveys) {
+            const kind = kindOf(survey.questions);
+            const a = (_a = asked.find((r) => r.survey === survey.key)) !== null && _a !== void 0 ? _a : { asked: 0, answered_of_asked: 0, pending: 0 };
+            const o = open.find((r) => r.survey === survey.key);
+            const t = { answered: 0, high: 0, low: 0 };
+            for (const r of scores.filter((r) => r.survey === survey.key)) {
+                const score = Number(r.score);
+                t.answered += r.n;
+                if (kind === 'nps' ? score >= 9 : score >= 4)
+                    t.high += r.n;
+                if (kind === 'nps' ? score <= 6 : score <= 2)
+                    t.low += r.n;
+            }
+            result[survey.key] = {
+                asked: a.asked,
+                answered: t.answered,
+                score: scoreOf(kind, t),
+                // As on the Surveys page: of the questions that closed, how many got an answer.
+                response_rate: a.asked - a.pending > 0 ? a.answered_of_asked / (a.asked - a.pending) : null,
+                waiting: (_b = o === null || o === void 0 ? void 0 : o.waiting) !== null && _b !== void 0 ? _b : 0,
+                last_answer_at: (_c = o === null || o === void 0 ? void 0 : o.last_answer_at) !== null && _c !== void 0 ? _c : null,
+            };
+        }
+        return { range, surveys: result };
+    });
+}
+/**
  * How a question after the first was answered: the average of a rating, the
  * count of each choice, the latest written answers. Choices taken off the
  * survey since are kept, with no label.

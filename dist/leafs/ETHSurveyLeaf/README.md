@@ -14,7 +14,7 @@ Le cycle d'une question :
 
 1. Un **événement** a lieu : un rendez-vous passe à « terminé », depuis le back-office, l'app ou une synchro Salesforce. Le leaf cherche l'enquête active de cet événement : celle limitée à cette valeur (ce scheduler), sinon celle posée après tous. Le code du projet peut aussi appeler `invite()`.
 2. La question **s'ouvre** après le délai de l'enquête. Par exemple, une heure après la visite.
-3. L'app demande s'il y a une enquête en attente (`GET /surveys/pending`), pose ses questions une à une, puis envoie les réponses ou un « pas maintenant ».
+3. L'app demande s'il y a une enquête en attente (`GET /surveys/pending`), pose ses questions une à une, puis envoie les réponses, ou un refus.
 4. Sans réponse, la question **expire** après le nombre de jours de l'enquête.
 5. Le back-office lit le score, le taux de réponse, la tendance, le détail de chaque question et les réponses écrites : page **Surveys**, et panneau **Surveys** sur la fiche d'un utilisateur.
 
@@ -85,6 +85,8 @@ export const surveysConfig: ETHSurveyLeafConfig = {
 | `timezone` | `UTC` | Le fuseau où se coupent les jours et les semaines des rapports. |
 | `excludeUser` | aucun | `(user) => boolean`. Renvoie `true` pour ne jamais interroger quelqu'un : staff, comptes de test. |
 | `notify` | aucun | `(invitation, survey) => void`. Appelé une fois, quand la question s'ouvre, pour prévenir la personne (un push, par exemple). `survey` vaut `{ key, title, kind, event }`. Sans lui, l'app trouve la question la prochaine fois qu'elle en demande une. |
+| `notifyHours` | à toute heure | `[9, 21]` : `notify` ne tourne que de 9 h à 21 h, dans `timezone`. Une question qui s'ouvre la nuit est annoncée le lendemain matin. `[21, 8]` passe minuit. |
+| `closed` | aucun | `(invitation, status) => void`. Appelé quand une question se ferme : `answered`, `dismissed` ou `expired`. Sert à reprendre ce que `notify` a laissé, la ligne dans la boîte de l'app par exemple. |
 | `users` | voir ci-dessous | Comment retrouver et nommer les utilisateurs. |
 
 `users` : `collection` (la collection du back-office, `users` par défaut), `model` (le modèle Sequelize, `User`), `name` (les champs joints pour nommer quelqu'un, `['first_name', 'last_name']`), `fallback` (utilisés si le nom est vide, `['email', 'phone_number', 'phone']`).
@@ -161,7 +163,7 @@ Les trois routes demandent un utilisateur connecté (le token habituel). Une per
 |---|---|
 | `GET /surveys/pending` | `data: null`, ou l'enquête ouverte la plus ancienne (voir ci-dessous). Les textes arrivent déjà dans la langue de l'app. |
 | `POST /surveys/:id/answer` | Corps `{ answers: { <id de question>: valeur } }`. Renvoie `{ id, status: 'answered' }`. |
-| `POST /surveys/:id/dismiss` | « Pas maintenant » : la question est fermée et ne revient pas. Renvoie `{ id, status }`. |
+| `POST /surveys/:id/dismiss` | La personne ne veut pas répondre : la question est fermée et ne revient pas. Renvoie `{ id, status }`. |
 
 ```jsonc
 {
@@ -170,6 +172,11 @@ Les trois routes demandent un utilisateur connecté (le token habituel). Une per
     "kind": "nps",
     "scale": { "min": 0, "max": 10 },
     "subject_label": "Handover visit",
+    // Ce que l'enquête suit (le modèle de l'événement et l'id de la ligne), null si invite() n'en a pas donné.
+    "subject_type": "Appointment",
+    "subject_id": "381",
+    "available_at": "2026-10-21T15:00:00.000Z",
+    "expires_at": "2026-10-28T15:00:00.000Z",
     "locale": "en",
     "questions": [
         { "id": "q1", "type": "nps", "label": "How likely…?", "required": true, "scale": { "min": 0, "max": 10 }, "low_label": "Not likely", "high_label": "Very likely" },
@@ -209,7 +216,9 @@ L'app Retal (`src/Components/Survey/SurveyPrompt.tsx`) sert de référence :
 - n'afficher l'enquête que sur un écran principal (le premier écran d'un onglet), jamais par-dessus un formulaire ;
 - **ne jamais afficher une enquête sortie d'un cache hors-ligne** : elle a peut-être déjà reçu une réponse ;
 - poser les questions une à une, et n'envoyer les réponses qu'à la dernière ;
-- toucher en dehors du panneau le range jusqu'au prochain lancement de l'app ; « Pas maintenant » appelle `dismiss` ;
+- n'ouvrir le panneau tout seul qu'une fois par question : « Pas maintenant » le range, la question reste sur l'accueil et dans les notifications jusqu'à ce qu'elle expire ;
+- l'ouvrir à la demande : le push, la ligne des notifications, la carte de l'accueil, la fiche de ce qu'elle suit (`subject_type`, `subject_id`) ;
+- appeler `dismiss` quand la personne ferme la carte : elle ne veut pas répondre ;
 - sur `404` ou `410`, fermer sans message ; sur une erreur réseau, garder le panneau ouvert et proposer de réessayer.
 
 L'app n'a besoin d'aucune nouvelle dépendance native, mais les questions multiples n'apparaissent qu'avec une nouvelle version de l'app (build store ou OTA).
@@ -221,7 +230,7 @@ L'app n'a besoin d'aucune nouvelle dépendance native, mais les questions multip
 Le leaf déclare la fonctionnalité `surveys` au back-office, qui affiche alors :
 
 - **La page Surveys** (`/surveys`). Un onglet par enquête, active ou non. Elle montre le score de la période, comparé à la période précédente de même durée. Elle montre aussi le taux de réponse, les promoteurs / passifs / détracteurs, l'évolution semaine par semaine et la répartition des notes. Suivent le score par sujet, le détail des autres questions et les réponses, filtrables par groupe et paginées. L'enquête et la période sont dans l'adresse : une vue se partage par lien.
-- **Le panneau Surveys** sur la fiche d'un utilisateur : tout ce qui lui a été demandé, avec ses réponses, ses « pas maintenant » et les questions expirées.
+- **Le panneau Surveys** sur la fiche d'un utilisateur : tout ce qui lui a été demandé, avec ses réponses, ses refus et les questions expirées.
 - **La collection `survey-responses`**, cachée du menu. Elle sert aux exports et aux permissions.
 
 ### Le calcul des scores
@@ -240,6 +249,7 @@ Toutes demandent l'accès au back-office et le droit `list` sur `survey-response
 | `GET /admin/surveys` | Les enquêtes, actives ou non, avec leurs questions et leur événement. |
 | `GET /admin/surveys/targets?event=` | Les valeurs auxquelles une enquête de cet événement peut être limitée. |
 | `GET /admin/surveys/overview?survey=&from=&to=` | Le score, sa tendance, la répartition, les sujets et, pour une seule enquête, le détail des autres questions. Par défaut les 90 derniers jours, deux ans au plus. |
+| `GET /admin/surveys/stats?from=&to=` | Pour la liste des enquêtes, par clé : `asked`, `answered`, `score`, `response_rate` sur la période, et `waiting` (questions ouvertes dans l'app maintenant), `last_answer_at`. |
 | `GET /admin/surveys/comments?survey=&from=&to=&group=&all=&limit=&before=` | Les réponses, les plus récentes d'abord, avec toutes leurs réponses. `group` = `high`, `mid` ou `low`. `all=1` inclut les réponses sans commentaire. `limit` va jusqu'à 50 (30 par défaut). La réponse contient `nextBefore`, à repasser en `before` pour la page suivante, ou `null` en fin de liste. |
 | `GET /admin/surveys/users/:id` | Tout ce qui a été demandé à une personne. |
 
@@ -262,4 +272,4 @@ Configuration : `src/surveys.ts`. Trois événements :
 - `appointment_completed` : un rendez-vous Salesforce (`Appointment`) est terminé. Limitable par **type de visite** ;
 - `ticket_closed` : un ticket est clôturé. Limitable par **type de ticket**. Attention : Salesforce envoie déjà sa propre enquête à la clôture d'un ticket.
 
-Seuls les résidents sont interrogés, au plus une fois tous les 30 jours. Pas de `notify` pour l'instant : la question attend la prochaine ouverture de l'app.
+Seuls les résidents sont interrogés, au plus une fois tous les 30 jours. `notify` crée une `Notification` (`location: 'Survey'`, `location_id` = la question) : un push, de 9 h à 21 h à Riyad, et une ligne dans la page Notifications de l'app. Son texte est `survey.ready` dans les textes de notification du back-office. `closed` supprime cette ligne quand la question se ferme.

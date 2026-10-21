@@ -124,6 +124,17 @@ export interface ETHSurveyLeafConfig {
      * Without it, the app finds the question the next time it asks for one.
      */
     notify?: (invitation: SurveyInvitationInfo, survey: SurveyInfo) => Promise<void> | void;
+    /**
+     * The hours `notify` runs, in `timezone`: `[9, 21]` tells people from 9:00
+     * to 21:00, and a question opening at night is told the next morning.
+     * Default any hour.
+     */
+    notifyHours?: [number, number];
+    /**
+     * A question is closed: answered, put away, or expired. Lets the project
+     * take back what `notify` left (the line in the app's inbox).
+     */
+    closed?: (invitation: SurveyInvitationInfo, status: Exclude<SurveyStatus, 'pending'>) => Promise<void> | void;
     users?: SurveyUsersConfig;
 }
 export declare const RESPONSES_COLLECTION = "survey-responses";

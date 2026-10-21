@@ -38,7 +38,7 @@ export default class ETHSurveyLeaf {
         this.routes = [];
         this.config = config;
         state.config = config;
-        this.routes.push({ route: path.join(__dirname, 'routes/app'), methods: ['pending', 'answer', 'dismiss'] }, { route: path.join(__dirname, 'routes/admin'), methods: ['list', 'targets', 'overview', 'comments', 'user'] });
+        this.routes.push({ route: path.join(__dirname, 'routes/app'), methods: ['pending', 'answer', 'dismiss'] }, { route: path.join(__dirname, 'routes/admin'), methods: ['list', 'targets', 'overview', 'stats', 'comments', 'user'] });
         const keys = ((_a = config.events) !== null && _a !== void 0 ? _a : []).map((e) => e.key);
         const twice = keys.filter((k, i) => keys.indexOf(k) !== i);
         if (twice.length)

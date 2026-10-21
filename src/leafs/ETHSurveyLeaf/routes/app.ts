@@ -7,6 +7,7 @@ import { SurveyResponse } from '../models/SurveyResponse.js'
 import { activeKeys, questionsFor, readAnswers, surveyByKey } from '../services/forms.js'
 import { defaultLocaleOf, kindOf, languageOf, scaleOf } from '../services/options.js'
 import { state } from '../services/state.js'
+import { tellClosed } from '../services/invitations.js'
 
 type AuthedRequest = Request & { user: any }
 
@@ -78,6 +79,11 @@ export default class ETHSurveyAppController {
                 scale: scaleOf(kind),
                 questions,
                 subject_label: row.subject_label,
+                // What it follows, for the app to ask it on that record's page too.
+                subject_type: row.subject_type || null,
+                subject_id: row.subject_id || null,
+                available_at: row.available_at,
+                expires_at: row.expires_at,
                 locale,
                 // Read by the app before several questions: the score, then one comment.
                 question: questions[0].label,
@@ -111,16 +117,20 @@ export default class ETHSurveyAppController {
             app_version: clip(req.headers['x-app-version'], 32),
             answered_at: new Date(),
         } as any)
+        void tellClosed(row, 'answered')
         return (res as any).success({ status: 200, data: { id: row.id, status: row.status } })
     }
 
-    /** POST /surveys/:id/dismiss — "Not now": the question is not asked again. */
+    /** POST /surveys/:id/dismiss — the person does not want to answer: the question is not asked again. */
     @Post('/surveys/:id/dismiss')
     @ShouldBeAuthenticated()
     async dismiss(req: AuthedRequest, res: Response): Promise<any> {
         const row = await ownRow(req)
         if (!row) return (res as any).error({ status: 404, errors: ['not_found'] })
-        if (row.status === 'pending') await row.update({ status: 'dismissed' } as any)
+        if (row.status === 'pending') {
+            await row.update({ status: 'dismissed' } as any)
+            void tellClosed(row, 'dismissed')
+        }
         return (res as any).success({ status: 200, data: { id: row.id, status: row.status } })
     }
 }

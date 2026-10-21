@@ -3,7 +3,7 @@ import { Op, UniqueConstraintError } from 'sequelize'
 
 import { SurveyResponse } from '../models/SurveyResponse.js'
 import { state } from './state.js'
-import { SurveyEvent } from './options.js'
+import { SurveyEvent, SurveyStatus } from './options.js'
 import { infoOf, surveyByKey, surveyFor } from './forms.js'
 
 const DAY_MS = 24 * 3600 * 1000
@@ -86,14 +86,31 @@ export async function invite(input: InviteInput): Promise<InviteResult> {
     }
 }
 
+/** Outside `notifyHours`, in the leaf's time zone: nobody is told at night. */
+function quietAt(at: Date): boolean {
+    const hours = state.config.notifyHours
+    if (!hours) return false
+    const [from, to] = hours
+    const hour =
+        Number(new Intl.DateTimeFormat('en-US', { timeZone: state.config.timezone || 'UTC', hour: 'numeric', hourCycle: 'h23' }).format(at)) % 24
+    // [21, 8] runs across midnight.
+    return from <= to ? hour < from || hour >= to : hour < from && hour >= to
+}
+
+function invitationOf(row: SurveyResponse) {
+    return { id: row.id, survey: row.survey, user_id: row.user_id, subject_label: row.subject_label }
+}
+
 /**
  * Tells people their question is open, once each. A row is claimed before
- * `notify` runs, so two servers never send the same push.
+ * `notify` runs, so two servers never send the same push. Outside
+ * `notifyHours` the rows wait, unclaimed, for the first minute inside.
  */
 export async function notifyDue(): Promise<void> {
     const notify = state.config.notify
     if (!notify) return
     const now = new Date()
+    if (quietAt(now)) return
     const due = await SurveyResponse.findAll({
         where: { status: 'pending', notified_at: null, available_at: { [Op.lte]: now }, expires_at: { [Op.gt]: now } } as any,
         order: [['available_at', 'ASC']],
@@ -106,7 +123,7 @@ export async function notifyDue(): Promise<void> {
         // Turned off meanwhile: the app no longer shows it, so say nothing.
         if (!survey?.active) continue
         try {
-            await notify({ id: row.id, survey: row.survey, user_id: row.user_id, subject_label: row.subject_label }, infoOf(survey))
+            await notify(invitationOf(row), infoOf(survey))
         } catch (err: any) {
             console.error(`[ETHSurveyLeaf] Could not tell user ${row.user_id} about survey ${row.survey}:`, err?.message || err)
         }
@@ -115,10 +132,23 @@ export async function notifyDue(): Promise<void> {
 
 /** Questions left open past their date are closed, so the lists and the response rate stay right. */
 export async function expireDue(): Promise<number> {
-    const [count] = await SurveyResponse.update({ status: 'expired' } as any, {
+    const [count, rows] = await SurveyResponse.update({ status: 'expired' } as any, {
         where: { status: 'pending', expires_at: { [Op.lte]: new Date() } } as any,
+        returning: true,
     })
+    for (const row of rows ?? []) await tellClosed(row, 'expired')
     return count
+}
+
+/** Tells the project a question is closed. Its failure closes nothing less. */
+export async function tellClosed(row: SurveyResponse, status: Exclude<SurveyStatus, 'pending'>): Promise<void> {
+    const closed = state.config.closed
+    if (!closed) return
+    try {
+        await closed(invitationOf(row), status)
+    } catch (err: any) {
+        console.error(`[ETHSurveyLeaf] Could not close survey ${row.survey} for user ${row.user_id}:`, err?.message || err)
+    }
 }
 
 /** Hooks each event on its model. Unknown models are reported, not fatal. */
