@@ -6,7 +6,7 @@ import { Model } from 'etherial/components/database/provider';
  */
 export declare class SurveyResponse extends Model<SurveyResponse> {
     id: number;
-    /** The survey's key, from the project's config. */
+    /** The survey's key (`survey_forms.key`). */
     survey: string;
     user_id: number;
     /** What prompted the question: the model and row a trigger saw. */
@@ -15,8 +15,12 @@ export declare class SurveyResponse extends Model<SurveyResponse> {
     subject_label: string | null;
     /** pending, answered, dismissed, expired. */
     status: string;
+    /** The answer to the first question, the rating that scores the survey. */
     score: number | null;
+    /** The first written answer, read on the Surveys page with the score. */
     comment: string | null;
+    /** Every answer, by question id: a number, an option id, a list of them, a text. */
+    answers: Record<string, unknown> | null;
     /** The language the question was read in. */
     locale: string | null;
     platform: string | null;

@@ -66,6 +66,11 @@ __decorate([
 ], SurveyResponse.prototype, "comment", void 0);
 __decorate([
     AllowNull(true),
+    Column(DataType.JSONB),
+    __metadata("design:type", Object)
+], SurveyResponse.prototype, "answers", void 0);
+__decorate([
+    AllowNull(true),
     Column(DataType.STRING(16)),
     __metadata("design:type", String)
 ], SurveyResponse.prototype, "locale", void 0);

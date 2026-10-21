@@ -11,21 +11,25 @@ import etherial from 'etherial';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { runExclusive } from '../../components/database/lock.js';
+import { SurveyForm } from './models/SurveyForm.js';
 import { SurveyResponse } from './models/SurveyResponse.js';
-import { attachTriggers, expireDue, invite, notifyDue } from './services/invitations.js';
+import { registerSurveyFormsAdmin } from './admin/forms.js';
+import { attachEvents, expireDue, invite, notifyDue } from './services/invitations.js';
 import { state } from './services/state.js';
-import { RESPONSES_COLLECTION, kindOf, localize, usersOptions } from './services/options.js';
+import { FORMS_COLLECTION, RESPONSES_COLLECTION, defaultLocaleOf, localesOf, usersOptions, } from './services/options.js';
 export * from './services/options.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /**
  * ETHSurveyLeaf — satisfaction surveys in the app, scored in the back-office.
  *
- * A survey is one question (NPS 0–10, or satisfaction 1–5) and an optional
- * comment. People are invited by a trigger — an appointment marked as done, a
- * ticket closed — or by the project's code. The app asks for the question
- * waiting (`GET /surveys/pending`), shows it, and posts the answer. The
- * back-office's Surveys page reads the score, the response rate, the trend
- * and what people wrote. Postgres only.
+ * The surveys are written in the back-office: a rating that scores them (NPS
+ * 0–10, or satisfaction 1–5), then up to nine more questions — ratings,
+ * choices, written answers — and the event they are asked after. The project
+ * declares those events (an appointment done, a ticket closed) and what a
+ * survey can be narrowed to (a scheduler, a ticket type). The app asks for the
+ * survey waiting (`GET /surveys/pending`), shows it, and posts the answers.
+ * The back-office's Surveys page reads the score, the response rate, the
+ * trend and what people answered. Postgres only.
  */
 export default class ETHSurveyLeaf {
     constructor(config = {}) {
@@ -34,19 +38,23 @@ export default class ETHSurveyLeaf {
         this.routes = [];
         this.config = config;
         state.config = config;
-        this.routes.push({ route: path.join(__dirname, 'routes/app'), methods: ['pending', 'answer', 'dismiss'] }, { route: path.join(__dirname, 'routes/admin'), methods: ['overview', 'comments', 'user'] });
-        const keys = ((_a = config.surveys) !== null && _a !== void 0 ? _a : []).map((s) => s.key);
+        this.routes.push({ route: path.join(__dirname, 'routes/app'), methods: ['pending', 'answer', 'dismiss'] }, { route: path.join(__dirname, 'routes/admin'), methods: ['list', 'targets', 'overview', 'comments', 'user'] });
+        const keys = ((_a = config.events) !== null && _a !== void 0 ? _a : []).map((e) => e.key);
         const twice = keys.filter((k, i) => keys.indexOf(k) !== i);
         if (twice.length)
-            throw new Error(`[ETHSurveyLeaf] Two surveys share the key "${twice[0]}"`);
+            throw new Error(`[ETHSurveyLeaf] Two events share the key "${twice[0]}"`);
     }
-    /** Lifecycle: beforeRun — hand the table to the database before it syncs. */
+    /**
+     * Lifecycle: beforeRun — hand the tables to the database before it syncs,
+     * and the surveys' form to the back-office before it sets up its history.
+     */
     beforeRun({ database }) {
-        database === null || database === void 0 ? void 0 : database.addModels([SurveyResponse]);
+        database === null || database === void 0 ? void 0 : database.addModels([SurveyForm, SurveyResponse]);
+        registerSurveyFormsAdmin(etherial.eth_admin_leaf, this.config);
     }
     /** Lifecycle: run — routes, and the clock that opens and closes questions. */
     run({ http }) {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e;
         (_a = http === null || http === void 0 ? void 0 : http.routes_leafs) === null || _a === void 0 ? void 0 : _a.push(...this.routes);
         const tick = () => __awaiter(this, void 0, void 0, function* () {
             try {
@@ -64,38 +72,37 @@ export default class ETHSurveyLeaf {
         // Not at boot: the table may not be synced yet. The first turn of the
         // interval is a minute away (a setTimeout as well ran it twice then).
         (_c = (_b = setInterval(tick, 60 * 1000)).unref) === null || _c === void 0 ? void 0 : _c.call(_b);
-        const count = (_e = (_d = this.config.surveys) === null || _d === void 0 ? void 0 : _d.length) !== null && _e !== void 0 ? _e : 0;
-        console.log(`[ETHSurveyLeaf] ${count ? `${count} survey${count > 1 ? 's' : ''}, ${(_g = (_f = this.config.triggers) === null || _f === void 0 ? void 0 : _f.length) !== null && _g !== void 0 ? _g : 0} trigger(s)` : 'No survey yet: list them in `surveys`'}`);
+        const count = (_e = (_d = this.config.events) === null || _d === void 0 ? void 0 : _d.length) !== null && _e !== void 0 ? _e : 0;
+        console.log(`[ETHSurveyLeaf] ${count ? `${count} event${count > 1 ? 's' : ''} to ask surveys after` : 'No event: surveys are asked from the code (invite)'}`);
     }
-    /** Lifecycle: afterRun — every model exists: hook the triggers, tell the back-office. */
+    /** Lifecycle: afterRun — every model exists: hook the events, tell the back-office. */
     afterRun() {
-        var _a, _b, _c, _d, _e, _f;
-        if ((_a = this.config.triggers) === null || _a === void 0 ? void 0 : _a.length)
-            attachTriggers(this.config.triggers);
+        var _a, _b, _c, _d, _e;
+        if ((_a = this.config.events) === null || _a === void 0 ? void 0 : _a.length)
+            attachEvents(this.config.events);
         const adminLeaf = etherial.eth_admin_leaf;
         if (!(adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.registerCollection))
             return;
         const users = usersOptions(this.config);
         const hasUsers = !!((_b = adminLeaf.getCollection) === null || _b === void 0 ? void 0 : _b.call(adminLeaf, users.collection));
         if (!adminLeaf.getCollection(RESPONSES_COLLECTION))
-            adminLeaf.registerCollection(responsesCollection(this.config, users.collection, hasUsers));
-        const fallback = (_c = this.config.defaultLocale) !== null && _c !== void 0 ? _c : 'en';
-        (_d = adminLeaf.setFeature) === null || _d === void 0 ? void 0 : _d.call(adminLeaf, 'surveys', {
+            adminLeaf.registerCollection(responsesCollection(users.collection, hasUsers));
+        // The surveys themselves change from the back-office: it reads them from `GET /admin/surveys`.
+        (_c = adminLeaf.setFeature) === null || _c === void 0 ? void 0 : _c.call(adminLeaf, 'surveys', {
             collection: RESPONSES_COLLECTION,
+            formsCollection: FORMS_COLLECTION,
             usersCollection: hasUsers ? users.collection : null,
             timezone: this.config.timezone || 'UTC',
-            cooldownDays: (_e = this.config.cooldownDays) !== null && _e !== void 0 ? _e : 30,
-            surveys: ((_f = this.config.surveys) !== null && _f !== void 0 ? _f : []).map((s) => {
-                var _a, _b, _c, _d;
+            cooldownDays: (_d = this.config.cooldownDays) !== null && _d !== void 0 ? _d : 30,
+            defaultLocale: defaultLocaleOf(this.config),
+            locales: localesOf(this.config),
+            events: ((_e = this.config.events) !== null && _e !== void 0 ? _e : []).map((e) => {
+                var _a, _b;
                 return ({
-                    key: s.key,
-                    title: s.title,
-                    kind: kindOf(s),
-                    question: localize(s.question, fallback, fallback),
-                    description: (_a = s.description) !== null && _a !== void 0 ? _a : null,
-                    delayMinutes: (_b = s.delayMinutes) !== null && _b !== void 0 ? _b : 0,
-                    expiresAfterDays: (_c = s.expiresAfterDays) !== null && _c !== void 0 ? _c : 7,
-                    triggers: ((_d = this.config.triggers) !== null && _d !== void 0 ? _d : []).filter((t) => t.survey === s.key).map((t) => t.model),
+                    key: e.key,
+                    label: e.label,
+                    description: (_a = e.description) !== null && _a !== void 0 ? _a : null,
+                    target: e.target ? { label: e.target.label, collection: (_b = e.target.collection) !== null && _b !== void 0 ? _b : null } : null,
                 });
             }),
         });
@@ -108,7 +115,7 @@ export default class ETHSurveyLeaf {
         return [
             {
                 command: 'purge',
-                description: 'Delete every survey question and answer (asks nothing: for test databases)',
+                description: 'Delete every survey question put to someone and its answer, the surveys staying (asks nothing: for test databases)',
                 action: () => __awaiter(this, void 0, void 0, function* () {
                     const count = yield SurveyResponse.destroy({ where: {}, truncate: true });
                     return { success: true, message: `Purged surveys (${count !== null && count !== void 0 ? count : 0} rows)` };
@@ -123,8 +130,7 @@ const STATUS_OPTIONS = [
     { value: 'dismissed', label: 'Not now', color: 'gray' },
     { value: 'expired', label: 'Expired', color: 'gray' },
 ];
-function responsesCollection(config, usersCollection, hasUsers) {
-    var _a;
+function responsesCollection(usersCollection, hasUsers) {
     return {
         name: RESPONSES_COLLECTION,
         model: SurveyResponse,
@@ -142,19 +148,15 @@ function responsesCollection(config, usersCollection, hasUsers) {
         },
         fields: [
             { name: 'id', type: 'integer', readonly: true, sortable: true },
-            {
-                name: 'survey',
-                type: 'select',
-                label: 'Survey',
-                filterable: true,
-                options: ((_a = config.surveys) !== null && _a !== void 0 ? _a : []).map((s) => ({ value: s.key, label: s.title })),
-            },
+            // Its key: the surveys are written in the back-office, after the boot.
+            { name: 'survey', type: 'string', label: 'Survey', filterable: true },
             hasUsers
                 ? { name: 'user_id', type: 'relation', label: 'Asked', filterable: true, relation: { collection: usersCollection, displayField: 'email' } }
                 : { name: 'user_id', type: 'integer', label: 'Asked', filterable: true },
             { name: 'status', type: 'select', label: 'Status', filterable: true, options: STATUS_OPTIONS },
             { name: 'score', type: 'integer', label: 'Score', sortable: true, filterable: true },
             { name: 'comment', type: 'text', label: 'Comment', searchable: true },
+            { name: 'answers', type: 'json', label: 'Answers' },
             { name: 'subject_label', type: 'string', label: 'About', searchable: true },
             { name: 'subject_type', type: 'string', label: 'Asked after' },
             { name: 'subject_id', type: 'string', label: 'Record' },
@@ -176,7 +178,7 @@ function responsesCollection(config, usersCollection, hasUsers) {
             show: {
                 layout: 'sections',
                 sections: [
-                    { title: 'Answer', fields: ['survey', 'status', 'score', 'comment', 'answered_at'] },
+                    { title: 'Answer', fields: ['survey', 'status', 'score', 'comment', 'answers', 'answered_at'] },
                     { title: 'Asked', fields: ['user_id', 'subject_label', 'subject_type', 'subject_id', 'available_at', 'expires_at', 'notified_at'] },
                     { title: 'From', fields: ['locale', 'platform', 'app_version'] },
                 ],

@@ -20,8 +20,8 @@ import { Op } from 'sequelize';
 import { Controller, Get, Post } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
 import { SurveyResponse } from '../models/SurveyResponse.js';
-import { surveyOf } from '../services/invitations.js';
-import { kindOf, languageOf, localize, scaleOf } from '../services/options.js';
+import { activeKeys, questionsFor, readAnswers, surveyByKey } from '../services/forms.js';
+import { defaultLocaleOf, kindOf, languageOf, scaleOf } from '../services/options.js';
 import { state } from '../services/state.js';
 function userIdOf(req) {
     var _a, _b;
@@ -29,8 +29,8 @@ function userIdOf(req) {
 }
 /** The app's language: `?locale=`, then the app's header, then the phone's. */
 function localeOf(req) {
-    var _a, _b, _c, _d, _e;
-    return ((_e = (_d = (_c = (_b = languageOf((_a = req.query) === null || _a === void 0 ? void 0 : _a.locale)) !== null && _b !== void 0 ? _b : languageOf(req.headers['x-app-locale'])) !== null && _c !== void 0 ? _c : languageOf(req.headers['accept-language'])) !== null && _d !== void 0 ? _d : state.config.defaultLocale) !== null && _e !== void 0 ? _e : 'en');
+    var _a, _b, _c, _d;
+    return ((_d = (_c = (_b = languageOf((_a = req.query) === null || _a === void 0 ? void 0 : _a.locale)) !== null && _b !== void 0 ? _b : languageOf(req.headers['x-app-locale'])) !== null && _c !== void 0 ? _c : languageOf(req.headers['accept-language'])) !== null && _d !== void 0 ? _d : defaultLocaleOf(state.config));
 }
 function ownRow(req) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -50,14 +50,15 @@ let ETHSurveyAppController = class ETHSurveyAppController {
     /**
      * GET /surveys/pending
      *
-     * The question waiting for the signed-in person, worded in their language,
+     * The survey waiting for the signed-in person, worded in their language,
      * or `null`. One at a time, the oldest first.
      */
     pending(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
+            var _a, _b, _c, _d;
             const now = new Date();
-            const known = ((_a = state.config.surveys) !== null && _a !== void 0 ? _a : []).map((s) => s.key);
+            // A survey turned off no longer shows the questions still waiting.
+            const known = yield activeKeys();
             const row = known.length
                 ? yield SurveyResponse.findOne({
                     where: {
@@ -70,12 +71,13 @@ let ETHSurveyAppController = class ETHSurveyAppController {
                     order: [['available_at', 'ASC']],
                 })
                 : null;
-            const survey = row && surveyOf(row.survey);
-            if (!row || !survey)
+            const survey = row && (yield surveyByKey(row.survey));
+            if (!row || !((_a = survey === null || survey === void 0 ? void 0 : survey.questions) === null || _a === void 0 ? void 0 : _a.length))
                 return res.success({ status: 200, data: null });
             const locale = localeOf(req);
-            const fallback = (_b = state.config.defaultLocale) !== null && _b !== void 0 ? _b : 'en';
-            const kind = kindOf(survey);
+            const kind = kindOf(survey.questions);
+            const questions = questionsFor(survey, locale);
+            const written = questions.find((q) => q.type === 'text');
             return res.success({
                 status: 200,
                 data: {
@@ -83,38 +85,38 @@ let ETHSurveyAppController = class ETHSurveyAppController {
                     survey: survey.key,
                     kind,
                     scale: scaleOf(kind),
-                    question: localize(survey.question, locale, fallback),
-                    comment_prompt: localize(survey.commentPrompt, locale, fallback),
-                    low_label: localize(survey.lowLabel, locale, fallback),
-                    high_label: localize(survey.highLabel, locale, fallback),
+                    questions,
                     subject_label: row.subject_label,
                     locale,
+                    // Read by the app before several questions: the score, then one comment.
+                    question: questions[0].label,
+                    comment_prompt: (_b = written === null || written === void 0 ? void 0 : written.label) !== null && _b !== void 0 ? _b : null,
+                    low_label: (_c = questions[0].low_label) !== null && _c !== void 0 ? _c : null,
+                    high_label: (_d = questions[0].high_label) !== null && _d !== void 0 ? _d : null,
                 },
             });
         });
     }
-    /** POST /surveys/:id/answer { score, comment? } */
+    /** POST /surveys/:id/answer { answers: { <question id>: value } } — or `{ score, comment? }` from an older app. */
     answer(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
             const row = yield ownRow(req);
-            const survey = row && surveyOf(row.survey);
+            const survey = row && (yield surveyByKey(row.survey));
             if (!row || !survey)
                 return res.error({ status: 404, errors: ['not_found'] });
             if (row.status === 'answered')
                 return res.success({ status: 200, data: { id: row.id, status: row.status } });
-            if (row.status !== 'pending')
+            if (row.status !== 'pending' || !survey.active)
                 return res.error({ status: 410, errors: ['closed'] });
-            const { min, max } = scaleOf(kindOf(survey));
-            const score = Number((_a = req.body) === null || _a === void 0 ? void 0 : _a.score);
-            if (!Number.isInteger(score) || score < min || score > max) {
-                return res.error({ status: 422, errors: [`score must be a whole number from ${min} to ${max}`] });
-            }
+            const read = readAnswers(survey, req.body);
+            if ('error' in read)
+                return res.error({ status: 422, errors: [read.error] });
             // Answered even a little late: the person took the time.
             yield row.update({
                 status: 'answered',
-                score,
-                comment: clip((_b = req.body) === null || _b === void 0 ? void 0 : _b.comment, 2000),
+                score: read.score,
+                comment: read.comment,
+                answers: read.answers,
                 locale: localeOf(req),
                 platform: clip(req.headers['x-app-platform'], 16),
                 app_version: clip(req.headers['x-app-version'], 32),

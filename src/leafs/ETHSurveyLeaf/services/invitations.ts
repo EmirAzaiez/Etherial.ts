@@ -3,11 +3,13 @@ import { Op, UniqueConstraintError } from 'sequelize'
 
 import { SurveyResponse } from '../models/SurveyResponse.js'
 import { state } from './state.js'
-import { SurveyDefinition, SurveyTrigger } from './options.js'
+import { SurveyEvent } from './options.js'
+import { infoOf, surveyByKey, surveyFor } from './forms.js'
 
 const DAY_MS = 24 * 3600 * 1000
 
 export interface InviteInput {
+    /** The survey's key (`survey_forms.key`). */
     survey: string
     user_id: number
     /** What prompted it. Asking twice about the same thing is a no-op. */
@@ -18,11 +20,7 @@ export interface InviteInput {
 
 export type InviteResult =
     | { invited: true; id: number }
-    | { invited: false; reason: 'unknown_survey' | 'excluded' | 'cooldown' | 'already_asked' | 'no_user' }
-
-export function surveyOf(key: string): SurveyDefinition | undefined {
-    return state.config.surveys?.find((s) => s.key === key)
-}
+    | { invited: false; reason: 'unknown_survey' | 'inactive' | 'excluded' | 'cooldown' | 'already_asked' | 'no_user' }
 
 function sequelize(): any {
     return (etherial as any).database?.sequelize
@@ -39,8 +37,9 @@ async function userById(id: number): Promise<any> {
  * per cooldown, whatever the survey.
  */
 export async function invite(input: InviteInput): Promise<InviteResult> {
-    const survey = surveyOf(input.survey)
+    const survey = await surveyByKey(input.survey)
     if (!survey) return { invited: false, reason: 'unknown_survey' }
+    if (!survey.active) return { invited: false, reason: 'inactive' }
     const userId = Number(input.user_id)
     if (!Number.isInteger(userId) || userId <= 0) return { invited: false, reason: 'no_user' }
 
@@ -65,8 +64,8 @@ export async function invite(input: InviteInput): Promise<InviteResult> {
     }
 
     const at = input.at ?? new Date()
-    const opens = new Date(at.getTime() + Math.max(0, survey.delayMinutes ?? 0) * 60 * 1000)
-    const closes = new Date(opens.getTime() + Math.max(1, survey.expiresAfterDays ?? 7) * DAY_MS)
+    const opens = new Date(at.getTime() + Math.max(0, survey.delay_minutes ?? 0) * 60 * 1000)
+    const closes = new Date(opens.getTime() + Math.max(1, survey.expires_after_days ?? 7) * DAY_MS)
     try {
         const row = await SurveyResponse.create({
             survey: survey.key,
@@ -103,10 +102,11 @@ export async function notifyDue(): Promise<void> {
     for (const row of due) {
         const [claimed] = await SurveyResponse.update({ notified_at: now } as any, { where: { id: row.id, notified_at: null } as any })
         if (!claimed) continue
-        const survey = surveyOf(row.survey)
-        if (!survey) continue
+        const survey = await surveyByKey(row.survey)
+        // Turned off meanwhile: the app no longer shows it, so say nothing.
+        if (!survey?.active) continue
         try {
-            await notify({ id: row.id, survey: row.survey, user_id: row.user_id, subject_label: row.subject_label }, survey)
+            await notify({ id: row.id, survey: row.survey, user_id: row.user_id, subject_label: row.subject_label }, infoOf(survey))
         } catch (err: any) {
             console.error(`[ETHSurveyLeaf] Could not tell user ${row.user_id} about survey ${row.survey}:`, err?.message || err)
         }
@@ -121,50 +121,54 @@ export async function expireDue(): Promise<number> {
     return count
 }
 
-/** Hooks each trigger on its model. Unknown models are reported, not fatal. */
-export function attachTriggers(triggers: SurveyTrigger[]) {
+/** Hooks each event on its model. Unknown models are reported, not fatal. */
+export function attachEvents(events: SurveyEvent[]) {
     const models = sequelize()?.models ?? {}
-    for (const trigger of triggers) {
-        const Model = models[trigger.model]
+    for (const event of events) {
+        const Model = models[event.model]
         if (!Model) {
-            console.warn(`[ETHSurveyLeaf] Trigger for "${trigger.survey}": no model named ${trigger.model}`)
+            console.warn(`[ETHSurveyLeaf] Event "${event.key}": no model named ${event.model}`)
             continue
         }
-        if (!surveyOf(trigger.survey)) {
-            console.warn(`[ETHSurveyLeaf] Trigger on ${trigger.model}: no survey named "${trigger.survey}"`)
-            continue
-        }
-        const on = trigger.on ?? 'update'
-        const run = (created: boolean) => (row: any, options: any) => {
-            // Decided now: `previous()` forgets the old values once the save is done.
-            let asked = false
+        const on = event.on ?? 'update'
+        // Decided before the save: an earlier after-hook of the model may
+        // reload the row (Retal's tickets do), and `previous()` then reads
+        // the new values.
+        const happened = new WeakMap<object, true>()
+        Model.addHook('beforeSave', `eth-survey-${event.key}`, (row: any) => {
+            happened.delete(row)
+            const created = !!row.isNewRecord
+            if (created ? on === 'update' : on === 'create') return
             try {
-                asked = trigger.when(row, (field: string) => (created ? undefined : row.previous?.(field)))
+                if (event.when(row, (field: string) => (created ? undefined : row.previous?.(field)))) happened.set(row, true)
             } catch (err: any) {
-                console.error(`[ETHSurveyLeaf] Trigger for "${trigger.survey}" on ${trigger.model} failed:`, err?.message || err)
+                console.error(`[ETHSurveyLeaf] Event "${event.key}" on ${event.model} failed:`, err?.message || err)
             }
-            if (!asked) return
+        })
+        Model.addHook('afterSave', `eth-survey-${event.key}`, (row: any, options: any) => {
+            if (!happened.delete(row)) return
             // Asked once the change is committed, so a rollback asks nothing.
-            const go = () => void fire(trigger, row)
+            const go = () => void fire(event, row)
             if (options?.transaction?.afterCommit) options.transaction.afterCommit(go)
             else go()
-        }
-        if (on === 'create' || on === 'both') Model.addHook('afterCreate', `eth-survey-${trigger.survey}`, run(true))
-        if (on === 'update' || on === 'both') Model.addHook('afterUpdate', `eth-survey-${trigger.survey}`, run(false))
+        })
     }
 }
 
-async function fire(trigger: SurveyTrigger, row: any) {
+async function fire(event: SurveyEvent, row: any) {
     try {
-        const userId = await trigger.user(row)
+        const userId = await event.user(row)
         if (!userId) return
-        const label = trigger.subject ? await trigger.subject(row) : null
+        const value = event.target ? await event.target.value(row) : null
+        const survey = await surveyFor(event.key, value === null || value === undefined || value === '' ? null : String(value))
+        if (!survey) return
+        const label = event.subject ? await event.subject(row) : null
         await invite({
-            survey: trigger.survey,
+            survey: survey.key,
             user_id: Number(userId),
-            subject: { type: trigger.model, id: row.get?.('id') ?? row.id, label },
+            subject: { type: event.model, id: row.get?.('id') ?? row.id, label },
         })
     } catch (err: any) {
-        console.error(`[ETHSurveyLeaf] Trigger for "${trigger.survey}" on ${trigger.model} failed:`, err?.message || err)
+        console.error(`[ETHSurveyLeaf] Event "${event.key}" on ${event.model} failed:`, err?.message || err)
     }
 }

@@ -6,8 +6,10 @@
 import etherial from 'etherial'
 import { QueryTypes } from 'sequelize'
 
+import type { SurveyForm } from '../models/SurveyForm.js'
 import { state } from './state.js'
-import { SurveyDefinition, SurveyKind, kindOf, scaleOf, usersOptions } from './options.js'
+import { allSurveys } from './forms.js'
+import { SurveyKind, SurveyQuestion, defaultLocaleOf, isRating, kindOf, localize, scaleOf, usersOptions } from './options.js'
 
 const DAY_MS = 24 * 3600 * 1000
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -76,16 +78,16 @@ function params(range: Range, prefix = '') {
     return { [`${prefix}from`]: range.from, [`${prefix}to`]: range.to, tz: range.tz }
 }
 
-/** The surveys read together: one, or all of the same kind. */
-export function surveysOf(query: any): { kind: SurveyKind; keys: string[]; surveys: SurveyDefinition[] } {
-    const all = state.config.surveys ?? []
+/** The surveys read together: one, or all of the same kind. Those turned off too: their answers stay. */
+export async function surveysOf(query: any): Promise<{ kind: SurveyKind; keys: string[]; surveys: SurveyForm[]; one: SurveyForm | null }> {
+    const all = await allSurveys()
     if (!all.length) throw new ReportError(404, 'no_survey')
     const asked = typeof query?.survey === 'string' && query.survey ? all.find((s) => s.key === query.survey) : null
     if (query?.survey && !asked) throw new ReportError(404, 'unknown_survey')
     // Scores of two kinds do not add up: "all" means every survey of the first one's kind.
-    const kind = asked ? kindOf(asked) : kindOf(all[0])
-    const surveys = asked ? [asked] : all.filter((s) => kindOf(s) === kind)
-    return { kind, keys: surveys.map((s) => s.key), surveys }
+    const kind = kindOf((asked ?? all[0]).questions)
+    const surveys = asked ? [asked] : all.filter((s) => kindOf(s.questions) === kind)
+    return { kind, keys: surveys.map((s) => s.key), surveys, one: asked ?? null }
 }
 
 /** Promoters 9–10, passives 7–8, detractors 0–6 for NPS; satisfied 4–5, neutral 3, unhappy 1–2 for CSAT. */
@@ -135,11 +137,11 @@ async function totals(kind: SurveyKind, keys: string[], range: Range, prefix = '
 
 export async function overview(query: any) {
     const range = rangeOf(query)
-    const { kind, keys, surveys } = surveysOf(query)
+    const { kind, keys, surveys, one } = await surveysOf(query)
     const scale = scaleOf(kind)
     const g = groups(kind)
 
-    const [current, previous, distribution, trend, subjects] = await Promise.all([
+    const [current, previous, distribution, trend, subjects, questions] = await Promise.all([
         totals(kind, keys, range),
         totals(kind, keys, previousOf(range), 'p_'),
         rows(
@@ -171,6 +173,8 @@ export async function overview(query: any) {
               ORDER BY avg(score) ASC LIMIT 8`,
             { keys, ...params(range) }
         ),
+        // The other questions, read one survey at a time: two surveys do not ask the same ones.
+        one ? Promise.all((one.questions ?? []).slice(1).map((q) => questionReport(one.key, q, range))) : Promise.resolve([]),
     ])
 
     const byScore = new Map(distribution.map((d: any) => [Number(d.score), d.n]))
@@ -184,7 +188,56 @@ export async function overview(query: any) {
         distribution: Array.from({ length: scale.max - scale.min + 1 }, (_, i) => ({ score: scale.min + i, count: byScore.get(scale.min + i) ?? 0 })),
         trend: trend.map((w: any) => ({ week: w.week, answered: w.answered, score: scoreOf(kind, w) })),
         subjects: subjects.map((s: any) => ({ label: s.label, answered: s.answered, score: scoreOf(kind, s), average: s.average })),
+        questions,
     }
+}
+
+/**
+ * How a question after the first was answered: the average of a rating, the
+ * count of each choice, the latest written answers. Choices taken off the
+ * survey since are kept, with no label.
+ */
+async function questionReport(key: string, q: SurveyQuestion, range: Range) {
+    const fallback = defaultLocaleOf(state.config)
+    const base = `FROM ${TABLE} WHERE survey = :key AND status = 'answered' AND ${within('answered_at')}`
+    const replacements = { key, qid: q.id, ...params(range) }
+    const head = { id: q.id, type: q.type, label: localize(q.label, fallback, fallback) }
+
+    if (isRating(q.type)) {
+        const [r] = await rows(
+            `SELECT count(*)::int AS answered, avg((answers ->> :qid)::numeric)::float AS average
+               ${base} AND jsonb_typeof(answers -> :qid) = 'number'`,
+            replacements
+        )
+        return { ...head, answered: r.answered, average: r.average, scale: scaleOf(q.type) }
+    }
+    if (q.type === 'choice' || q.type === 'multiple') {
+        const [counts, [total]] = await Promise.all([
+            q.type === 'choice'
+                ? rows(`SELECT answers ->> :qid AS value, count(*)::int AS n ${base} AND jsonb_typeof(answers -> :qid) = 'string' GROUP BY 1`, replacements)
+                : rows(
+                      `SELECT value, count(*)::int AS n
+                         FROM ${TABLE}, jsonb_array_elements_text(answers -> :qid) AS value
+                        WHERE survey = :key AND status = 'answered' AND jsonb_typeof(answers -> :qid) = 'array' AND ${within('answered_at')}
+                        GROUP BY 1`,
+                      replacements
+                  ),
+            rows(`SELECT count(*)::int AS answered ${base} AND (answers -> :qid) IS NOT NULL`, replacements),
+        ])
+        const byId = new Map(counts.map((c: any) => [String(c.value), c.n]))
+        const known = (q.options ?? []).map((o) => ({ id: o.id, label: localize(o.label, fallback, fallback), count: byId.get(o.id) ?? 0 }))
+        const gone = [...byId.entries()].filter(([id]) => !(q.options ?? []).some((o) => o.id === id)).map(([id, count]) => ({ id, label: null, count }))
+        return { ...head, answered: total.answered, options: [...known, ...gone] }
+    }
+    const [[total], latest] = await Promise.all([
+        rows(`SELECT count(*)::int AS answered ${base} AND jsonb_typeof(answers -> :qid) = 'string'`, replacements),
+        rows(
+            `SELECT id, answers ->> :qid AS text, answered_at ${base} AND jsonb_typeof(answers -> :qid) = 'string'
+              ORDER BY answered_at DESC, id DESC LIMIT 5`,
+            replacements
+        ),
+    ])
+    return { ...head, answered: total.answered, texts: latest }
 }
 
 const PAGE = 30
@@ -203,7 +256,7 @@ function cursorOf(value: unknown): { at: string; id: number } | null {
  */
 export async function comments(query: any) {
     const range = rangeOf(query)
-    const { kind, keys } = surveysOf(query)
+    const { kind, keys } = await surveysOf(query)
     const g = groups(kind)
     const group = query?.group === 'high' || query?.group === 'mid' || query?.group === 'low' ? (query.group as 'high' | 'mid' | 'low') : null
     const before = cursorOf(query?.before)
@@ -211,7 +264,7 @@ export async function comments(query: any) {
     const limit = Math.min(Math.max(Number(query?.limit) || PAGE, 1), 50)
 
     const list = await rows(
-        `SELECT id, survey, user_id, score, comment, subject_label, locale, platform, answered_at,
+        `SELECT id, survey, user_id, score, comment, answers, subject_label, locale, platform, answered_at,
                 to_char(answered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
            FROM ${TABLE}
           WHERE survey IN (:keys) AND status = 'answered' AND ${within('answered_at')}
@@ -234,13 +287,14 @@ export async function comments(query: any) {
 /** Everything one person was asked, for their page in the back-office. */
 export async function userResponses(userId: number) {
     const list = await rows(
-        `SELECT id, survey, status, score, comment, subject_label, available_at, answered_at
+        `SELECT id, survey, status, score, comment, answers, subject_label, available_at, answered_at
            FROM ${TABLE} WHERE user_id = :userId ORDER BY available_at DESC LIMIT 50`,
         { userId }
     )
+    const surveys = new Map((await allSurveys()).map((s) => [s.key, s]))
     return list.map((r: any) => {
-        const survey = state.config.surveys?.find((s) => s.key === r.survey)
-        return { ...r, kind: survey ? kindOf(survey) : 'nps', title: survey?.title ?? r.survey }
+        const survey = surveys.get(r.survey)
+        return { ...r, kind: kindOf(survey?.questions), title: survey?.title ?? r.survey }
     })
 }
 

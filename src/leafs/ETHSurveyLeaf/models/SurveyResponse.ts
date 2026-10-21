@@ -26,7 +26,7 @@ export class SurveyResponse extends Model<SurveyResponse> {
     @Column(DataType.INTEGER)
     declare id: number
 
-    /** The survey's key, from the project's config. */
+    /** The survey's key (`survey_forms.key`). */
     @AllowNull(false)
     @Column(DataType.STRING(64))
     declare survey: string
@@ -56,13 +56,20 @@ export class SurveyResponse extends Model<SurveyResponse> {
     @Column(DataType.STRING(16))
     declare status: string
 
+    /** The answer to the first question, the rating that scores the survey. */
     @AllowNull(true)
     @Column(DataType.INTEGER)
     declare score: number | null
 
+    /** The first written answer, read on the Surveys page with the score. */
     @AllowNull(true)
     @Column(DataType.TEXT)
     declare comment: string | null
+
+    /** Every answer, by question id: a number, an option id, a list of them, a text. */
+    @AllowNull(true)
+    @Column(DataType.JSONB)
+    declare answers: Record<string, unknown> | null
 
     /** The language the question was read in. */
     @AllowNull(true)

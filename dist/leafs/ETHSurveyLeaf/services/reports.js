@@ -25,7 +25,8 @@ var __rest = (this && this.__rest) || function (s, e) {
 import etherial from 'etherial';
 import { QueryTypes } from 'sequelize';
 import { state } from './state.js';
-import { kindOf, scaleOf, usersOptions } from './options.js';
+import { allSurveys } from './forms.js';
+import { defaultLocaleOf, isRating, kindOf, localize, scaleOf, usersOptions } from './options.js';
 const DAY_MS = 24 * 3600 * 1000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TABLE = 'survey_responses';
@@ -80,19 +81,20 @@ function within(column, prefix = '') {
 function params(range, prefix = '') {
     return { [`${prefix}from`]: range.from, [`${prefix}to`]: range.to, tz: range.tz };
 }
-/** The surveys read together: one, or all of the same kind. */
+/** The surveys read together: one, or all of the same kind. Those turned off too: their answers stay. */
 export function surveysOf(query) {
-    var _a;
-    const all = (_a = state.config.surveys) !== null && _a !== void 0 ? _a : [];
-    if (!all.length)
-        throw new ReportError(404, 'no_survey');
-    const asked = typeof (query === null || query === void 0 ? void 0 : query.survey) === 'string' && query.survey ? all.find((s) => s.key === query.survey) : null;
-    if ((query === null || query === void 0 ? void 0 : query.survey) && !asked)
-        throw new ReportError(404, 'unknown_survey');
-    // Scores of two kinds do not add up: "all" means every survey of the first one's kind.
-    const kind = asked ? kindOf(asked) : kindOf(all[0]);
-    const surveys = asked ? [asked] : all.filter((s) => kindOf(s) === kind);
-    return { kind, keys: surveys.map((s) => s.key), surveys };
+    return __awaiter(this, void 0, void 0, function* () {
+        const all = yield allSurveys();
+        if (!all.length)
+            throw new ReportError(404, 'no_survey');
+        const asked = typeof (query === null || query === void 0 ? void 0 : query.survey) === 'string' && query.survey ? all.find((s) => s.key === query.survey) : null;
+        if ((query === null || query === void 0 ? void 0 : query.survey) && !asked)
+            throw new ReportError(404, 'unknown_survey');
+        // Scores of two kinds do not add up: "all" means every survey of the first one's kind.
+        const kind = kindOf((asked !== null && asked !== void 0 ? asked : all[0]).questions);
+        const surveys = asked ? [asked] : all.filter((s) => kindOf(s.questions) === kind);
+        return { kind, keys: surveys.map((s) => s.key), surveys, one: asked !== null && asked !== void 0 ? asked : null };
+    });
 }
 /** Promoters 9–10, passives 7–8, detractors 0–6 for NPS; satisfied 4–5, neutral 3, unhappy 1–2 for CSAT. */
 function groups(kind) {
@@ -131,11 +133,12 @@ function totals(kind_1, keys_1, range_1) {
 }
 export function overview(query) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         const range = rangeOf(query);
-        const { kind, keys, surveys } = surveysOf(query);
+        const { kind, keys, surveys, one } = yield surveysOf(query);
         const scale = scaleOf(kind);
         const g = groups(kind);
-        const [current, previous, distribution, trend, subjects] = yield Promise.all([
+        const [current, previous, distribution, trend, subjects, questions] = yield Promise.all([
             totals(kind, keys, range),
             totals(kind, keys, previousOf(range), 'p_'),
             rows(`SELECT score, count(*)::int AS n FROM ${TABLE}
@@ -158,6 +161,8 @@ export function overview(query) {
               WHERE survey IN (:keys) AND status = 'answered' AND subject_label IS NOT NULL AND ${within('answered_at')}
               GROUP BY subject_label HAVING count(*) >= 3
               ORDER BY avg(score) ASC LIMIT 8`, Object.assign({ keys }, params(range))),
+            // The other questions, read one survey at a time: two surveys do not ask the same ones.
+            one ? Promise.all(((_a = one.questions) !== null && _a !== void 0 ? _a : []).slice(1).map((q) => questionReport(one.key, q, range))) : Promise.resolve([]),
         ]);
         const byScore = new Map(distribution.map((d) => [Number(d.score), d.n]));
         return {
@@ -170,7 +175,48 @@ export function overview(query) {
             distribution: Array.from({ length: scale.max - scale.min + 1 }, (_, i) => { var _a; return ({ score: scale.min + i, count: (_a = byScore.get(scale.min + i)) !== null && _a !== void 0 ? _a : 0 }); }),
             trend: trend.map((w) => ({ week: w.week, answered: w.answered, score: scoreOf(kind, w) })),
             subjects: subjects.map((s) => ({ label: s.label, answered: s.answered, score: scoreOf(kind, s), average: s.average })),
+            questions,
         };
+    });
+}
+/**
+ * How a question after the first was answered: the average of a rating, the
+ * count of each choice, the latest written answers. Choices taken off the
+ * survey since are kept, with no label.
+ */
+function questionReport(key, q, range) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const fallback = defaultLocaleOf(state.config);
+        const base = `FROM ${TABLE} WHERE survey = :key AND status = 'answered' AND ${within('answered_at')}`;
+        const replacements = Object.assign({ key, qid: q.id }, params(range));
+        const head = { id: q.id, type: q.type, label: localize(q.label, fallback, fallback) };
+        if (isRating(q.type)) {
+            const [r] = yield rows(`SELECT count(*)::int AS answered, avg((answers ->> :qid)::numeric)::float AS average
+               ${base} AND jsonb_typeof(answers -> :qid) = 'number'`, replacements);
+            return Object.assign(Object.assign({}, head), { answered: r.answered, average: r.average, scale: scaleOf(q.type) });
+        }
+        if (q.type === 'choice' || q.type === 'multiple') {
+            const [counts, [total]] = yield Promise.all([
+                q.type === 'choice'
+                    ? rows(`SELECT answers ->> :qid AS value, count(*)::int AS n ${base} AND jsonb_typeof(answers -> :qid) = 'string' GROUP BY 1`, replacements)
+                    : rows(`SELECT value, count(*)::int AS n
+                         FROM ${TABLE}, jsonb_array_elements_text(answers -> :qid) AS value
+                        WHERE survey = :key AND status = 'answered' AND jsonb_typeof(answers -> :qid) = 'array' AND ${within('answered_at')}
+                        GROUP BY 1`, replacements),
+                rows(`SELECT count(*)::int AS answered ${base} AND (answers -> :qid) IS NOT NULL`, replacements),
+            ]);
+            const byId = new Map(counts.map((c) => [String(c.value), c.n]));
+            const known = ((_a = q.options) !== null && _a !== void 0 ? _a : []).map((o) => { var _a; return ({ id: o.id, label: localize(o.label, fallback, fallback), count: (_a = byId.get(o.id)) !== null && _a !== void 0 ? _a : 0 }); });
+            const gone = [...byId.entries()].filter(([id]) => { var _a; return !((_a = q.options) !== null && _a !== void 0 ? _a : []).some((o) => o.id === id); }).map(([id, count]) => ({ id, label: null, count }));
+            return Object.assign(Object.assign({}, head), { answered: total.answered, options: [...known, ...gone] });
+        }
+        const [[total], latest] = yield Promise.all([
+            rows(`SELECT count(*)::int AS answered ${base} AND jsonb_typeof(answers -> :qid) = 'string'`, replacements),
+            rows(`SELECT id, answers ->> :qid AS text, answered_at ${base} AND jsonb_typeof(answers -> :qid) = 'string'
+              ORDER BY answered_at DESC, id DESC LIMIT 5`, replacements),
+        ]);
+        return Object.assign(Object.assign({}, head), { answered: total.answered, texts: latest });
     });
 }
 const PAGE = 30;
@@ -188,13 +234,13 @@ export function comments(query) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
         const range = rangeOf(query);
-        const { kind, keys } = surveysOf(query);
+        const { kind, keys } = yield surveysOf(query);
         const g = groups(kind);
         const group = (query === null || query === void 0 ? void 0 : query.group) === 'high' || (query === null || query === void 0 ? void 0 : query.group) === 'mid' || (query === null || query === void 0 ? void 0 : query.group) === 'low' ? query.group : null;
         const before = cursorOf(query === null || query === void 0 ? void 0 : query.before);
         const withText = (query === null || query === void 0 ? void 0 : query.all) !== '1';
         const limit = Math.min(Math.max(Number(query === null || query === void 0 ? void 0 : query.limit) || PAGE, 1), 50);
-        const list = yield rows(`SELECT id, survey, user_id, score, comment, subject_label, locale, platform, answered_at,
+        const list = yield rows(`SELECT id, survey, user_id, score, comment, answers, subject_label, locale, platform, answered_at,
                 to_char(answered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
            FROM ${TABLE}
           WHERE survey IN (:keys) AND status = 'answered' AND ${within('answered_at')}
@@ -215,12 +261,13 @@ export function comments(query) {
 /** Everything one person was asked, for their page in the back-office. */
 export function userResponses(userId) {
     return __awaiter(this, void 0, void 0, function* () {
-        const list = yield rows(`SELECT id, survey, status, score, comment, subject_label, available_at, answered_at
+        const list = yield rows(`SELECT id, survey, status, score, comment, answers, subject_label, available_at, answered_at
            FROM ${TABLE} WHERE user_id = :userId ORDER BY available_at DESC LIMIT 50`, { userId });
+        const surveys = new Map((yield allSurveys()).map((s) => [s.key, s]));
         return list.map((r) => {
-            var _a, _b;
-            const survey = (_a = state.config.surveys) === null || _a === void 0 ? void 0 : _a.find((s) => s.key === r.survey);
-            return Object.assign(Object.assign({}, r), { kind: survey ? kindOf(survey) : 'nps', title: (_b = survey === null || survey === void 0 ? void 0 : survey.title) !== null && _b !== void 0 ? _b : r.survey });
+            var _a;
+            const survey = surveys.get(r.survey);
+            return Object.assign(Object.assign({}, r), { kind: kindOf(survey === null || survey === void 0 ? void 0 : survey.questions), title: (_a = survey === null || survey === void 0 ? void 0 : survey.title) !== null && _a !== void 0 ? _a : r.survey });
         });
     });
 }

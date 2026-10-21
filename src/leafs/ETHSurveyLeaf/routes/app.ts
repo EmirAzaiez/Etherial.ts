@@ -4,8 +4,8 @@ import { Controller, Get, Post } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
 import { SurveyResponse } from '../models/SurveyResponse.js'
-import { surveyOf } from '../services/invitations.js'
-import { kindOf, languageOf, localize, scaleOf } from '../services/options.js'
+import { activeKeys, questionsFor, readAnswers, surveyByKey } from '../services/forms.js'
+import { defaultLocaleOf, kindOf, languageOf, scaleOf } from '../services/options.js'
 import { state } from '../services/state.js'
 
 type AuthedRequest = Request & { user: any }
@@ -20,8 +20,7 @@ function localeOf(req: Request): string {
         languageOf(req.query?.locale) ??
         languageOf(req.headers['x-app-locale']) ??
         languageOf(req.headers['accept-language']) ??
-        state.config.defaultLocale ??
-        'en'
+        defaultLocaleOf(state.config)
     )
 }
 
@@ -42,14 +41,15 @@ export default class ETHSurveyAppController {
     /**
      * GET /surveys/pending
      *
-     * The question waiting for the signed-in person, worded in their language,
+     * The survey waiting for the signed-in person, worded in their language,
      * or `null`. One at a time, the oldest first.
      */
     @Get('/surveys/pending')
     @ShouldBeAuthenticated()
     async pending(req: AuthedRequest, res: Response): Promise<any> {
         const now = new Date()
-        const known = (state.config.surveys ?? []).map((s) => s.key)
+        // A survey turned off no longer shows the questions still waiting.
+        const known = await activeKeys()
         const row = known.length
             ? await SurveyResponse.findOne({
                   where: {
@@ -62,12 +62,13 @@ export default class ETHSurveyAppController {
                   order: [['available_at', 'ASC']],
               })
             : null
-        const survey = row && surveyOf(row.survey)
-        if (!row || !survey) return (res as any).success({ status: 200, data: null })
+        const survey = row && (await surveyByKey(row.survey))
+        if (!row || !survey?.questions?.length) return (res as any).success({ status: 200, data: null })
 
         const locale = localeOf(req)
-        const fallback = state.config.defaultLocale ?? 'en'
-        const kind = kindOf(survey)
+        const kind = kindOf(survey.questions)
+        const questions = questionsFor(survey, locale)
+        const written = questions.find((q) => q.type === 'text')
         return (res as any).success({
             status: 200,
             data: {
@@ -75,36 +76,36 @@ export default class ETHSurveyAppController {
                 survey: survey.key,
                 kind,
                 scale: scaleOf(kind),
-                question: localize(survey.question, locale, fallback),
-                comment_prompt: localize(survey.commentPrompt, locale, fallback),
-                low_label: localize(survey.lowLabel, locale, fallback),
-                high_label: localize(survey.highLabel, locale, fallback),
+                questions,
                 subject_label: row.subject_label,
                 locale,
+                // Read by the app before several questions: the score, then one comment.
+                question: questions[0].label,
+                comment_prompt: written?.label ?? null,
+                low_label: questions[0].low_label ?? null,
+                high_label: questions[0].high_label ?? null,
             },
         })
     }
 
-    /** POST /surveys/:id/answer { score, comment? } */
+    /** POST /surveys/:id/answer { answers: { <question id>: value } } — or `{ score, comment? }` from an older app. */
     @Post('/surveys/:id/answer')
     @ShouldBeAuthenticated()
     async answer(req: AuthedRequest, res: Response): Promise<any> {
         const row = await ownRow(req)
-        const survey = row && surveyOf(row.survey)
+        const survey = row && (await surveyByKey(row.survey))
         if (!row || !survey) return (res as any).error({ status: 404, errors: ['not_found'] })
         if (row.status === 'answered') return (res as any).success({ status: 200, data: { id: row.id, status: row.status } })
-        if (row.status !== 'pending') return (res as any).error({ status: 410, errors: ['closed'] })
+        if (row.status !== 'pending' || !survey.active) return (res as any).error({ status: 410, errors: ['closed'] })
 
-        const { min, max } = scaleOf(kindOf(survey))
-        const score = Number(req.body?.score)
-        if (!Number.isInteger(score) || score < min || score > max) {
-            return (res as any).error({ status: 422, errors: [`score must be a whole number from ${min} to ${max}`] })
-        }
+        const read = readAnswers(survey, req.body)
+        if ('error' in read) return (res as any).error({ status: 422, errors: [read.error] })
         // Answered even a little late: the person took the time.
         await row.update({
             status: 'answered',
-            score,
-            comment: clip(req.body?.comment, 2000),
+            score: read.score,
+            comment: read.comment,
+            answers: read.answers,
             locale: localeOf(req),
             platform: clip(req.headers['x-app-platform'], 16),
             app_version: clip(req.headers['x-app-version'], 32),

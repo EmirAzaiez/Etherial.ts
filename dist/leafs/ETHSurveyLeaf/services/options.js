@@ -1,13 +1,25 @@
 // ──────────────────────────────────────────────────────────────────────────
 // What a project can tell the survey leaf, and the defaults it falls back to.
-// Nothing is asked of anyone until the project lists a survey and something
-// invites people to it: a trigger, or its own code calling `invite()`.
+// The surveys themselves are written in the back-office (table survey_forms):
+// the project only declares the events they can be asked after — an
+// appointment done, a ticket closed — and what each one can be narrowed to.
 // ──────────────────────────────────────────────────────────────────────────
+export const QUESTION_TYPES = ['nps', 'csat', 'choice', 'multiple', 'text'];
 export const RESPONSES_COLLECTION = 'survey-responses';
+/** Not `surveys`: that is the back-office's own page, where they are read. */
+export const FORMS_COLLECTION = 'survey-forms';
 export const APP_PREFIX = '/surveys';
 export const STATUSES = ['pending', 'answered', 'dismissed', 'expired'];
-export function kindOf(survey) {
-    return survey.kind === 'csat' ? 'csat' : 'nps';
+/** At most this many questions in a survey, and options in a question: it is read on a phone. */
+export const MAX_QUESTIONS = 10;
+export const MAX_OPTIONS = 12;
+export function isRating(type) {
+    return type === 'nps' || type === 'csat';
+}
+/** The kind of a survey: the one of its first question, the rating that scores it. */
+export function kindOf(questions) {
+    const first = Array.isArray(questions) ? questions[0] : null;
+    return (first === null || first === void 0 ? void 0 : first.type) === 'csat' ? 'csat' : 'nps';
 }
 export function scaleOf(kind) {
     return kind === 'csat' ? { min: 1, max: 5 } : { min: 0, max: 10 };
@@ -21,14 +33,25 @@ export function usersOptions(config) {
         fallback: (_h = (_g = config.users) === null || _g === void 0 ? void 0 : _g.fallback) !== null && _h !== void 0 ? _h : ['email', 'phone_number', 'phone'],
     };
 }
+export function defaultLocaleOf(config) {
+    var _a, _b, _c;
+    return (_c = (_a = config.defaultLocale) !== null && _a !== void 0 ? _a : (_b = config.locales) === null || _b === void 0 ? void 0 : _b[0]) !== null && _c !== void 0 ? _c : 'en';
+}
+/** The languages a question is written in, the default one first. */
+export function localesOf(config) {
+    var _a;
+    const fallback = defaultLocaleOf(config);
+    return [fallback, ...((_a = config.locales) !== null && _a !== void 0 ? _a : []).filter((l) => l !== fallback)];
+}
 /** The text in `locale`, else in the default language, else the first one written. */
 export function localize(text, locale, fallback) {
     var _a, _b, _c;
     if (text === undefined || text === null)
         return null;
     if (typeof text === 'string')
-        return text;
-    return (_c = (_b = (_a = text[locale]) !== null && _a !== void 0 ? _a : text[fallback]) !== null && _b !== void 0 ? _b : Object.values(text)[0]) !== null && _c !== void 0 ? _c : null;
+        return text.trim() || null;
+    const pick = (l) => (typeof text[l] === 'string' && text[l].trim() ? text[l].trim() : null);
+    return (_c = (_b = (_a = pick(locale)) !== null && _a !== void 0 ? _a : pick(fallback)) !== null && _b !== void 0 ? _b : Object.keys(text).map(pick).find((t) => t)) !== null && _c !== void 0 ? _c : null;
 }
 /** `ar-SA`, `AR`, `ar_SA` → `ar`. */
 export function languageOf(value) {

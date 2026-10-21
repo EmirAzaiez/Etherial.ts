@@ -19,15 +19,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import { Controller, Get } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
-import { RESPONSES_COLLECTION } from '../services/options.js';
+import { FORMS_COLLECTION, RESPONSES_COLLECTION } from '../services/options.js';
+import { adminInfoOf, allSurveys, eventOf } from '../services/forms.js';
 import { ReportError, comments, ensurePostgres, overview, userResponses } from '../services/reports.js';
 /** Whoever may list the answers may read the reports: one switch in a role's permissions. */
-function guard(req, res, run) {
-    return __awaiter(this, void 0, void 0, function* () {
+const readsAnswers = (adminLeaf, user) => adminLeaf.checkAccess(user, RESPONSES_COLLECTION, 'list');
+/** Whoever may write a survey may see what it can be narrowed to. */
+const writesSurveys = (adminLeaf, user) => __awaiter(void 0, void 0, void 0, function* () { return (yield adminLeaf.checkAccess(user, FORMS_COLLECTION, 'create')) || (yield adminLeaf.checkAccess(user, FORMS_COLLECTION, 'update')); });
+function guard(req_1, res_1, run_1) {
+    return __awaiter(this, arguments, void 0, function* (req, res, run, may = readsAnswers) {
         const adminLeaf = etherial.eth_admin_leaf;
-        const allowed = !!adminLeaf &&
-            (yield adminLeaf.canAccessAdmin(req.user)) &&
-            (yield adminLeaf.checkAccess(req.user, RESPONSES_COLLECTION, 'list'));
+        const allowed = !!adminLeaf && (yield adminLeaf.canAccessAdmin(req.user)) && (yield may(adminLeaf, req.user));
         if (!allowed)
             return res.error({ status: 403, errors: ['forbidden'] });
         try {
@@ -43,6 +45,32 @@ function guard(req, res, run) {
     });
 }
 let ETHSurveyAdminController = class ETHSurveyAdminController {
+    /** GET /admin/surveys — the surveys, on or off, for the Surveys page. */
+    list(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return guard(req, res, () => __awaiter(this, void 0, void 0, function* () { return ({ surveys: (yield allSurveys()).map(adminInfoOf) }); }));
+        });
+    }
+    /** GET /admin/surveys/targets?event= — the values a survey of this event can be narrowed to. */
+    targets(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return guard(req, res, () => __awaiter(this, void 0, void 0, function* () {
+                var _a, _b;
+                const event = eventOf((_a = req.query) === null || _a === void 0 ? void 0 : _a.event);
+                if (!event)
+                    throw new ReportError(404, 'unknown_event');
+                if (!event.target)
+                    return { label: null, options: [] };
+                const options = (_b = (yield event.target.options())) !== null && _b !== void 0 ? _b : [];
+                return {
+                    label: event.target.label,
+                    options: options
+                        .filter((o) => o && o.value !== undefined && o.value !== null && o.value !== '')
+                        .map((o) => { var _a; return (Object.assign({ value: String(o.value), label: String((_a = o.label) !== null && _a !== void 0 ? _a : o.value) }, (o.hint ? { hint: String(o.hint) } : {}))); }),
+                };
+            }), writesSurveys);
+        });
+    }
     /** GET /admin/surveys/overview?survey=&from=YYYY-MM-DD&to=YYYY-MM-DD */
     overview(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -65,6 +93,20 @@ let ETHSurveyAdminController = class ETHSurveyAdminController {
         });
     }
 };
+__decorate([
+    Get('/admin/surveys'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], ETHSurveyAdminController.prototype, "list", null);
+__decorate([
+    Get('/admin/surveys/targets'),
+    ShouldBeAuthenticated(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], ETHSurveyAdminController.prototype, "targets", null);
 __decorate([
     Get('/admin/surveys/overview'),
     ShouldBeAuthenticated(),

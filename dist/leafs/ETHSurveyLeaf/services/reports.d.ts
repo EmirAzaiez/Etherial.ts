@@ -1,4 +1,5 @@
-import { SurveyDefinition, SurveyKind } from './options.js';
+import type { SurveyForm } from '../models/SurveyForm.js';
+import { SurveyKind } from './options.js';
 export declare class ReportError extends Error {
     status: number;
     code: string;
@@ -13,12 +14,13 @@ export interface Range {
 export declare function ensurePostgres(): void;
 /** `?from=&to=` as calendar days; the last 90 days when not given (answers come slowly). Two years at most. */
 export declare function rangeOf(query: any): Range;
-/** The surveys read together: one, or all of the same kind. */
-export declare function surveysOf(query: any): {
+/** The surveys read together: one, or all of the same kind. Those turned off too: their answers stay. */
+export declare function surveysOf(query: any): Promise<{
     kind: SurveyKind;
     keys: string[];
-    surveys: SurveyDefinition[];
-};
+    surveys: SurveyForm[];
+    one: SurveyForm | null;
+}>;
 export declare function overview(query: any): Promise<{
     range: Range;
     kind: SurveyKind;
@@ -44,6 +46,7 @@ export declare function overview(query: any): Promise<{
         score: number;
         average: any;
     }[];
+    questions: any[];
 }>;
 /**
  * What people wrote, the latest answers first; `group` keeps the high, middle

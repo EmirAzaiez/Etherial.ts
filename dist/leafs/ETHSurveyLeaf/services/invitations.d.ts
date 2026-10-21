@@ -1,5 +1,6 @@
-import { SurveyDefinition, SurveyTrigger } from './options.js';
+import { SurveyEvent } from './options.js';
 export interface InviteInput {
+    /** The survey's key (`survey_forms.key`). */
     survey: string;
     user_id: number;
     /** What prompted it. Asking twice about the same thing is a no-op. */
@@ -16,9 +17,8 @@ export type InviteResult = {
     id: number;
 } | {
     invited: false;
-    reason: 'unknown_survey' | 'excluded' | 'cooldown' | 'already_asked' | 'no_user';
+    reason: 'unknown_survey' | 'inactive' | 'excluded' | 'cooldown' | 'already_asked' | 'no_user';
 };
-export declare function surveyOf(key: string): SurveyDefinition | undefined;
 /**
  * Puts a survey to someone. It opens after the survey's delay and closes when
  * it expires. Nobody is asked twice about the same thing, nor more than once
@@ -32,5 +32,5 @@ export declare function invite(input: InviteInput): Promise<InviteResult>;
 export declare function notifyDue(): Promise<void>;
 /** Questions left open past their date are closed, so the lists and the response rate stay right. */
 export declare function expireDue(): Promise<number>;
-/** Hooks each trigger on its model. Unknown models are reported, not fatal. */
-export declare function attachTriggers(triggers: SurveyTrigger[]): void;
+/** Hooks each event on its model. Unknown models are reported, not fatal. */
+export declare function attachEvents(events: SurveyEvent[]): void;
