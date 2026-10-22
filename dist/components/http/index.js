@@ -70,7 +70,7 @@ class Http {
                                 // controller: (await import(filePath)).default
                             },
                         ];
-                        promises.push(import(filePath));
+                        promises.push(import(require("url").pathToFileURL(filePath).href));
                     }
                     const begin = Date.now();
                     yield Promise.all(promises).then((pro) => {

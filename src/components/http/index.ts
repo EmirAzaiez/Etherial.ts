@@ -1,6 +1,7 @@
 import express from 'express'
 import { RouteDefinition, Response, Request, NextFunction } from './provider'
 import http from 'http'
+import { pathToFileURL } from 'url'
 
 import { IEtherialModule } from '../../index'
 
@@ -80,7 +81,7 @@ export class Http implements IEtherialModule {
                             },
                         ]
 
-                        promises.push(import(filePath))
+                        promises.push(import(pathToFileURL(filePath).href))
                     }
 
                     const begin = Date.now()
