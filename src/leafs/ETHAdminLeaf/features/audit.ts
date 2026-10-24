@@ -382,7 +382,8 @@ function attach(audit: ModelAudit, limit: number) {
 // ── Wiring ────────────────────────────────────────────────────────────────
 
 // Logs of their own, written in bulk: auditing them would double every write.
-const LEAF_COLLECTIONS = new Set([AUDIT_COLLECTION, 'admin-logins', 'analytics-events', 'analytics-sessions'])
+// The outgoing syncs too: each send rewrites its row.
+const LEAF_COLLECTIONS = new Set([AUDIT_COLLECTION, 'admin-logins', 'analytics-events', 'analytics-sessions', 'external-syncs'])
 let auditedModels = new Map<any, ModelAudit>()
 
 /**
