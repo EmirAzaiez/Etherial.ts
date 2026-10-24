@@ -1,4 +1,11 @@
 import { Model } from '../../../components/database/provider.js';
+/**
+ * Tells the orphan cleanup about media ids no column holds: photos listed in
+ * a JSON column, say. Without it, `cleanup:orphans` deletes them.
+ *
+ *     registerMediaReferences(async () => (await Case.findAll({ attributes: ['attachments'] })).flatMap((c) => c.attachments.map((a) => a.id)))
+ */
+export declare function registerMediaReferences(list: () => Promise<Iterable<number | string>>): void;
 export declare enum MediaStatus {
     PENDING = "pending",
     UPLOADED = "uploaded"
@@ -65,8 +72,8 @@ export declare class BaseMedia extends Model<BaseMedia> {
      */
     isDocument(): boolean;
     /**
-     * Find all models that reference Media via BelongsTo associations
-     * Scans all registered Sequelize models automatically
+     * Every column holding a media id: the `@BelongsTo(() => Media)` of the
+     * registered models, and the join tables of their `@BelongsToMany`.
      *
      * @returns Array of { model, field, modelName } for each reference found
      */
@@ -76,11 +83,20 @@ export declare class BaseMedia extends Model<BaseMedia> {
         modelName: string;
     }[];
     /**
-     * Find all orphan medias (confirmed but not referenced by any model)
+     * Uploaded medias nothing points to: no column found by
+     * `findAllReferences`, nor any id the project lists through
+     * `registerMediaReferences` (ids kept in JSON). Only those uploaded more
+     * than `olderThanMs` ago (default a day): a form may still be about to
+     * save the one just uploaded.
+     *
+     * A reference that can't be read stops the search: deleting on a partial
+     * list would remove files in use.
      *
      * @param limit Max number of orphans to return (default: 100)
      * @returns Array of orphan Media records
      */
-    static findOrphans(limit?: number): Promise<BaseMedia[]>;
+    static findOrphans(limit?: number, options?: {
+        olderThanMs?: number;
+    }): Promise<BaseMedia[]>;
 }
 export { BaseMedia as Media };

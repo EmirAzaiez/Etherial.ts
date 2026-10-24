@@ -3,6 +3,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { Request } from 'etherial/components/http/provider';
 import { BaseMedia as Media } from './models/Media.js';
 import { BaseMediaQuota as MediaQuota } from './models/MediaQuota.js';
+export { registerMediaReferences } from './models/Media.js';
 export type MediaAccessChecker = (req: Request & {
     user?: any;
 }, media: Media) => boolean | Promise<boolean>;

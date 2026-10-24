@@ -9,6 +9,20 @@ import {
     DataType,
     Default,
 } from '../../../components/database/provider.js'
+import { Op } from 'sequelize'
+
+/** Lists of media ids kept where no column points to them (JSON). */
+const mediaReferenceLists: (() => Promise<Iterable<number | string>>)[] = []
+
+/**
+ * Tells the orphan cleanup about media ids no column holds: photos listed in
+ * a JSON column, say. Without it, `cleanup:orphans` deletes them.
+ *
+ *     registerMediaReferences(async () => (await Case.findAll({ attributes: ['attachments'] })).flatMap((c) => c.attachments.map((a) => a.id)))
+ */
+export function registerMediaReferences(list: () => Promise<Iterable<number | string>>): void {
+    mediaReferenceLists.push(list)
+}
 
 export enum MediaStatus {
     PENDING = 'pending',
@@ -167,8 +181,8 @@ export class BaseMedia extends Model<BaseMedia> {
     }
 
     /**
-     * Find all models that reference Media via BelongsTo associations
-     * Scans all registered Sequelize models automatically
+     * Every column holding a media id: the `@BelongsTo(() => Media)` of the
+     * registered models, and the join tables of their `@BelongsToMany`.
      *
      * @returns Array of { model, field, modelName } for each reference found
      */
@@ -177,18 +191,17 @@ export class BaseMedia extends Model<BaseMedia> {
         const sequelize = (this as any).sequelize
 
         if (!sequelize) return references
+        const table = (this as any).tableName ?? 'medias'
 
         for (const [modelName, model] of Object.entries(sequelize.models) as [string, any][]) {
             if (!model.associations) continue
 
             for (const assoc of Object.values(model.associations) as any[]) {
-                // Check if this is a BelongsTo pointing to medias table
-                if (assoc.associationType === 'BelongsTo' && assoc.target?.tableName === 'medias') {
-                    references.push({
-                        model,
-                        field: assoc.foreignKey,
-                        modelName,
-                    })
+                if (assoc.target?.tableName !== table) continue
+                if (assoc.associationType === 'BelongsTo') {
+                    references.push({ model, field: assoc.foreignKey, modelName })
+                } else if (assoc.associationType === 'BelongsToMany' && assoc.through?.model) {
+                    references.push({ model: assoc.through.model, field: assoc.otherKey, modelName: `${modelName} (${assoc.through.model.name})` })
                 }
             }
         }
@@ -197,53 +210,53 @@ export class BaseMedia extends Model<BaseMedia> {
     }
 
     /**
-     * Find all orphan medias (confirmed but not referenced by any model)
+     * Uploaded medias nothing points to: no column found by
+     * `findAllReferences`, nor any id the project lists through
+     * `registerMediaReferences` (ids kept in JSON). Only those uploaded more
+     * than `olderThanMs` ago (default a day): a form may still be about to
+     * save the one just uploaded.
+     *
+     * A reference that can't be read stops the search: deleting on a partial
+     * list would remove files in use.
      *
      * @param limit Max number of orphans to return (default: 100)
      * @returns Array of orphan Media records
      */
-    static async findOrphans(limit: number = 100): Promise<BaseMedia[]> {
-        const { Op } = require('sequelize')
+    static async findOrphans(limit: number = 100, options: { olderThanMs?: number } = {}): Promise<BaseMedia[]> {
         const references = this.findAllReferences()
+        const cutoff = new Date(Date.now() - (options.olderThanMs ?? 24 * 60 * 60 * 1000))
 
-        // Get all confirmed media IDs
         const allMedias = await this.findAll({
-            where: { status: 'confirmed' },
+            where: { status: MediaStatus.UPLOADED, created_at: { [Op.lt]: cutoff } } as any,
             attributes: ['id'],
             raw: true,
         })
 
         if (allMedias.length === 0) return []
 
-        // Collect all used media IDs
         const usedMediaIds = new Set<number>()
 
         for (const ref of references) {
-            try {
-                const records = await ref.model.findAll({
-                    where: { [ref.field]: { [Op.ne]: null } },
-                    attributes: [ref.field],
-                    raw: true,
-                })
-                for (const record of records) {
-                    if (record[ref.field]) {
-                        usedMediaIds.add(record[ref.field])
-                    }
-                }
-            } catch (err) {
-                // Skip models that fail (e.g., table doesn't exist yet)
+            const records = await ref.model.findAll({
+                where: { [ref.field]: { [Op.ne]: null } },
+                attributes: [ref.field],
+                raw: true,
+            })
+            for (const record of records) {
+                if (record[ref.field]) usedMediaIds.add(Number(record[ref.field]))
             }
         }
+        for (const list of mediaReferenceLists) {
+            for (const id of await list()) usedMediaIds.add(Number(id))
+        }
 
-        // Find orphan IDs
         const orphanIds = allMedias
-            .filter(m => !usedMediaIds.has(m.id))
+            .filter(m => !usedMediaIds.has(Number(m.id)))
             .map(m => m.id)
             .slice(0, limit)
 
         if (orphanIds.length === 0) return []
 
-        // Return full Media records
         return await this.findAll({
             where: { id: { [Op.in]: orphanIds } },
         })

@@ -7,14 +7,26 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import etherial from 'etherial';
 import * as path from 'path';
+import { Op } from 'sequelize';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { PutBucketCorsCommand, S3Client, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { PutBucketCorsCommand, S3Client, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { BaseMedia as Media } from './models/Media.js';
-import { BaseMediaQuota as MediaQuota } from './models/MediaQuota.js';
 import sharp from 'sharp';
+export { registerMediaReferences } from './models/Media.js';
+/**
+ * The project's own models, which give the bases their table: the bases
+ * themselves are never initialized, a query on them throws.
+ */
+function projectModel(name) {
+    var _a, _b, _c;
+    const model = (_c = (_b = (_a = etherial.database) === null || _a === void 0 ? void 0 : _a.sequelize) === null || _b === void 0 ? void 0 : _b.models) === null || _c === void 0 ? void 0 : _c[name];
+    if (!model)
+        throw new Error(`[ETHMediaLeaf] No ${name} model: the project declares one extending Base${name}`);
+    return model;
+}
 export default class EthMediaLeaf {
     constructor(config) {
         this.etherial_module_name = 'eth_media_leaf';
@@ -157,9 +169,10 @@ export default class EthMediaLeaf {
      */
     getOrCreateQuota(userId) {
         return __awaiter(this, void 0, void 0, function* () {
-            let quota = yield MediaQuota.findOne({ where: { user_id: userId } });
+            const Quota = projectModel('MediaQuota');
+            let quota = yield Quota.findOne({ where: { user_id: userId } });
             if (!quota) {
-                quota = yield MediaQuota.create({ user_id: userId });
+                quota = yield Quota.create({ user_id: userId });
             }
             return quota;
         });
@@ -382,9 +395,8 @@ export default class EthMediaLeaf {
                 description: 'Delete pending uploads older than 24 hours.',
                 action: () => __awaiter(this, void 0, void 0, function* () {
                     try {
-                        const { Op } = require('sequelize');
                         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-                        const pendingMedias = yield Media.findAll({
+                        const pendingMedias = yield projectModel('Media').findAll({
                             where: {
                                 status: 'pending',
                                 created_at: { [Op.lt]: cutoff },
@@ -420,7 +432,8 @@ export default class EthMediaLeaf {
                         console.log(`   Mode: ${dryRun ? 'DRY RUN (no deletions)' : 'LIVE (will delete)'}`);
                         console.log(`   Limit: ${limit}`);
                         // Auto-detect all models that reference Media
-                        const references = Media.findAllReferences();
+                        const ProjectMedia = projectModel('Media');
+                        const references = ProjectMedia.findAllReferences();
                         if (references.length === 0) {
                             return {
                                 success: false,
@@ -432,7 +445,7 @@ export default class EthMediaLeaf {
                             console.log(`      - ${ref.modelName}.${ref.field}`);
                         }
                         // Find orphans using Media's static method
-                        const orphans = yield Media.findOrphans(limit);
+                        const orphans = yield ProjectMedia.findOrphans(limit);
                         console.log(`\n🗑️  Orphan medias found: ${orphans.length}`);
                         if (orphans.length === 0) {
                             return { success: true, message: 'No orphan medias found. All medias are in use!' };
@@ -516,7 +529,6 @@ export default class EthMediaLeaf {
                 action: (options) => __awaiter(this, void 0, void 0, function* () {
                     var _a;
                     try {
-                        const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
                         const config = this.getTransformConfig();
                         const cacheFolder = config.cacheFolder;
                         const daysOld = parseInt(options.days || '30', 10);

@@ -17,6 +17,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt, DataType, Default, } from '../../../components/database/provider.js';
+import { Op } from 'sequelize';
+/** Lists of media ids kept where no column points to them (JSON). */
+const mediaReferenceLists = [];
+/**
+ * Tells the orphan cleanup about media ids no column holds: photos listed in
+ * a JSON column, say. Without it, `cleanup:orphans` deletes them.
+ *
+ *     registerMediaReferences(async () => (await Case.findAll({ attributes: ['attachments'] })).flatMap((c) => c.attachments.map((a) => a.id)))
+ */
+export function registerMediaReferences(list) {
+    mediaReferenceLists.push(list);
+}
 export var MediaStatus;
 (function (MediaStatus) {
     MediaStatus["PENDING"] = "pending";
@@ -97,78 +109,81 @@ export class BaseMedia extends Model {
         return docTypes.includes(this.mime_type);
     }
     /**
-     * Find all models that reference Media via BelongsTo associations
-     * Scans all registered Sequelize models automatically
+     * Every column holding a media id: the `@BelongsTo(() => Media)` of the
+     * registered models, and the join tables of their `@BelongsToMany`.
      *
      * @returns Array of { model, field, modelName } for each reference found
      */
     static findAllReferences() {
-        var _a;
+        var _a, _b, _c;
         const references = [];
         const sequelize = this.sequelize;
         if (!sequelize)
             return references;
+        const table = (_a = this.tableName) !== null && _a !== void 0 ? _a : 'medias';
         for (const [modelName, model] of Object.entries(sequelize.models)) {
             if (!model.associations)
                 continue;
             for (const assoc of Object.values(model.associations)) {
-                // Check if this is a BelongsTo pointing to medias table
-                if (assoc.associationType === 'BelongsTo' && ((_a = assoc.target) === null || _a === void 0 ? void 0 : _a.tableName) === 'medias') {
-                    references.push({
-                        model,
-                        field: assoc.foreignKey,
-                        modelName,
-                    });
+                if (((_b = assoc.target) === null || _b === void 0 ? void 0 : _b.tableName) !== table)
+                    continue;
+                if (assoc.associationType === 'BelongsTo') {
+                    references.push({ model, field: assoc.foreignKey, modelName });
+                }
+                else if (assoc.associationType === 'BelongsToMany' && ((_c = assoc.through) === null || _c === void 0 ? void 0 : _c.model)) {
+                    references.push({ model: assoc.through.model, field: assoc.otherKey, modelName: `${modelName} (${assoc.through.model.name})` });
                 }
             }
         }
         return references;
     }
     /**
-     * Find all orphan medias (confirmed but not referenced by any model)
+     * Uploaded medias nothing points to: no column found by
+     * `findAllReferences`, nor any id the project lists through
+     * `registerMediaReferences` (ids kept in JSON). Only those uploaded more
+     * than `olderThanMs` ago (default a day): a form may still be about to
+     * save the one just uploaded.
+     *
+     * A reference that can't be read stops the search: deleting on a partial
+     * list would remove files in use.
      *
      * @param limit Max number of orphans to return (default: 100)
      * @returns Array of orphan Media records
      */
     static findOrphans() {
-        return __awaiter(this, arguments, void 0, function* (limit = 100) {
-            const { Op } = require('sequelize');
+        return __awaiter(this, arguments, void 0, function* (limit = 100, options = {}) {
+            var _a;
             const references = this.findAllReferences();
-            // Get all confirmed media IDs
+            const cutoff = new Date(Date.now() - ((_a = options.olderThanMs) !== null && _a !== void 0 ? _a : 24 * 60 * 60 * 1000));
             const allMedias = yield this.findAll({
-                where: { status: 'confirmed' },
+                where: { status: MediaStatus.UPLOADED, created_at: { [Op.lt]: cutoff } },
                 attributes: ['id'],
                 raw: true,
             });
             if (allMedias.length === 0)
                 return [];
-            // Collect all used media IDs
             const usedMediaIds = new Set();
             for (const ref of references) {
-                try {
-                    const records = yield ref.model.findAll({
-                        where: { [ref.field]: { [Op.ne]: null } },
-                        attributes: [ref.field],
-                        raw: true,
-                    });
-                    for (const record of records) {
-                        if (record[ref.field]) {
-                            usedMediaIds.add(record[ref.field]);
-                        }
-                    }
-                }
-                catch (err) {
-                    // Skip models that fail (e.g., table doesn't exist yet)
+                const records = yield ref.model.findAll({
+                    where: { [ref.field]: { [Op.ne]: null } },
+                    attributes: [ref.field],
+                    raw: true,
+                });
+                for (const record of records) {
+                    if (record[ref.field])
+                        usedMediaIds.add(Number(record[ref.field]));
                 }
             }
-            // Find orphan IDs
+            for (const list of mediaReferenceLists) {
+                for (const id of yield list())
+                    usedMediaIds.add(Number(id));
+            }
             const orphanIds = allMedias
-                .filter(m => !usedMediaIds.has(m.id))
+                .filter(m => !usedMediaIds.has(Number(m.id)))
                 .map(m => m.id)
                 .slice(0, limit);
             if (orphanIds.length === 0)
                 return [];
-            // Return full Media records
             return yield this.findAll({
                 where: { id: { [Op.in]: orphanIds } },
             });

@@ -1,16 +1,29 @@
-import { Etherial } from 'etherial'
+import etherial, { Etherial } from 'etherial'
 import * as path from 'path'
+import { Op } from 'sequelize'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-import { PutBucketCorsCommand, S3Client, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { PutBucketCorsCommand, S3Client, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 import { Request } from 'etherial/components/http/provider'
 import { BaseMedia as Media } from './models/Media.js'
 import { BaseMediaQuota as MediaQuota } from './models/MediaQuota.js'
 import sharp from 'sharp'
+
+export { registerMediaReferences } from './models/Media.js'
+
+/**
+ * The project's own models, which give the bases their table: the bases
+ * themselves are never initialized, a query on them throws.
+ */
+function projectModel<T>(name: 'Media' | 'MediaQuota'): T {
+    const model = (etherial as any).database?.sequelize?.models?.[name]
+    if (!model) throw new Error(`[ETHMediaLeaf] No ${name} model: the project declares one extending Base${name}`)
+    return model
+}
 
 // Type for the access control callback
 export type MediaAccessChecker = (req: Request & { user?: any }, media: Media) => boolean | Promise<boolean>
@@ -244,9 +257,10 @@ export default class EthMediaLeaf {
      * Get or create quota for a user
      */
     async getOrCreateQuota(userId: number): Promise<MediaQuota> {
-        let quota = await MediaQuota.findOne({ where: { user_id: userId } })
+        const Quota = projectModel<typeof MediaQuota>('MediaQuota')
+        let quota = await Quota.findOne({ where: { user_id: userId } })
         if (!quota) {
-            quota = await MediaQuota.create({ user_id: userId })
+            quota = await Quota.create({ user_id: userId })
         }
         return quota
     }
@@ -479,10 +493,9 @@ export default class EthMediaLeaf {
                 description: 'Delete pending uploads older than 24 hours.',
                 action: async () => {
                     try {
-                        const { Op } = require('sequelize')
                         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-                        const pendingMedias = await Media.findAll({
+                        const pendingMedias = await projectModel<typeof Media>('Media').findAll({
                             where: {
                                 status: 'pending',
                                 created_at: { [Op.lt]: cutoff },
@@ -520,7 +533,8 @@ export default class EthMediaLeaf {
                         console.log(`   Limit: ${limit}`)
 
                         // Auto-detect all models that reference Media
-                        const references = Media.findAllReferences()
+                        const ProjectMedia = projectModel<typeof Media>('Media')
+                        const references = ProjectMedia.findAllReferences()
 
                         if (references.length === 0) {
                             return {
@@ -535,7 +549,7 @@ export default class EthMediaLeaf {
                         }
 
                         // Find orphans using Media's static method
-                        const orphans = await Media.findOrphans(limit)
+                        const orphans = await ProjectMedia.findOrphans(limit)
 
                         console.log(`\n🗑️  Orphan medias found: ${orphans.length}`)
 
@@ -625,7 +639,6 @@ export default class EthMediaLeaf {
                 ],
                 action: async (options: { days?: string; dryRun?: boolean }) => {
                     try {
-                        const { ListObjectsV2Command } = require('@aws-sdk/client-s3') as typeof import('@aws-sdk/client-s3')
                         const config = this.getTransformConfig()
                         const cacheFolder = config.cacheFolder
                         const daysOld = parseInt(options.days || '30', 10)
