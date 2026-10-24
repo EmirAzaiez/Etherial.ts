@@ -3,6 +3,7 @@ import * as path from 'path'
 import { fileURLToPath } from 'url'
 
 import { runExclusive } from '../../components/database/lock.js'
+import { registerSync, registerSyncAdmin, startSync } from '../../components/sync/index.js'
 import { SurveyForm } from './models/SurveyForm.js'
 import { SurveyResponse } from './models/SurveyResponse.js'
 import { registerSurveyFormsAdmin } from './admin/forms.js'
@@ -60,11 +61,20 @@ export default class ETHSurveyLeaf {
     beforeRun({ database }: Etherial) {
         database?.addModels([SurveyForm, SurveyResponse] as any)
         registerSurveyFormsAdmin((etherial as any).eth_admin_leaf, this.config)
+        if (this.config.sync) {
+            registerSync(RESPONSES_COLLECTION, {
+                ...this.config.sync,
+                model: () => SurveyResponse,
+                // An answer, not a question waiting or put away.
+                track: { when: (response) => response.status === 'answered' },
+            })
+        }
     }
 
     /** Lifecycle: run — routes, and the clock that opens and closes questions. */
     run({ http }: Etherial) {
         http?.routes_leafs?.push(...this.routes)
+        startSync()
         const tick = async () => {
             try {
                 // One server per minute: the rows are claimed one by one, so a
@@ -91,6 +101,7 @@ export default class ETHSurveyLeaf {
 
         const adminLeaf = (etherial as any).eth_admin_leaf
         if (!adminLeaf?.registerCollection) return
+        registerSyncAdmin(adminLeaf)
         const users = usersOptions(this.config)
         const hasUsers = !!adminLeaf.getCollection?.(users.collection)
         if (!adminLeaf.getCollection(RESPONSES_COLLECTION)) adminLeaf.registerCollection(responsesCollection(users.collection, hasUsers))

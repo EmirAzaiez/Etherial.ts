@@ -1,3 +1,5 @@
+import type { LeafSync } from '../../../components/sync/index.js'
+
 // ──────────────────────────────────────────────────────────────────────────
 // What a project can tell the survey leaf, and the defaults it falls back to.
 // The surveys themselves are written in the back-office (table survey_forms):
@@ -154,6 +156,12 @@ export interface ETHSurveyLeafConfig {
      */
     closed?: (invitation: SurveyInvitationInfo, status: Exclude<SurveyStatus, 'pending'>) => Promise<void> | void
     users?: SurveyUsersConfig
+    /**
+     * Sends each answer to an outside system (a survey record in Salesforce…)
+     * with the project's own code: once answered, then again if it changes.
+     * Retries, errors and "Resend" are in the back-office's Outgoing syncs.
+     */
+    sync?: LeafSync
 }
 
 export const RESPONSES_COLLECTION = 'survey-responses'

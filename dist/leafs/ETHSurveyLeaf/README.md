@@ -88,8 +88,28 @@ export const surveysConfig: ETHSurveyLeafConfig = {
 | `notifyHours` | à toute heure | `[9, 21]` : `notify` ne tourne que de 9 h à 21 h, dans `timezone`. Une question qui s'ouvre la nuit est annoncée le lendemain matin. `[21, 8]` passe minuit. |
 | `closed` | aucun | `(invitation, status) => void`. Appelé quand une question se ferme : `answered`, `dismissed` ou `expired`. Sert à reprendre ce que `notify` a laissé, la ligne dans la boîte de l'app par exemple. |
 | `users` | voir ci-dessous | Comment retrouver et nommer les utilisateurs. |
+| `sync` | aucun | `{ send, link?, label? }`. Copie chaque réponse dans un système extérieur (Salesforce…) une fois écrite. Voir ci-dessous. |
 
 `users` : `collection` (la collection du back-office, `users` par défaut), `model` (le modèle Sequelize, `User`), `name` (les champs joints pour nommer quelqu'un, `['first_name', 'last_name']`), `fallback` (utilisés si le nom est vide, `['email', 'phone_number', 'phone']`).
+
+### Envoyer les réponses ailleurs (`sync`)
+
+Sans `sync`, rien ne sort. Avec, le leaf appelle `send` après chaque réponse enregistrée (statut `answered`, pas les questions en attente, refusées ou expirées), une fois la transaction validée :
+
+```ts
+sync: {
+    label: 'Salesforce',
+    // `externalId` : l'id rendu par le dernier envoi réussi, null la première fois.
+    send: async (response, { externalId, changes }) => {
+        const id = await monCodeQuiEcritChezEux(response, externalId)
+        return { externalId: id }
+    },
+    // Facultatif : le lien « ouvrir là-bas » dans le back-office.
+    link: (externalId) => `https://exemple.my.salesforce.com/${externalId}`,
+},
+```
+
+`send` est du code du projet : le leaf ne connaît aucun CRM. S'il lève une erreur, l'envoi est retenté (1 min, 5 min, 30 min, 2 h, 6 h), puis bloqué jusqu'à la prochaine modification ou un **Resend**. Le back-office montre chaque envoi, son erreur et le bouton **Resend** (**System → Outgoing syncs**), et permet de suspendre une cible (**Sync targets**). Le fonctionnement commun est décrit dans `components/sync/README.md`.
 
 ---
 

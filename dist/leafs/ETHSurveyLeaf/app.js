@@ -11,6 +11,7 @@ import etherial from 'etherial';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { runExclusive } from '../../components/database/lock.js';
+import { registerSync, registerSyncAdmin, startSync } from '../../components/sync/index.js';
 import { SurveyForm } from './models/SurveyForm.js';
 import { SurveyResponse } from './models/SurveyResponse.js';
 import { registerSurveyFormsAdmin } from './admin/forms.js';
@@ -51,11 +52,17 @@ export default class ETHSurveyLeaf {
     beforeRun({ database }) {
         database === null || database === void 0 ? void 0 : database.addModels([SurveyForm, SurveyResponse]);
         registerSurveyFormsAdmin(etherial.eth_admin_leaf, this.config);
+        if (this.config.sync) {
+            registerSync(RESPONSES_COLLECTION, Object.assign(Object.assign({}, this.config.sync), { model: () => SurveyResponse, 
+                // An answer, not a question waiting or put away.
+                track: { when: (response) => response.status === 'answered' } }));
+        }
     }
     /** Lifecycle: run — routes, and the clock that opens and closes questions. */
     run({ http }) {
         var _a, _b, _c, _d, _e;
         (_a = http === null || http === void 0 ? void 0 : http.routes_leafs) === null || _a === void 0 ? void 0 : _a.push(...this.routes);
+        startSync();
         const tick = () => __awaiter(this, void 0, void 0, function* () {
             try {
                 // One server per minute: the rows are claimed one by one, so a
@@ -83,6 +90,7 @@ export default class ETHSurveyLeaf {
         const adminLeaf = etherial.eth_admin_leaf;
         if (!(adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.registerCollection))
             return;
+        registerSyncAdmin(adminLeaf);
         const users = usersOptions(this.config);
         const hasUsers = !!((_b = adminLeaf.getCollection) === null || _b === void 0 ? void 0 : _b.call(adminLeaf, users.collection));
         if (!adminLeaf.getCollection(RESPONSES_COLLECTION))

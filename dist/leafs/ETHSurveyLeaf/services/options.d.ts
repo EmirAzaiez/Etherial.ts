@@ -1,3 +1,4 @@
+import type { LeafSync } from '../../../components/sync/index.js';
 /** A text in each language the app speaks: `{ en: '…', ar: '…' }`, or one text for all. */
 export type Localized = string | Record<string, string>;
 /**
@@ -136,6 +137,12 @@ export interface ETHSurveyLeafConfig {
      */
     closed?: (invitation: SurveyInvitationInfo, status: Exclude<SurveyStatus, 'pending'>) => Promise<void> | void;
     users?: SurveyUsersConfig;
+    /**
+     * Sends each answer to an outside system (a survey record in Salesforce…)
+     * with the project's own code: once answered, then again if it changes.
+     * Retries, errors and "Resend" are in the back-office's Outgoing syncs.
+     */
+    sync?: LeafSync;
 }
 export declare const RESPONSES_COLLECTION = "survey-responses";
 /** Not `surveys`: that is the back-office's own page, where they are read. */

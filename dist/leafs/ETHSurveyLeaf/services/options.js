@@ -1,9 +1,3 @@
-// ──────────────────────────────────────────────────────────────────────────
-// What a project can tell the survey leaf, and the defaults it falls back to.
-// The surveys themselves are written in the back-office (table survey_forms):
-// the project only declares the events they can be asked after — an
-// appointment done, a ticket closed — and what each one can be narrowed to.
-// ──────────────────────────────────────────────────────────────────────────
 export const QUESTION_TYPES = ['nps', 'csat', 'choice', 'multiple', 'text'];
 export const RESPONSES_COLLECTION = 'survey-responses';
 /** Not `surveys`: that is the back-office's own page, where they are read. */
