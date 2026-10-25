@@ -3,9 +3,17 @@ import type { Request, Response } from 'express'
 import { Controller, Get } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
 
-import { APPOINTMENTS_COLLECTION, BO_SUBJECT_FIELD, projectModel, state, subjectWord, timezoneOf } from '../services/options.js'
+import { BO_SUBJECT_FIELD, collectionNames, projectModel, state, subjectWord, timezoneOf } from '../services/options.js'
 import { customerQuota } from '../services/quota.js'
-import { agentLabel, getSlots, resolveSchedulerForStaff, resolveSchedulersForStaff, schedulerLabel, schedulerRoster } from '../services/repository.js'
+import {
+    agentLabel,
+    getSlots,
+    resolveSchedulerForStaff,
+    resolveSchedulersForStaff,
+    schedulerLabel,
+    schedulerRoster,
+    subjectClosedReason,
+} from '../services/repository.js'
 import { zonedDayKey } from '../services/slots.js'
 
 type AuthedRequest = Request & { user: any }
@@ -14,7 +22,8 @@ type AuthedRequest = Request & { user: any }
 async function canBook(user: any): Promise<boolean> {
     const adminLeaf = (etherial as any).eth_admin_leaf
     if (!adminLeaf || !(await adminLeaf.canAccessAdmin(user))) return false
-    return (await adminLeaf.checkAccess(user, APPOINTMENTS_COLLECTION, 'create')) || (await adminLeaf.checkAccess(user, APPOINTMENTS_COLLECTION, 'update'))
+    const { appointments } = collectionNames()
+    return (await adminLeaf.checkAccess(user, appointments, 'create')) || (await adminLeaf.checkAccess(user, appointments, 'update'))
 }
 
 /** The fallback when the scheduler says nothing: two months, as the app. */
@@ -80,10 +89,11 @@ export default class ETHBookingAdminController {
         // hours, and staff may see them to decide to force. The app's switch
         // closes the app, not the back-office.
         const { schedulers } = await resolveSchedulersForStaff(unit)
+        const visitType = state.config.admin?.visitType
         const schedulerOptions = schedulers.map((entry) => ({
             id: entry.scheduler.id,
             label: schedulerLabel(entry.scheduler),
-            visit_type: entry.scheduler.kind,
+            visit_type: visitType ? visitType(entry.scheduler) : entry.scheduler.kind,
             closed_reason: entry.closedReason,
         }))
 
@@ -144,6 +154,9 @@ export default class ETHBookingAdminController {
             }
         }
 
+        // The project's own rule on the subject (a unit not ready): its slots show, booking needs forcing.
+        const subjectClosed = await subjectClosedReason(scheduler, unit)
+        reasons.push(subjectClosed)
         const blocking = reasons.filter(Boolean)
 
         return (res as any).success({
@@ -152,7 +165,7 @@ export default class ETHBookingAdminController {
                 timezone: tz,
                 scheduler: { id: scheduler.id, label: schedulerLabel(scheduler) },
                 schedulers: schedulerOptions,
-                open_for_unit: !closedReason,
+                open_for_unit: !closedReason && !subjectClosed,
                 blocked_reason: blocking.length ? `${blocking.join(' ')} Booking anyway needs "Book outside the rules".` : null,
                 agents: roster.map((agent) => ({ id: agent.id, name: agentLabel(agent), email: agent.email || null })),
                 quota: quota

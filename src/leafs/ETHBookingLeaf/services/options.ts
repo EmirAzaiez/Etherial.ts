@@ -16,6 +16,23 @@ export const AGENTS_COLLECTION = 'agents'
 export const APPOINTMENTS_COLLECTION = 'booking-appointments'
 export const CALENDAR_PAGE = 'appointments-calendar'
 
+/** The back-office names the leaf registers, each renamable through `admin.collections`. */
+export interface BookingCollectionNames {
+    schedulers: string
+    windows: string
+    blocks: string
+    agents: string
+    appointments: string
+}
+
+const DEFAULT_COLLECTIONS: BookingCollectionNames = {
+    schedulers: SCHEDULERS_COLLECTION,
+    windows: WINDOWS_COLLECTION,
+    blocks: BLOCKS_COLLECTION,
+    agents: AGENTS_COLLECTION,
+    appointments: APPOINTMENTS_COLLECTION,
+}
+
 /**
  * The field the shared back-office's slot picker reads the subject from (the
  * property at RETAL, where it was written). A project whose subject column has
@@ -101,6 +118,19 @@ export interface ETHBookingLeafConfig {
         label?: string
         /** Said to staff when a subject has no scope: "Run the Salesforce sync." */
         noScopeHint?: string
+        /**
+         * The subject's scope, when its `scopeField` isn't the whole story (a
+         * unit whose project link is still empty, found through another
+         * column). Replaces the read of `scopeField`.
+         */
+        scopeOf?: (subject: any) => number | null | undefined | Promise<number | null | undefined>
+        /**
+         * Why this scheduler doesn't take this subject yet (a unit not ready for
+         * its handover), as a sentence for staff, or null. The back-office's
+         * form refuses it unless forced, and the slot picker says it. The
+         * project's app routes ask `subjectClosedReason` themselves.
+         */
+        closedReason?: (scheduler: any, subject: any) => string | null | undefined | Promise<string | null | undefined>
     }
     /** The customers' model, back-office collection and the field naming them. Default 'User' / 'users' / 'email'. */
     customers?: { model?: string; collection?: string; displayField?: string }
@@ -132,6 +162,17 @@ export interface ETHBookingLeafConfig {
          * assistant of the project's): returns it, changed or replaced.
          */
         extend?: (name: string, collection: any) => any
+        /**
+         * The back-office names, when the project's differ (its roles'
+         * permissions are keyed by them): `{ appointments: 'appointments' }`.
+         * The appointments' name is also their sync target's.
+         */
+        collections?: Partial<BookingCollectionNames>
+        /**
+         * The scheduler's type in the outside system, shown by the slot
+         * picker next to its name ("Handover in Salesforce"). Default: its `kind`.
+         */
+        visitType?: (scheduler: any) => string | null
     }
 }
 
@@ -140,6 +181,16 @@ export const state: { config: ETHBookingLeafConfig } = { config: {} }
 
 export const timezoneOf = (scheduler?: { timezone?: string | null } | null): string =>
     scheduler?.timezone || state.config.timezone || 'UTC'
+
+/** The back-office names in use: the defaults, renamed by `admin.collections`. */
+export function collectionNames(): BookingCollectionNames {
+    const renamed = state.config.admin?.collections ?? {}
+    const names = { ...DEFAULT_COLLECTIONS }
+    for (const key of Object.keys(names) as (keyof BookingCollectionNames)[]) {
+        if (renamed[key]) names[key] = renamed[key] as string
+    }
+    return names
+}
 
 export const weekendOf = (scheduler?: { weekend_days?: number[] | null } | null): number[] =>
     scheduler?.weekend_days ?? state.config.weekend ?? DEFAULT_WEEKEND

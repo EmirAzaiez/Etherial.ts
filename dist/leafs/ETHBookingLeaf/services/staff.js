@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { BookingAppointmentStatus } from '../models/BookingAppointment.js';
 import { bookingModels, projectModel, state, subjectWord, timezoneOf } from './options.js';
 import { customerQuota } from './quota.js';
-import { agentLabel, availableHostsAt, capacityOf, freeSeatsAt, overlappingAppointments, pickHost, resolveSchedulerForStaff, visitPeriodIssue, } from './repository.js';
+import { agentLabel, availableHostsAt, capacityOf, freeSeatsAt, overlappingAppointments, pickHost, resolveSchedulerForStaff, resolveScopeId, subjectClosedReason, visitPeriodIssue, } from './repository.js';
 /**
  * Booking from the back-office. Staff must be able to book by hand (the
  * customer called, has no app), but by hand doesn't mean beside the engine:
@@ -46,7 +46,7 @@ export const customerModel = () => { var _a, _b; return projectModel((_b = (_a =
  */
 export function prepareAdminBooking(data) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d;
         const { Scheduler, Agent } = bookingModels();
         const subject = state.config.subject;
         const scopeConfig = state.config.scope;
@@ -76,13 +76,13 @@ export function prepareAdminBooking(data) {
         // Without a subject, the scheduler says which scope it is: a sales visit has no flat yet.
         let scopeId = null;
         if (unit) {
-            scopeId = (_d = unit[(_c = (_b = subject === null || subject === void 0 ? void 0 : subject.scopeField) !== null && _b !== void 0 ? _b : scopeConfig === null || scopeConfig === void 0 ? void 0 : scopeConfig.field) !== null && _c !== void 0 ? _c : '']) !== null && _d !== void 0 ? _d : null;
+            scopeId = yield resolveScopeId(unit);
         }
         else if (scopeConfig) {
             const owner = yield Scheduler.findByPk(schedulerId, { attributes: ['id', scopeConfig.field] });
             if (!owner)
                 throw new Error('That reason for the appointment no longer exists.');
-            scopeId = (_e = owner[scopeConfig.field]) !== null && _e !== void 0 ? _e : null;
+            scopeId = (_b = owner[scopeConfig.field]) !== null && _b !== void 0 ? _b : null;
         }
         // "Show in mobile app" closes the phone, not the back-office. The rest
         // (switched off, period not open yet) closes bookings but can be forced:
@@ -101,9 +101,14 @@ export function prepareAdminBooking(data) {
         if (outsidePeriod && !override) {
             throw new Error(`${outsidePeriod} Pick a day inside its visit period, or tick "Book outside the rules".`);
         }
+        // The project's own rule on the subject (a unit not ready for its handover).
+        const subjectClosed = yield subjectClosedReason(scheduler, unit);
+        if (subjectClosed && !override) {
+            throw new Error(`${subjectClosed} Tick "Book outside the rules" to book it anyway.`);
+        }
         // The customer's cap is a rule like the others: a second visit is the exception taken on the phone.
         if (!override) {
-            const quota = yield customerQuota(scheduler, user.id, (_f = unit === null || unit === void 0 ? void 0 : unit.id) !== null && _f !== void 0 ? _f : null);
+            const quota = yield customerQuota(scheduler, user.id, (_c = unit === null || unit === void 0 ? void 0 : unit.id) !== null && _c !== void 0 ? _c : null);
             if (quota.issue) {
                 throw new Error(quota.issue.message.includes('Book outside the rules') ? quota.issue.message : `${quota.issue.message} Tick "Book outside the rules" to book it anyway.`);
             }
@@ -162,7 +167,7 @@ export function prepareAdminBooking(data) {
         if (seats.length === 0) {
             throw new Error(`${agentLabel(agent)} has no free place left at that exact time. Pick another time or someone else.`);
         }
-        return Object.assign(Object.assign(Object.assign(Object.assign({}, data), { user_id: user.id }), (subject ? { [subject.field]: (_g = unit === null || unit === void 0 ? void 0 : unit.id) !== null && _g !== void 0 ? _g : null } : {})), { agent_id: agent.id, scheduler_id: scheduler.id, starts_at: start, ends_at: end, duration_minutes: duration, slot_seat: seats[0], status: BookingAppointmentStatus.SCHEDULED, reschedule_count: 0 });
+        return Object.assign(Object.assign(Object.assign(Object.assign({}, data), { user_id: user.id }), (subject ? { [subject.field]: (_d = unit === null || unit === void 0 ? void 0 : unit.id) !== null && _d !== void 0 ? _d : null } : {})), { agent_id: agent.id, scheduler_id: scheduler.id, starts_at: start, ends_at: end, duration_minutes: duration, slot_seat: seats[0], status: BookingAppointmentStatus.SCHEDULED, reschedule_count: 0 });
     });
 }
 /**

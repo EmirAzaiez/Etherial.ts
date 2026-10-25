@@ -40,13 +40,31 @@ export function scopeIdOf(scope: BookingScope): number | null {
     return field ? (scope[field] ?? null) : null
 }
 
+/** `scopeIdOf`, through the project's `subject.scopeOf` when a record is given and it has one. */
+export async function resolveScopeId(scope: BookingScope): Promise<number | null> {
+    const scopeOf = state.config.subject?.scopeOf
+    if (scopeOf && scope !== null && typeof scope === 'object') return (await scopeOf(scope)) ?? null
+    return scopeIdOf(scope)
+}
+
+/**
+ * Why this scheduler doesn't take this subject yet, from the project's
+ * `subject.closedReason`, or null. For the project's app routes as for the
+ * back-office's.
+ */
+export async function subjectClosedReason(scheduler: any, subject: any): Promise<string | null> {
+    const closedReason = state.config.subject?.closedReason
+    if (!closedReason || !scheduler || !subject) return null
+    return (await closedReason(scheduler, subject)) || null
+}
+
 /** The schedulers this scope offers, before any is judged open or closed. */
 async function schedulersOf(scope: BookingScope): Promise<any[] | null> {
     const { Scheduler } = bookingModels()
     const scopeConfig = state.config.scope
     let where = {}
     if (scopeConfig) {
-        const id = scopeIdOf(scope)
+        const id = await resolveScopeId(scope)
         if (!id) return null
         where = { [scopeConfig.field]: id }
     }
@@ -97,7 +115,7 @@ export async function resolveSchedulerById(scope: BookingScope, schedulerId: any
 
 /** A name to read in a staff message, never a bare id. */
 export function schedulerLabel(scheduler: any): string {
-    return scheduler.label || `Scheduler #${scheduler.id}`
+    return scheduler.label || state.config.admin?.visitType?.(scheduler) || `Scheduler #${scheduler.id}`
 }
 
 /** A scheduler, and what closes it today if it is closed. */

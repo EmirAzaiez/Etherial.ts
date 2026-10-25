@@ -1,7 +1,7 @@
 import * as yup from 'yup'
 
 import { BookingAppointmentStatus } from '../models/BookingAppointment.js'
-import { APPOINTMENTS_COLLECTION, SCHEDULERS_COLLECTION, WINDOWS_COLLECTION } from '../services/options.js'
+import { collectionNames } from '../services/options.js'
 import { guardAppointmentUpdate, prepareAdminBooking } from '../services/staff.js'
 
 /**
@@ -90,7 +90,7 @@ export function registerBookingHooks(adminLeaf: any): void {
 
     // A booking from the back-office goes through the engine, as one from the phone.
     hooks.register('booking:appointment-booking', {
-        collection: APPOINTMENTS_COLLECTION,
+        collection: collectionNames().appointments,
         description: 'Run admin-created bookings through the booking engine',
         beforeCreate: async (data: any) => prepareAdminBooking(data),
         beforeUpdate: async (record: any, data: any) => guardAppointmentUpdate(record, data),
@@ -103,7 +103,7 @@ export function registerBookingHooks(adminLeaf: any): void {
     })
 
     hooks.register('booking:scheduler-visit-period', {
-        collection: SCHEDULERS_COLLECTION,
+        collection: collectionNames().schedulers,
         description: 'Refuse a visit period that ends before it starts',
         beforeCreate: async (data: any) => {
             visitPeriodOrder(data.starts_on, data.ends_on)
@@ -119,7 +119,7 @@ export function registerBookingHooks(adminLeaf: any): void {
     // An opening with nobody offers nothing and says nothing: `required` is only
     // checked on screen, and openings are also written from the scheduler page.
     hooks.register('booking:scheduler-window-agents', {
-        collection: WINDOWS_COLLECTION,
+        collection: collectionNames().windows,
         description: 'Refuse an opening with nobody to hold it',
         beforeCreate: async (data: any) => {
             if (agentIdsOf(data.agents).length === 0) throw new Error(NO_AGENT)
@@ -132,7 +132,7 @@ export function registerBookingHooks(adminLeaf: any): void {
     })
 
     hooks.register('booking:scheduler-window-agents-nested', {
-        collection: SCHEDULERS_COLLECTION,
+        collection: collectionNames().schedulers,
         description: 'Refuse an opening with nobody to hold it, when added from the scheduler page',
         beforeCreate: async (data: any, req: any) => {
             guardNestedWindows(nestedWindows(data, req))

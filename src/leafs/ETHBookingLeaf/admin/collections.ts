@@ -2,14 +2,10 @@ import { SchedulerKind } from '../models/Scheduler.js'
 import { BookingAppointmentStatus } from '../models/BookingAppointment.js'
 import { CANCEL_ACTION } from './features.js'
 import {
-    AGENTS_COLLECTION,
-    APPOINTMENTS_COLLECTION,
-    BLOCKS_COLLECTION,
     BO_SUBJECT_FIELD,
-    SCHEDULERS_COLLECTION,
-    WINDOWS_COLLECTION,
     associationTo,
     bookingModels,
+    collectionNames,
     projectModel,
     scopeWord,
     state,
@@ -22,9 +18,10 @@ import { WEEKDAY_LABELS, WEEKDAY_SHORT, minutesToLabel, parseMinuteInput } from 
 
 /**
  * The booking's back-office, in one sidebar group ("Scheduling"). The
- * appointments' collection is `booking-appointments`, the name the shared
- * back-office's widgets expect. A collection the project already registered is
- * left alone; `admin.extend` changes one before it is registered.
+ * appointments' collection is `booking-appointments` unless `admin.collections`
+ * renames it (the calendar tells the shared back-office which one opens). A
+ * collection the project already registered is left alone; `admin.extend`
+ * changes one before it is registered.
  */
 
 const capitalized = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
@@ -78,6 +75,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     const config = state.config
     const group = config.admin?.group ?? 'Scheduling'
     const models = bookingModels()
+    const names = collectionNames()
     const register = (collection: any) => {
         if (adminLeaf.getCollection?.(collection.name)) return
         adminLeaf.registerCollection(config.admin?.extend?.(collection.name, collection) ?? collection)
@@ -162,7 +160,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     const on = subject ? ` on the same ${subjectWord()}` : ''
 
     register({
-        name: SCHEDULERS_COLLECTION,
+        name: names.schedulers,
         model: models.Scheduler,
         crud: ['list', 'show', 'create', 'update', 'delete'],
         exportable: true,
@@ -368,7 +366,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 helpText:
                     'Everything a slot is made of. One card per opening: the days it covers, the hours, the pace, and who holds it — "Tuesday and Thursday, 09:00 to 12:00, 60 minutes, Ahmed". Two cards on the same day are fine and each keeps its own rules. Without a single card, nothing is ever offered.',
                 hasMany: {
-                    collection: WINDOWS_COLLECTION,
+                    collection: names.windows,
                     foreignKey: 'scheduler_id',
                     fields: ['weekdays', 'start_minute', 'end_minute', 'duration_minutes', 'slot_step_minutes', 'gap_minutes', 'max_per_day', 'agents'],
                     layout: 'card',
@@ -382,7 +380,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 label: 'Closures & holidays',
                 helpText: `Days this ${scope ? scopeWord() : 'reason'} is closed for this reason — Eid, a national holiday, a site shutdown. One employee away is not a closure; that goes on their own record, under "Time off".`,
                 hasMany: {
-                    collection: BLOCKS_COLLECTION,
+                    collection: names.blocks,
                     foreignKey: 'scheduler_id',
                     // No `agent_id`: here a closure holds for everyone.
                     fields: ['day', 'start_minute', 'end_minute', 'reason'],
@@ -419,7 +417,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     ]
 
     register({
-        name: WINDOWS_COLLECTION,
+        name: names.windows,
         model: models.SchedulerWindow,
         crud: ['list', 'show', 'create', 'update', 'delete'],
         exportable: true,
@@ -440,7 +438,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 label: 'Scheduler',
                 required: true,
                 filterable: true,
-                relation: { collection: SCHEDULERS_COLLECTION, displayField: 'label' },
+                relation: { collection: names.schedulers, displayField: 'label' },
                 helpText: 'The reason this range belongs to. Filled in on its own when the range is added from a scheduler page.',
                 col: 12,
             },
@@ -511,7 +509,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                     through: models.SchedulerWindowHost,
                     foreignKey: 'scheduler_window_id',
                     otherKey: 'agent_id',
-                    collection: AGENTS_COLLECTION,
+                    collection: names.agents,
                     displayField: 'first_name',
                     secondaryField: 'email',
                     searchable: true,
@@ -542,7 +540,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     ]
 
     register({
-        name: BLOCKS_COLLECTION,
+        name: names.blocks,
         model: models.SchedulerBlock,
         crud: ['list', 'show', 'create', 'update', 'delete'],
         exportable: true,
@@ -572,7 +570,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 type: 'relation',
                 label: 'Employee',
                 filterable: true,
-                relation: { collection: AGENTS_COLLECTION, displayField: 'email' },
+                relation: { collection: names.agents, displayField: 'email' },
                 helpText: 'Leave empty to close the day for everyone.',
                 col: 6,
             },
@@ -581,7 +579,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 type: 'relation',
                 label: 'Scheduler',
                 filterable: true,
-                relation: { collection: SCHEDULERS_COLLECTION, displayField: 'label' },
+                relation: { collection: names.schedulers, displayField: 'label' },
                 helpText: 'Leave empty to close the day on every scheduler.',
                 col: 6,
             },
@@ -669,7 +667,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     ]
 
     register({
-        name: APPOINTMENTS_COLLECTION,
+        name: names.appointments,
         model: models.BookingAppointment,
         crud: ['list', 'show', 'create', 'update'],
         actions: [CANCEL_ACTION],
@@ -747,7 +745,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 widget: 'slot-agent',
                 label: 'Employee',
                 filterable: true,
-                relation: { collection: AGENTS_COLLECTION, displayField: 'email', secondaryField: 'first_name', searchable: true },
+                relation: { collection: names.agents, displayField: 'email', secondaryField: 'first_name', searchable: true },
                 helpText:
                     "Only the employees free at the time you picked are offered — they come from this scheduler's openings, not from the whole company. Leave it empty and the least loaded of them takes the visit.",
             },
@@ -768,7 +766,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 label: 'What the visit is for',
                 required: true,
                 filterable: true,
-                relation: { collection: SCHEDULERS_COLLECTION, displayField: 'label' },
+                relation: { collection: names.schedulers, displayField: 'label' },
                 helpText:
                     'The reason the customer is being received — handover, site visit, maintenance. Each one has its own hours, team and notice period, so it decides which times exist below. Fixed once saved.',
             },
@@ -844,7 +842,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     const agentForm = ['first_name', 'last_name', 'email', 'phone_number', 'active', 'max_concurrent_appointments', ...agentAccount.map((f) => f.name), 'holidays']
 
     register({
-        name: AGENTS_COLLECTION,
+        name: names.agents,
         model: models.Agent,
         crud: ['list', 'show', 'create', 'update', 'delete'],
         exportable: true,
@@ -887,7 +885,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 helpText:
                     'Days this employee is away — leave, training, sick day. Their slots disappear on every scheduler at once. One row per day: a week off is seven rows. Leave both times empty for the whole day, or fill them to free only a stretch of it.',
                 hasMany: {
-                    collection: BLOCKS_COLLECTION,
+                    collection: names.blocks,
                     foreignKey: 'agent_id',
                     fields: ['day', 'start_minute', 'end_minute', 'reason'],
                     layout: 'row',
@@ -913,7 +911,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 ],
                 collections: [
                     {
-                        name: APPOINTMENTS_COLLECTION,
+                        name: names.appointments,
                         title: 'Appointments',
                         model: models.BookingAppointment,
                         foreignKey: 'agent_id',

@@ -12,6 +12,13 @@ export const BLOCKS_COLLECTION = 'scheduler-blocks';
 export const AGENTS_COLLECTION = 'agents';
 export const APPOINTMENTS_COLLECTION = 'booking-appointments';
 export const CALENDAR_PAGE = 'appointments-calendar';
+const DEFAULT_COLLECTIONS = {
+    schedulers: SCHEDULERS_COLLECTION,
+    windows: WINDOWS_COLLECTION,
+    blocks: BLOCKS_COLLECTION,
+    agents: AGENTS_COLLECTION,
+    appointments: APPOINTMENTS_COLLECTION,
+};
 /**
  * The field the shared back-office's slot picker reads the subject from (the
  * property at RETAL, where it was written). A project whose subject column has
@@ -29,6 +36,17 @@ const DEFAULT_MODELS = {
 /** The running leaf's config, for its controllers, hooks and services. */
 export const state = { config: {} };
 export const timezoneOf = (scheduler) => (scheduler === null || scheduler === void 0 ? void 0 : scheduler.timezone) || state.config.timezone || 'UTC';
+/** The back-office names in use: the defaults, renamed by `admin.collections`. */
+export function collectionNames() {
+    var _a, _b;
+    const renamed = (_b = (_a = state.config.admin) === null || _a === void 0 ? void 0 : _a.collections) !== null && _b !== void 0 ? _b : {};
+    const names = Object.assign({}, DEFAULT_COLLECTIONS);
+    for (const key of Object.keys(names)) {
+        if (renamed[key])
+            names[key] = renamed[key];
+    }
+    return names;
+}
 export const weekendOf = (scheduler) => { var _a, _b; return (_b = (_a = scheduler === null || scheduler === void 0 ? void 0 : scheduler.weekend_days) !== null && _a !== void 0 ? _a : state.config.weekend) !== null && _b !== void 0 ? _b : DEFAULT_WEEKEND; };
 /** The project's models, resolved by name: they exist once the database ran. */
 export function bookingModels() {

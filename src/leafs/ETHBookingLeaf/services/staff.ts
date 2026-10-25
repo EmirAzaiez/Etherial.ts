@@ -9,6 +9,8 @@ import {
     overlappingAppointments,
     pickHost,
     resolveSchedulerForStaff,
+    resolveScopeId,
+    subjectClosedReason,
     visitPeriodIssue,
 } from './repository.js'
 
@@ -85,7 +87,7 @@ export async function prepareAdminBooking(data: Input): Promise<Input> {
     // Without a subject, the scheduler says which scope it is: a sales visit has no flat yet.
     let scopeId: number | null = null
     if (unit) {
-        scopeId = unit[subject?.scopeField ?? scopeConfig?.field ?? ''] ?? null
+        scopeId = await resolveScopeId(unit)
     } else if (scopeConfig) {
         const owner = await Scheduler.findByPk(schedulerId as number, { attributes: ['id', scopeConfig.field] })
         if (!owner) throw new Error('That reason for the appointment no longer exists.')
@@ -111,6 +113,12 @@ export async function prepareAdminBooking(data: Input): Promise<Input> {
     const outsidePeriod = visitPeriodIssue(scheduler, start)
     if (outsidePeriod && !override) {
         throw new Error(`${outsidePeriod} Pick a day inside its visit period, or tick "Book outside the rules".`)
+    }
+
+    // The project's own rule on the subject (a unit not ready for its handover).
+    const subjectClosed = await subjectClosedReason(scheduler, unit)
+    if (subjectClosed && !override) {
+        throw new Error(`${subjectClosed} Tick "Book outside the rules" to book it anyway.`)
     }
 
     // The customer's cap is a rule like the others: a second visit is the exception taken on the phone.

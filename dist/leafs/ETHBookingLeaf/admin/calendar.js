@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { Op } from 'sequelize';
 import { canAccessPage, resolveAccess } from '../../ETHAdminLeaf/features/access.js';
-import { APPOINTMENTS_COLLECTION, CALENDAR_PAGE, associationTo, attributesOf, bookingModels, projectModel, state, timezoneOf } from '../services/options.js';
+import { CALENDAR_PAGE, associationTo, collectionNames, attributesOf, bookingModels, projectModel, state, timezoneOf } from '../services/options.js';
 import { agentLabel } from '../services/repository.js';
 import { customerModel } from '../services/staff.js';
 import { minutesToLabel, zonedDayKey, zonedParts } from '../services/slots.js';
@@ -145,7 +145,7 @@ export function registerBookingCalendar(adminLeaf) {
         return {
             timezone: tz,
             // Where an appointment opens.
-            collection: APPOINTMENTS_COLLECTION,
+            collection: collectionNames().appointments,
             from: zonedDayKey(from, tz),
             to: zonedDayKey(to, tz),
             appointments,

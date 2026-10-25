@@ -108,11 +108,16 @@ Le leaf ajoute quatre colonnes facultatives, créées par le `sync` du projet : 
 | `reminders` | désactivés | `{ dayBefore?, soon?, soonHours? }`. Les rappels par `notify` (section 4). |
 | `overdue` | désactivé | `{ hour? }`. Le récapitulatif quotidien au staff, à `hour` heure locale (8 par défaut). |
 | `sync` | aucun | `{ send, link?, label? }`. Copie chaque rendez-vous dans un système extérieur (section 5). |
-| `admin` | — | `{ group?, extend? }`. Le groupe du menu (`Scheduling`) et une fonction qui modifie une collection avant sa déclaration (section 7). |
+| `admin` | — | `{ group?, extend?, collections?, visitType? }`. Le groupe du menu (`Scheduling`), une fonction qui modifie une collection avant sa déclaration, les noms des collections et le type de visite affiché par le sélecteur (section 7). |
 
 `scope` : `field` (la colonne sur les schedulers, `project_id`), `model`, `collection`, `displayField`, `secondaryField`, `label` (`Project`) et `helpText` (sous le champ, dans le back-office).
 
 `subject` : `field` (la colonne sur les rendez-vous, `unit_id`), `model`, `scopeField` (la colonne du subject qui donne son scope : quels schedulers le gouvernent), `collection`, `displayField`, `secondaryField`, `label` (`Unit`) et `noScopeHint` (dit au staff quand un subject n'a pas de scope : « Run the Salesforce sync. »).
+
+Deux fonctions, si la règle du projet ne tient pas dans une colonne :
+
+- `scopeOf(subject)` : le scope du subject, à la place de la lecture de `scopeField` (un lot dont le projet se retrouve par une autre colonne) ;
+- `closedReason(scheduler, subject)` : pourquoi ce scheduler ne prend pas encore ce subject (un lot pas prêt pour sa remise des clés), en une phrase pour le staff, ou `null`. Le formulaire du back-office refuse alors le rendez-vous sauf si « Book outside the rules » est coché, et le sélecteur de créneaux affiche la raison. Les routes de l'app du projet appellent `subjectClosedReason(scheduler, subject)` elles-mêmes.
 
 **Sans `subject`, le back-office n'a pas de sélecteur de créneaux** : le widget partagé ne s'affiche qu'avec un `property_id`. Le staff saisit alors la date et l'employé à la main, et les contrôles à l'enregistrement s'appliquent quand même.
 
@@ -208,6 +213,10 @@ admin: {
 ```
 
 Une collection déjà déclarée par le projet sous le même nom n'est pas remplacée.
+
+Un projet qui avait déjà ses collections garde leurs noms (les droits des rôles sont rangés par nom) avec `admin.collections` : `{ appointments: 'appointments' }`. Les clés : `schedulers`, `windows`, `blocks`, `agents`, `appointments`. Le nom des rendez-vous est aussi celui de leur cible de `sync`, et la page Calendar ouvre un rendez-vous dans cette collection.
+
+`admin.visitType(scheduler)` remplace le `kind` affiché par le sélecteur à côté du nom du scheduler (« Handover in Salesforce »).
 
 ---
 

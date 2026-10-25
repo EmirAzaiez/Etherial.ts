@@ -6,6 +6,14 @@ import { ComputeSlotsInput, Slot, SlotPolicy } from './slots.js';
  */
 export type BookingScope = number | null | undefined | Record<string, any>;
 export declare function scopeIdOf(scope: BookingScope): number | null;
+/** `scopeIdOf`, through the project's `subject.scopeOf` when a record is given and it has one. */
+export declare function resolveScopeId(scope: BookingScope): Promise<number | null>;
+/**
+ * Why this scheduler doesn't take this subject yet, from the project's
+ * `subject.closedReason`, or null. For the project's app routes as for the
+ * back-office's.
+ */
+export declare function subjectClosedReason(scheduler: any, subject: any): Promise<string | null>;
 /**
  * The reasons to meet open to this scope, in a stable order (label, then id)
  * so the list doesn't move under the customer's finger. Left out: switched

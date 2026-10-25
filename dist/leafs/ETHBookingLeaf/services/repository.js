@@ -27,6 +27,30 @@ export function scopeIdOf(scope) {
     const field = (_b = (_a = state.config.subject) === null || _a === void 0 ? void 0 : _a.scopeField) !== null && _b !== void 0 ? _b : (_c = state.config.scope) === null || _c === void 0 ? void 0 : _c.field;
     return field ? ((_d = scope[field]) !== null && _d !== void 0 ? _d : null) : null;
 }
+/** `scopeIdOf`, through the project's `subject.scopeOf` when a record is given and it has one. */
+export function resolveScopeId(scope) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
+        const scopeOf = (_a = state.config.subject) === null || _a === void 0 ? void 0 : _a.scopeOf;
+        if (scopeOf && scope !== null && typeof scope === 'object')
+            return (_b = (yield scopeOf(scope))) !== null && _b !== void 0 ? _b : null;
+        return scopeIdOf(scope);
+    });
+}
+/**
+ * Why this scheduler doesn't take this subject yet, from the project's
+ * `subject.closedReason`, or null. For the project's app routes as for the
+ * back-office's.
+ */
+export function subjectClosedReason(scheduler, subject) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const closedReason = (_a = state.config.subject) === null || _a === void 0 ? void 0 : _a.closedReason;
+        if (!closedReason || !scheduler || !subject)
+            return null;
+        return (yield closedReason(scheduler, subject)) || null;
+    });
+}
 /** The schedulers this scope offers, before any is judged open or closed. */
 function schedulersOf(scope) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -34,7 +58,7 @@ function schedulersOf(scope) {
         const scopeConfig = state.config.scope;
         let where = {};
         if (scopeConfig) {
-            const id = scopeIdOf(scope);
+            const id = yield resolveScopeId(scope);
             if (!id)
                 return null;
             where = { [scopeConfig.field]: id };
@@ -91,7 +115,8 @@ export function resolveSchedulerById(scope_1, schedulerId_1) {
 }
 /** A name to read in a staff message, never a bare id. */
 export function schedulerLabel(scheduler) {
-    return scheduler.label || `Scheduler #${scheduler.id}`;
+    var _a, _b;
+    return scheduler.label || ((_b = (_a = state.config.admin) === null || _a === void 0 ? void 0 : _a.visitType) === null || _b === void 0 ? void 0 : _b.call(_a, scheduler)) || `Scheduler #${scheduler.id}`;
 }
 /** "This unit's project", "This calendar": who owns the schedulers, in staff messages. */
 const ownerPhrase = () => (state.config.scope ? `This ${subjectWord()}'s ${scopeWord()}` : 'The calendar');

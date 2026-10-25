@@ -19,9 +19,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import { Controller, Get } from 'etherial/components/http/provider';
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider';
-import { APPOINTMENTS_COLLECTION, BO_SUBJECT_FIELD, projectModel, state, subjectWord, timezoneOf } from '../services/options.js';
+import { BO_SUBJECT_FIELD, collectionNames, projectModel, state, subjectWord, timezoneOf } from '../services/options.js';
 import { customerQuota } from '../services/quota.js';
-import { agentLabel, getSlots, resolveSchedulerForStaff, resolveSchedulersForStaff, schedulerLabel, schedulerRoster } from '../services/repository.js';
+import { agentLabel, getSlots, resolveSchedulerForStaff, resolveSchedulersForStaff, schedulerLabel, schedulerRoster, subjectClosedReason, } from '../services/repository.js';
 import { zonedDayKey } from '../services/slots.js';
 /** Who books by hand: whoever may create or change appointments in the back-office. */
 function canBook(user) {
@@ -29,7 +29,8 @@ function canBook(user) {
         const adminLeaf = etherial.eth_admin_leaf;
         if (!adminLeaf || !(yield adminLeaf.canAccessAdmin(user)))
             return false;
-        return (yield adminLeaf.checkAccess(user, APPOINTMENTS_COLLECTION, 'create')) || (yield adminLeaf.checkAccess(user, APPOINTMENTS_COLLECTION, 'update'));
+        const { appointments } = collectionNames();
+        return (yield adminLeaf.checkAccess(user, appointments, 'create')) || (yield adminLeaf.checkAccess(user, appointments, 'update'));
     });
 }
 /** The fallback when the scheduler says nothing: two months, as the app. */
@@ -67,7 +68,7 @@ let ETHBookingAdminController = class ETHBookingAdminController {
      */
     slots(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g;
+            var _a, _b, _c, _d, _e, _f, _g, _h;
             if (!(yield canBook(req.user))) {
                 return res.error({ status: 403, errors: ['Only staff can look up appointment slots.'] });
             }
@@ -88,10 +89,11 @@ let ETHBookingAdminController = class ETHBookingAdminController {
             // hours, and staff may see them to decide to force. The app's switch
             // closes the app, not the back-office.
             const { schedulers } = yield resolveSchedulersForStaff(unit);
+            const visitType = (_d = state.config.admin) === null || _d === void 0 ? void 0 : _d.visitType;
             const schedulerOptions = schedulers.map((entry) => ({
                 id: entry.scheduler.id,
                 label: schedulerLabel(entry.scheduler),
-                visit_type: entry.scheduler.kind,
+                visit_type: visitType ? visitType(entry.scheduler) : entry.scheduler.kind,
                 closed_reason: entry.closedReason,
             }));
             const { scheduler, closedReason } = yield resolveSchedulerForStaff(unit, query.scheduler_id);
@@ -113,12 +115,12 @@ let ETHBookingAdminController = class ETHBookingAdminController {
             const tz = timezoneOf(scheduler);
             const now = new Date();
             const horizon = scheduler.horizon_days || DEFAULT_HORIZON_DAYS;
-            const excludeAppointmentId = (_d = positiveId(query.exclude_appointment_id)) !== null && _d !== void 0 ? _d : undefined;
+            const excludeAppointmentId = (_e = positiveId(query.exclude_appointment_id)) !== null && _e !== void 0 ? _e : undefined;
             const customerId = positiveId(query.user_id);
             const [slots, roster, quota] = yield Promise.all([
                 getSlots(scheduler, { from: now, to: new Date(now.getTime() + horizon * 86400000), now, excludeAppointmentId }),
                 schedulerRoster(scheduler),
-                customerId ? customerQuota(scheduler, customerId, (_e = unit === null || unit === void 0 ? void 0 : unit.id) !== null && _e !== void 0 ? _e : null, { now, excludeAppointmentId }) : Promise.resolve(null),
+                customerId ? customerQuota(scheduler, customerId, (_f = unit === null || unit === void 0 ? void 0 : unit.id) !== null && _f !== void 0 ? _f : null, { now, excludeAppointmentId }) : Promise.resolve(null),
             ]);
             // The engine returns them in order, and a Map keeps it.
             const byDay = new Map();
@@ -143,6 +145,9 @@ let ETHBookingAdminController = class ETHBookingAdminController {
                     reasons.push(`"${schedulerLabel(scheduler)}" only starts on ${scheduler.starts_on}, and it lets anyone book at most ${horizon} days ahead — today it reaches no further than ${lastOffered}. The dates will appear on their own.`);
                 }
             }
+            // The project's own rule on the subject (a unit not ready): its slots show, booking needs forcing.
+            const subjectClosed = yield subjectClosedReason(scheduler, unit);
+            reasons.push(subjectClosed);
             const blocking = reasons.filter(Boolean);
             return res.success({
                 status: 200,
@@ -150,13 +155,13 @@ let ETHBookingAdminController = class ETHBookingAdminController {
                     timezone: tz,
                     scheduler: { id: scheduler.id, label: schedulerLabel(scheduler) },
                     schedulers: schedulerOptions,
-                    open_for_unit: !closedReason,
+                    open_for_unit: !closedReason && !subjectClosed,
                     blocked_reason: blocking.length ? `${blocking.join(' ')} Booking anyway needs "Book outside the rules".` : null,
                     agents: roster.map((agent) => ({ id: agent.id, name: agentLabel(agent), email: agent.email || null })),
                     quota: quota
                         ? {
                             can_book: quota.can_book,
-                            message: (_g = (_f = quota.issue) === null || _f === void 0 ? void 0 : _f.message) !== null && _g !== void 0 ? _g : null,
+                            message: (_h = (_g = quota.issue) === null || _g === void 0 ? void 0 : _g.message) !== null && _h !== void 0 ? _h : null,
                             max_active: quota.max_active,
                             active_count: quota.active_count,
                             max_total: quota.max_total,

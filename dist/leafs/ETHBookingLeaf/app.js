@@ -16,7 +16,7 @@ import { registerBookingActions, registerBookingHooks } from './admin/features.j
 import { registerBookingCollections } from './admin/collections.js';
 import { registerBookingCalendar } from './admin/calendar.js';
 import { notifyOverdue, sendDueReminders } from './services/reminders.js';
-import { APPOINTMENTS_COLLECTION, bookingModels, state } from './services/options.js';
+import { bookingModels, collectionNames, state } from './services/options.js';
 export * from './services/options.js';
 export * from './models/Scheduler.js';
 export * from './models/SchedulerWindow.js';
@@ -60,7 +60,8 @@ export default class ETHBookingLeaf {
     /** Lifecycle: beforeRun — the sync tables go to the database before it syncs. */
     beforeRun() {
         if (this.config.sync) {
-            registerSync(APPOINTMENTS_COLLECTION, Object.assign(Object.assign({}, this.config.sync), { model: () => bookingModels().BookingAppointment, 
+            // The target goes by the appointments' collection name.
+            registerSync(collectionNames().appointments, Object.assign(Object.assign({}, this.config.sync), { model: () => bookingModels().BookingAppointment, 
                 // A reminder going out changes nothing over there.
                 track: { ignore: ['reminded_day_before_at', 'reminded_soon_at'] } }));
         }

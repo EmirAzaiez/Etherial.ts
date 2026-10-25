@@ -4,7 +4,7 @@ import { Op } from 'sequelize'
 import { runExclusive } from '../../../components/database/lock.js'
 import { BookingAppointmentStatus } from '../models/BookingAppointment.js'
 import { notifyCustomer } from './notices.js'
-import { APPOINTMENTS_COLLECTION, bookingModels, state, timezoneOf, type BookingNoticeKind } from './options.js'
+import { bookingModels, collectionNames, state, timezoneOf, type BookingNoticeKind } from './options.js'
 import { zonedParts } from './slots.js'
 
 const HOUR = 3600 * 1000
@@ -80,13 +80,14 @@ export async function notifyOverdue(now = new Date()): Promise<void> {
         const { BookingAppointment } = bookingModels()
         const count = await BookingAppointment.count({ where: { status: BookingAppointmentStatus.SCHEDULED, ends_at: { [Op.lt]: now } } })
         if (!count) return
+        const collection = collectionNames().appointments
         await adminLeaf.notify({
-            to: { permission: { collection: APPOINTMENTS_COLLECTION, permission: 'update' } },
+            to: { permission: { collection, permission: 'update' } },
             type: 'booking_overdue',
             title: count === 1 ? '1 appointment is over without an outcome' : `${count} appointments are over without an outcome`,
             body: 'They still read "Scheduled". Mark each one Completed or No Show.',
-            link: `/${APPOINTMENTS_COLLECTION}`,
-            collection: APPOINTMENTS_COLLECTION,
+            link: `/${collection}`,
+            collection,
         })
     })
 }
