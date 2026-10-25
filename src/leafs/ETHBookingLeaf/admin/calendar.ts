@@ -1,6 +1,6 @@
 import { Op } from 'sequelize'
 
-import { canAccessPage, resolveAccess } from '../../ETHAdminLeaf/features/access.js'
+import { canAccessPage, resolveAccess, rolesConfig } from '../../ETHAdminLeaf/features/access.js'
 import { CALENDAR_PAGE, associationTo, collectionNames, attributesOf, bookingModels, projectModel, state, timezoneOf } from '../services/options.js'
 import { agentLabel } from '../services/repository.js'
 import { customerModel } from '../services/staff.js'
@@ -58,8 +58,10 @@ export function registerBookingCalendar(adminLeaf: any): void {
         order: 0,
         component: CALENDAR_PAGE,
         showInMenu: true,
-        // Granted page by page in the admin roles, as the other pages.
-        canAccess: async (user: any) => canAccessPage(await resolveAccess(user), CALENDAR_PAGE),
+        // Granted page by page in the admin roles, as the other pages. Without
+        // roles, whoever the back-office lets in: it is read-only.
+        canAccess: async (user: any) =>
+            rolesConfig() ? canAccessPage(await resolveAccess(user), CALENDAR_PAGE) : !!(await adminLeaf.canAccessAdmin(user)),
     })
 
     adminLeaf.registerPageFormHandler(CALENDAR_PAGE, async (data: Record<string, unknown>) => {

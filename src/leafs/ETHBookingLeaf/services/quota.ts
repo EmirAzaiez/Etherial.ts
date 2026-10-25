@@ -95,7 +95,7 @@ export async function customerQuota(
     let issue: QuotaIssue | null = null
 
     // The scheduler is named in each sentence: the cap is its own, not the subject's.
-    const reason = scheduler.label || `scheduler #${scheduler.id}`
+    const reason = scheduler.label || state.config.admin?.visitType?.(scheduler) || `scheduler #${scheduler.id}`
     const on = subjectField ? ` on this ${subjectWord()}` : ''
 
     if (maxTotal && usedCount >= maxTotal) {

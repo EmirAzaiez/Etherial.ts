@@ -25,7 +25,7 @@ function plural(count, word) {
  */
 export function customerQuota(scheduler_1, userId_1, subjectId_1) {
     return __awaiter(this, arguments, void 0, function* (scheduler, userId, subjectId, options = {}) {
-        var _a, _b;
+        var _a, _b, _c, _d;
         const now = (_a = options.now) !== null && _a !== void 0 ? _a : new Date();
         const maxActive = toLimit(scheduler.max_active_appointments);
         const maxTotal = toLimit(scheduler.max_appointments_total);
@@ -51,7 +51,7 @@ export function customerQuota(scheduler_1, userId_1, subjectId_1) {
         ]);
         let issue = null;
         // The scheduler is named in each sentence: the cap is its own, not the subject's.
-        const reason = scheduler.label || `scheduler #${scheduler.id}`;
+        const reason = scheduler.label || ((_d = (_c = state.config.admin) === null || _c === void 0 ? void 0 : _c.visitType) === null || _d === void 0 ? void 0 : _d.call(_c, scheduler)) || `scheduler #${scheduler.id}`;
         const on = subjectField ? ` on this ${subjectWord()}` : '';
         if (maxTotal && usedCount >= maxTotal) {
             issue = {
