@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 import { runExclusive } from '../../components/database/lock.js';
 import { registerSync, registerSyncAdmin, startSync } from '../../components/sync/index.js';
 import { registerBookingActions, registerBookingHooks } from './admin/features.js';
-import { registerBookingCollections } from './admin/collections.js';
+import { linkBookingCustomers, registerBookingCollections } from './admin/collections.js';
 import { registerBookingCalendar } from './admin/calendar.js';
 import { notifyOverdue, sendDueReminders } from './services/reminders.js';
 import { bookingModels, collectionNames, state } from './services/options.js';
@@ -99,10 +99,12 @@ export default class ETHBookingLeaf {
             (_c = (_b = setInterval(tick, 60 * 1000)).unref) === null || _c === void 0 ? void 0 : _c.call(_b);
         }
     }
-    /** Lifecycle: afterRun — the sent records in the back-office, when there is a target. */
+    /** Lifecycle: afterRun — the project's accounts exist: the customers link to them; the sent records in the back-office. */
     afterRun() {
         const adminLeaf = etherial.eth_admin_leaf;
-        if (adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.registerCollection)
-            registerSyncAdmin(adminLeaf);
+        if (!(adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.registerCollection))
+            return;
+        linkBookingCustomers(adminLeaf);
+        registerSyncAdmin(adminLeaf);
     }
 }

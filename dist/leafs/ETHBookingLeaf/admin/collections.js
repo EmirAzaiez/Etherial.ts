@@ -53,9 +53,50 @@ const STATUS_OPTIONS = [
     { value: BookingAppointmentStatus.CANCELLED, label: 'Cancelled', color: 'gray' },
     { value: BookingAppointmentStatus.NO_SHOW, label: 'No Show', color: 'orange' },
 ];
+const customersOptions = () => {
+    var _a, _b, _c, _d;
+    return ({
+        collection: (_b = (_a = state.config.customers) === null || _a === void 0 ? void 0 : _a.collection) !== null && _b !== void 0 ? _b : 'users',
+        displayField: (_d = (_c = state.config.customers) === null || _c === void 0 ? void 0 : _c.displayField) !== null && _d !== void 0 ? _d : 'email',
+    });
+};
+/** The appointment's customer: a search among the accounts when the back-office lists them, a bare id otherwise. */
+function customerField(linked) {
+    var _a, _b;
+    if (!linked)
+        return { name: 'user_id', type: 'integer', label: 'Customer', required: true, filterable: true };
+    const customers = customersOptions();
+    const secondaryField = ((_b = (_a = customerModel()) === null || _a === void 0 ? void 0 : _a.rawAttributes) === null || _b === void 0 ? void 0 : _b.phone_number) ? 'phone_number' : undefined;
+    return {
+        name: 'user_id',
+        type: 'relation',
+        label: 'Customer',
+        required: true,
+        filterable: true,
+        relation: { collection: customers.collection, displayField: customers.displayField, secondaryField, searchable: true },
+        helpText: 'The account the visit is for. It cannot be changed afterwards — a different customer means a different appointment.',
+    };
+}
+/** The agent's own account in the app, linked the same way. */
+function agentAccountField(linked) {
+    if (!linked)
+        return { name: 'user_id', type: 'integer', label: 'App Account', col: 6 };
+    const customers = customersOptions();
+    return {
+        name: 'user_id',
+        type: 'relation',
+        label: 'App Account',
+        filterable: true,
+        relation: { collection: customers.collection, displayField: customers.displayField },
+        helpText: 'Optional. Only for agents who also have an account in the app.',
+        col: 6,
+    };
+}
+/** The collections this leaf registered, not the ones the project brought. */
+const ownCollections = new Set();
 /** Registers what the project hasn't, each passed through `admin.extend`. */
 export function registerBookingCollections(adminLeaf) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const config = state.config;
     const group = (_b = (_a = config.admin) === null || _a === void 0 ? void 0 : _a.group) !== null && _b !== void 0 ? _b : 'Scheduling';
     const models = bookingModels();
@@ -65,6 +106,7 @@ export function registerBookingCollections(adminLeaf) {
         if ((_a = adminLeaf.getCollection) === null || _a === void 0 ? void 0 : _a.call(adminLeaf, collection.name))
             return;
         adminLeaf.registerCollection((_d = (_c = (_b = config.admin) === null || _b === void 0 ? void 0 : _b.extend) === null || _c === void 0 ? void 0 : _c.call(_b, collection.name, collection)) !== null && _d !== void 0 ? _d : collection);
+        ownCollections.add(collection.name);
     };
     // A time is typed on a clock ("09:00") and kept in minutes after midnight.
     if (!((_c = adminLeaf.getCustomFieldType) === null || _c === void 0 ? void 0 : _c.call(adminLeaf, 'time'))) {
@@ -77,18 +119,17 @@ export function registerBookingCollections(adminLeaf) {
     const weekend = weekendOf();
     const scope = config.scope;
     const subject = config.subject;
-    const customers = { collection: (_e = (_d = config.customers) === null || _d === void 0 ? void 0 : _d.collection) !== null && _e !== void 0 ? _e : 'users', displayField: (_g = (_f = config.customers) === null || _f === void 0 ? void 0 : _f.displayField) !== null && _g !== void 0 ? _g : 'email' };
-    const hasCustomers = !!((_h = adminLeaf.getCollection) === null || _h === void 0 ? void 0 : _h.call(adminLeaf, customers.collection));
+    const customers = customersOptions();
+    const hasCustomers = !!((_d = adminLeaf.getCollection) === null || _d === void 0 ? void 0 : _d.call(adminLeaf, customers.collection));
     const Customer = customerModel();
-    const customerSecondary = ((_j = Customer === null || Customer === void 0 ? void 0 : Customer.rawAttributes) === null || _j === void 0 ? void 0 : _j.phone_number) ? 'phone_number' : undefined;
     const scopeAs = scope ? associationTo(models.Scheduler, projectModel(scope.model)) : null;
     const scopeInclude = scopeAs
-        ? [{ association: scopeAs, attributes: ['id', (_k = scope === null || scope === void 0 ? void 0 : scope.displayField) !== null && _k !== void 0 ? _k : 'name', ...((scope === null || scope === void 0 ? void 0 : scope.secondaryField) ? [scope.secondaryField] : [])] }]
+        ? [{ association: scopeAs, attributes: ['id', (_e = scope === null || scope === void 0 ? void 0 : scope.displayField) !== null && _e !== void 0 ? _e : 'name', ...((scope === null || scope === void 0 ? void 0 : scope.secondaryField) ? [scope.secondaryField] : [])] }]
         : [];
     const subjectAs = subject ? associationTo(models.BookingAppointment, projectModel(subject.model)) : null;
     const customerAs = associationTo(models.BookingAppointment, Customer);
     const subjectLabel = capitalized((subject === null || subject === void 0 ? void 0 : subject.label) || 'Subject');
-    const subjectDisplay = (_l = subject === null || subject === void 0 ? void 0 : subject.displayField) !== null && _l !== void 0 ? _l : 'name';
+    const subjectDisplay = (_f = subject === null || subject === void 0 ? void 0 : subject.displayField) !== null && _f !== void 0 ? _f : 'name';
     // ============================================
     // Schedulers: one per reason a scope receives its customers. Everything
     // that governs one is set on its page, in tabs; the child collections stay
@@ -99,19 +140,19 @@ export function registerBookingCollections(adminLeaf) {
             {
                 name: scope.field,
                 type: 'relation',
-                label: (_m = scope.label) !== null && _m !== void 0 ? _m : 'Project',
+                label: (_g = scope.label) !== null && _g !== void 0 ? _g : 'Project',
                 required: true,
                 filterable: true,
                 relation: scope.collection
-                    ? { collection: scope.collection, displayField: (_o = scope.displayField) !== null && _o !== void 0 ? _o : 'name', secondaryField: scope.secondaryField, searchable: true }
+                    ? { collection: scope.collection, displayField: (_h = scope.displayField) !== null && _h !== void 0 ? _h : 'name', secondaryField: scope.secondaryField, searchable: true }
                     : undefined,
-                helpText: (_p = scope.helpText) !== null && _p !== void 0 ? _p : `The ${scopeWord()} whose customers may book here. A ${scopeWord()} has one scheduler per reason to meet — handover, site visit, maintenance — so the same ${scopeWord()} appears as often as it has reasons.`,
+                helpText: (_j = scope.helpText) !== null && _j !== void 0 ? _j : `The ${scopeWord()} whose customers may book here. A ${scopeWord()} has one scheduler per reason to meet — handover, site visit, maintenance — so the same ${scopeWord()} appears as often as it has reasons.`,
                 col: 6,
             },
         ]
         : [];
     const schedulerShowSections = [
-        { title: (_q = scope === null || scope === void 0 ? void 0 : scope.label) !== null && _q !== void 0 ? _q : 'Reason', fields: [...(scope ? [scope.field] : []), 'label', 'label_ar', 'kind', 'created_at'] },
+        { title: (_k = scope === null || scope === void 0 ? void 0 : scope.label) !== null && _k !== void 0 ? _k : 'Reason', fields: [...(scope ? [scope.field] : []), 'label', 'label_ar', 'kind', 'created_at'] },
         { title: 'Visit Period, and Who May Book', fields: ['active', 'show_in_mobile_app', 'starts_on', 'ends_on'] },
         {
             // What bounds the calendar. What cuts it (length, pace, gap, cap, staff) lives on "Days & Hours".
@@ -681,17 +722,7 @@ export function registerBookingCollections(adminLeaf) {
                 searchable: true,
                 helpText: 'What the customer typed when booking, plus anything the team adds afterwards.',
             },
-            hasCustomers
-                ? {
-                    name: 'user_id',
-                    type: 'relation',
-                    label: 'Customer',
-                    required: true,
-                    filterable: true,
-                    relation: { collection: customers.collection, displayField: customers.displayField, secondaryField: customerSecondary, searchable: true },
-                    helpText: 'The account the visit is for. It cannot be changed afterwards — a different customer means a different appointment.',
-                }
-                : { name: 'user_id', type: 'integer', label: 'Customer', required: true, filterable: true },
+            customerField(hasCustomers),
             ...subjectFields,
             {
                 // A relation for the list and filters, a widget for the input: only the employees free at the time picked.
@@ -775,21 +806,7 @@ export function registerBookingCollections(adminLeaf) {
     // ============================================
     // Agents: the employees who receive the appointments.
     // ============================================
-    const agentAccount = ((_r = models.Agent.rawAttributes) === null || _r === void 0 ? void 0 : _r.user_id)
-        ? [
-            hasCustomers
-                ? {
-                    name: 'user_id',
-                    type: 'relation',
-                    label: 'App Account',
-                    filterable: true,
-                    relation: { collection: customers.collection, displayField: customers.displayField },
-                    helpText: 'Optional. Only for agents who also have an account in the app.',
-                    col: 6,
-                }
-                : { name: 'user_id', type: 'integer', label: 'App Account', col: 6 },
-        ]
-        : [];
+    const agentAccount = ((_l = models.Agent.rawAttributes) === null || _l === void 0 ? void 0 : _l.user_id) ? [agentAccountField(hasCustomers)] : [];
     const agentForm = ['first_name', 'last_name', 'email', 'phone_number', 'active', 'max_concurrent_appointments', ...agentAccount.map((f) => f.name), 'holidays'];
     register({
         name: names.agents,
@@ -873,4 +890,29 @@ export function registerBookingCollections(adminLeaf) {
             edit: { fields: agentForm },
         },
     });
+}
+/**
+ * The accounts' collection is usually the project's own, registered by its
+ * `app` module, which runs after every leaf: when the collections above were
+ * built it did not exist yet, and a customer stayed a bare id (no email in the
+ * list, an id to type in the form). Once every module has run, that id becomes
+ * the account it points to.
+ */
+export function linkBookingCustomers(adminLeaf) {
+    var _a, _b, _c;
+    if (!((_a = adminLeaf.getCollection) === null || _a === void 0 ? void 0 : _a.call(adminLeaf, customersOptions().collection)))
+        return;
+    const names = collectionNames();
+    for (const [name, linked] of [
+        [names.appointments, customerField(true)],
+        [names.agents, agentAccountField(true)],
+    ]) {
+        if (!ownCollections.has(name))
+            continue;
+        const fields = (_b = adminLeaf.getCollection(name)) === null || _b === void 0 ? void 0 : _b.fields;
+        const at = (_c = fields === null || fields === void 0 ? void 0 : fields.findIndex((f) => f.name === 'user_id' && f.type === 'integer')) !== null && _c !== void 0 ? _c : -1;
+        // What `admin.extend` changed on the field stays; only its kind changes.
+        if (at >= 0)
+            fields[at] = Object.assign(Object.assign(Object.assign({}, linked), fields[at]), { type: 'relation', relation: linked.relation });
+    }
 }

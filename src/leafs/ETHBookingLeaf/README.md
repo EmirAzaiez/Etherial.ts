@@ -163,6 +163,8 @@ sync: {
 
 `send` est du code du projet : le leaf ne connaît aucun CRM et ne crée rien chez personne. Les essais, l'erreur, le bouton **Resend** et la pause sont décrits dans `components/sync/README.md`.
 
+La cible est déclarée dans le `beforeRun` du leaf. Une commande qui met des rendez-vous en file (`enqueueSync`) sans passer par `etherial.run()` doit appeler les `beforeRun` des modules d'abord : sans cible, `enqueueSync` ne fait rien et ne le dit pas.
+
 ---
 
 ## 6. Les routes
@@ -214,6 +216,8 @@ admin: {
 
 Une collection déjà déclarée par le projet sous le même nom n'est pas remplacée.
 
+Le client d'un rendez-vous (et le compte d'un agent) pointe vers la collection `customers.collection` (`users`), même quand le projet la déclare dans son module `app`, qui tourne après les leafs : le lien est posé dans l'`afterRun`.
+
 Un projet qui avait déjà ses collections garde leurs noms (les droits des rôles sont rangés par nom) avec `admin.collections` : `{ appointments: 'appointments' }`. Les clés : `schedulers`, `windows`, `blocks`, `agents`, `appointments`. Le nom des rendez-vous est aussi celui de leur cible de `sync`, et la page Calendar ouvre un rendez-vous dans cette collection.
 
 `admin.visitType(scheduler)` remplace le `kind` affiché par le sélecteur à côté du nom du scheduler (« Handover in Salesforce »).
@@ -223,4 +227,5 @@ Un projet qui avait déjà ses collections garde leurs noms (les droits des rôl
 ## 8. Projets
 
 - **EmiratesOne** : mode « ++ ». Fuseau `Asia/Dubai`, week-end samedi-dimanche, scope `Project`, subject `Unit`. Pas de `sync` : rien n'est envoyé à Salesforce.
+- **DWE** : les rendez-vous vivent chez nous et partent vers Salesforce. Fuseau `Asia/Riyadh`, week-end vendredi-samedi, scope `Project`, subject `Property`. `sync` crée le ServiceAppointment la première fois, puis le met à jour (affectation de la ressource, statut) : un rendez-vous qui a déjà son id n'est jamais recréé. Collections gardées sous leurs anciens noms (`admin.collections: { appointments: 'appointments' }`), `kind` remplacé par le type Salesforce (`admin.extend`, `admin.visitType`). Pas de rappels.
 - **Retal** : mode relais (`Appointment__c` et Apex), n'utilise pas ce leaf.

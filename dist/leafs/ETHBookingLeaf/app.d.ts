@@ -41,6 +41,6 @@ export default class ETHBookingLeaf {
      * collections before the admin leaf installs its history on them.
      */
     run({ http }: Etherial): void;
-    /** Lifecycle: afterRun — the sent records in the back-office, when there is a target. */
+    /** Lifecycle: afterRun — the project's accounts exist: the customers link to them; the sent records in the back-office. */
     afterRun(): void;
 }

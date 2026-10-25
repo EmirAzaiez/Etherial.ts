@@ -70,6 +70,45 @@ const STATUS_OPTIONS = [
     { value: BookingAppointmentStatus.NO_SHOW, label: 'No Show', color: 'orange' },
 ]
 
+const customersOptions = () => ({
+    collection: state.config.customers?.collection ?? 'users',
+    displayField: state.config.customers?.displayField ?? 'email',
+})
+
+/** The appointment's customer: a search among the accounts when the back-office lists them, a bare id otherwise. */
+function customerField(linked: boolean) {
+    if (!linked) return { name: 'user_id', type: 'integer', label: 'Customer', required: true, filterable: true }
+    const customers = customersOptions()
+    const secondaryField = customerModel()?.rawAttributes?.phone_number ? 'phone_number' : undefined
+    return {
+        name: 'user_id',
+        type: 'relation',
+        label: 'Customer',
+        required: true,
+        filterable: true,
+        relation: { collection: customers.collection, displayField: customers.displayField, secondaryField, searchable: true },
+        helpText: 'The account the visit is for. It cannot be changed afterwards — a different customer means a different appointment.',
+    }
+}
+
+/** The agent's own account in the app, linked the same way. */
+function agentAccountField(linked: boolean) {
+    if (!linked) return { name: 'user_id', type: 'integer', label: 'App Account', col: 6 }
+    const customers = customersOptions()
+    return {
+        name: 'user_id',
+        type: 'relation',
+        label: 'App Account',
+        filterable: true,
+        relation: { collection: customers.collection, displayField: customers.displayField },
+        helpText: 'Optional. Only for agents who also have an account in the app.',
+        col: 6,
+    }
+}
+
+/** The collections this leaf registered, not the ones the project brought. */
+const ownCollections = new Set<string>()
+
 /** Registers what the project hasn't, each passed through `admin.extend`. */
 export function registerBookingCollections(adminLeaf: any): void {
     const config = state.config
@@ -79,6 +118,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     const register = (collection: any) => {
         if (adminLeaf.getCollection?.(collection.name)) return
         adminLeaf.registerCollection(config.admin?.extend?.(collection.name, collection) ?? collection)
+        ownCollections.add(collection.name)
     }
 
     // A time is typed on a clock ("09:00") and kept in minutes after midnight.
@@ -93,10 +133,9 @@ export function registerBookingCollections(adminLeaf: any): void {
     const weekend = weekendOf()
     const scope = config.scope
     const subject = config.subject
-    const customers = { collection: config.customers?.collection ?? 'users', displayField: config.customers?.displayField ?? 'email' }
+    const customers = customersOptions()
     const hasCustomers = !!adminLeaf.getCollection?.(customers.collection)
     const Customer = customerModel()
-    const customerSecondary = Customer?.rawAttributes?.phone_number ? 'phone_number' : undefined
 
     const scopeAs = scope ? associationTo(models.Scheduler, projectModel(scope.model)) : null
     const scopeInclude = scopeAs
@@ -726,17 +765,7 @@ export function registerBookingCollections(adminLeaf: any): void {
                 searchable: true,
                 helpText: 'What the customer typed when booking, plus anything the team adds afterwards.',
             },
-            hasCustomers
-                ? {
-                      name: 'user_id',
-                      type: 'relation',
-                      label: 'Customer',
-                      required: true,
-                      filterable: true,
-                      relation: { collection: customers.collection, displayField: customers.displayField, secondaryField: customerSecondary, searchable: true },
-                      helpText: 'The account the visit is for. It cannot be changed afterwards — a different customer means a different appointment.',
-                  }
-                : { name: 'user_id', type: 'integer', label: 'Customer', required: true, filterable: true },
+            customerField(hasCustomers),
             ...subjectFields,
             {
                 // A relation for the list and filters, a widget for the input: only the employees free at the time picked.
@@ -824,21 +853,7 @@ export function registerBookingCollections(adminLeaf: any): void {
     // ============================================
     // Agents: the employees who receive the appointments.
     // ============================================
-    const agentAccount = models.Agent.rawAttributes?.user_id
-        ? [
-              hasCustomers
-                  ? {
-                        name: 'user_id',
-                        type: 'relation',
-                        label: 'App Account',
-                        filterable: true,
-                        relation: { collection: customers.collection, displayField: customers.displayField },
-                        helpText: 'Optional. Only for agents who also have an account in the app.',
-                        col: 6,
-                    }
-                  : { name: 'user_id', type: 'integer', label: 'App Account', col: 6 },
-          ]
-        : []
+    const agentAccount = models.Agent.rawAttributes?.user_id ? [agentAccountField(hasCustomers)] : []
     const agentForm = ['first_name', 'last_name', 'email', 'phone_number', 'active', 'max_concurrent_appointments', ...agentAccount.map((f) => f.name), 'holidays']
 
     register({
@@ -925,4 +940,26 @@ export function registerBookingCollections(adminLeaf: any): void {
             edit: { fields: agentForm },
         },
     })
+}
+
+/**
+ * The accounts' collection is usually the project's own, registered by its
+ * `app` module, which runs after every leaf: when the collections above were
+ * built it did not exist yet, and a customer stayed a bare id (no email in the
+ * list, an id to type in the form). Once every module has run, that id becomes
+ * the account it points to.
+ */
+export function linkBookingCustomers(adminLeaf: any): void {
+    if (!adminLeaf.getCollection?.(customersOptions().collection)) return
+    const names = collectionNames()
+    for (const [name, linked] of [
+        [names.appointments, customerField(true)],
+        [names.agents, agentAccountField(true)],
+    ] as const) {
+        if (!ownCollections.has(name)) continue
+        const fields = adminLeaf.getCollection(name)?.fields
+        const at = fields?.findIndex((f: any) => f.name === 'user_id' && f.type === 'integer') ?? -1
+        // What `admin.extend` changed on the field stays; only its kind changes.
+        if (at >= 0) fields[at] = { ...linked, ...fields[at], type: 'relation', relation: (linked as any).relation }
+    }
 }
