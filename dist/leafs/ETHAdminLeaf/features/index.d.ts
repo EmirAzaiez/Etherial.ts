@@ -1,4 +1,4 @@
-export { ActionRegistry, Action, ActionMeta, ActionContext, ActionResult, SerializedAction, BuiltinFieldType, FieldType, FieldDefinition, FieldOption, BadgeColor, CustomFieldTypeConfig, yupToForm } from './ActionRegistry.js';
+export { ActionRegistry, Action, ActionMeta, ActionContext, ActionResult, SerializedAction, BuiltinFieldType, FieldType, FieldDefinition, FieldOption, BadgeColor, CustomFieldTypeConfig, CustomFieldSaveContext, yupToForm } from './ActionRegistry.js';
 export { HookRegistry, Hook, HookFunctions, ResolvedHooks } from './HookRegistry.js';
 export { CollectionConfig, CollectionMeta, CollectionViews, SerializedCollection } from './CollectionConfig.js';
 export { PageConfig, SerializedPage, CustomPageForm } from './PageConfig.js';

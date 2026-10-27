@@ -31,6 +31,12 @@ export interface ListView {
     search?: string[];
     filters?: string[];
     include?: any[];
+    /**
+     * The rows the list, its search, its export and the global search show
+     * (Sequelize where): the others are kept out of sight but still open by
+     * their id. Plain columns: it travels to the back-office with the schema.
+     */
+    where?: Record<string, any>;
 }
 export interface ShowView {
     fields?: string[];

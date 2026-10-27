@@ -12,6 +12,7 @@ export {
     FieldOption,
     BadgeColor,
     CustomFieldTypeConfig,
+    CustomFieldSaveContext,
     yupToForm
 } from './ActionRegistry.js'
 

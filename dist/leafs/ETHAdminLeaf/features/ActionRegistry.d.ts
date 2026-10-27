@@ -374,11 +374,40 @@ export interface SerializedAction {
     form?: FieldDefinition[];
 }
 export declare function yupToForm(schema: yup.Schema<any>): FieldDefinition[];
+/**
+ * The save a value is part of: what a type that keeps its content elsewhere
+ * (a page, a file) needs to write it there.
+ */
+export interface CustomFieldSaveContext {
+    collection: string;
+    /** The row before the save; null on a create. */
+    record: any | null;
+    /** Everything saved with the value, through the collection's hooks. */
+    data: Record<string, any>;
+    req: any;
+}
 export interface CustomFieldTypeConfig {
     name: string;
-    beforeSave?: (value: any, field: FieldDefinition) => any;
+    /** Awaited: it may write elsewhere and return what the column keeps (an id). */
+    beforeSave?: (value: any, field: FieldDefinition, context: CustomFieldSaveContext) => any;
     afterRead?: (value: any, field: FieldDefinition) => any;
     validate?: (value: any, field: FieldDefinition) => void | Promise<void>;
+    /**
+     * The value of a copy (the duplicate action). Without it the stored value
+     * is copied as is: right for a value, wrong for a type that owns something
+     * elsewhere, which two records would then share.
+     */
+    duplicate?: (value: any, field: FieldDefinition, context: CustomFieldSaveContext) => any;
+    /**
+     * After the record is deleted, one or in bulk: what it owned elsewhere goes
+     * too. Not called when the collection keeps deleted rows (soft delete): the
+     * record can come back.
+     */
+    afterDelete?: (value: any, field: FieldDefinition, context: {
+        collection: string;
+        record: any;
+        req: any;
+    }) => void | Promise<void>;
 }
 export declare class ActionRegistry {
     private actions;

@@ -11,7 +11,7 @@ import {
     Delete,
 } from 'etherial/components/http/provider'
 import { ShouldBeAuthenticated } from 'etherial/components/http.auth/provider'
-import { ActionContext, FieldDefinition, FieldHasMany, FieldBelongsToMany, BelongsToManyInput } from '../features/ActionRegistry.js'
+import { ActionContext, FieldDefinition, FieldHasMany, FieldBelongsToMany, BelongsToManyInput, CustomFieldSaveContext, CustomFieldTypeConfig } from '../features/ActionRegistry.js'
 import { CollectionStat } from '../features/CollectionConfig.js'
 import { detectEditConflict } from '../features/concurrency.js'
 import { writableFields, keepWritable, lockedColumns, isSecretColumn } from '../features/access.js'
@@ -634,12 +634,14 @@ function transformMediaUrls(data: any, cdnUrl?: string): any {
 
 /**
  * Process custom field types for create/update operations
- * Runs beforeSave and validate hooks for any fields that use custom types
+ * Runs beforeSave and validate hooks for any fields that use custom types;
+ * `duplicate` gives a copied record its values.
  */
 async function processCustomFieldTypes(
     data: Record<string, any>,
     fields: FieldDefinition[] | undefined,
-    phase: 'beforeSave' | 'validate'
+    phase: 'beforeSave' | 'validate' | 'duplicate',
+    context?: CustomFieldSaveContext
 ): Promise<Record<string, any>> {
     if (!fields) return data
 
@@ -654,7 +656,11 @@ async function processCustomFieldTypes(
         if (value === undefined) continue
 
         if (phase === 'beforeSave' && customType.beforeSave) {
-            result[field.name] = customType.beforeSave(value, field)
+            result[field.name] = await customType.beforeSave(value, field, context!)
+        }
+
+        if (phase === 'duplicate' && customType.duplicate) {
+            result[field.name] = await customType.duplicate(value, field, context!)
         }
 
         if (phase === 'validate' && customType.validate) {
@@ -663,6 +669,32 @@ async function processCustomFieldTypes(
     }
 
     return result
+}
+
+type Cleanup = NonNullable<CustomFieldTypeConfig['afterDelete']>
+
+/** The custom field types of a collection that clean up after a deleted record. */
+function deleteCleanups(collection: any): [FieldDefinition, Cleanup][] {
+    // A soft-deleted record can be restored: what it owns stays.
+    if (collection.model?.options?.paranoid) return []
+    const adminLeaf = getAdminLeaf()
+    return ((collection.fields || []) as FieldDefinition[]).flatMap((field) => {
+        const cleanup = adminLeaf?.getCustomFieldType(field.type)?.afterDelete
+        return cleanup ? [[field, cleanup] as [FieldDefinition, Cleanup]] : []
+    })
+}
+
+async function cleanUpAfterDelete(collection: any, record: any, req: any): Promise<void> {
+    for (const [field, cleanup] of deleteCleanups(collection)) {
+        const value = record.get ? record.get(field.name) : record[field.name]
+        if (value === undefined || value === null) continue
+        try {
+            await cleanup(value, field, { collection: collection.name, record, req })
+        } catch (err) {
+            // The record is gone already: what is left behind is logged, not a failed delete.
+            console.error(`[ETHAdminLeaf] Cleanup of ${collection.name}.${field.name} failed:`, err)
+        }
+    }
 }
 
 /**
@@ -855,8 +887,9 @@ function escapeCsvValue(value: any): string {
  *     (in one transaction when there are), the after hook, the reload.
  *
  * `fromStoredValues` (a duplicate) keeps every stored column but the locked
- * ones, and skips the custom field types: the values come from the table, not
- * from a form, and converting them again would corrupt them.
+ * ones, and skips the custom field types' `beforeSave`: the values come from
+ * the table, not from a form, and converting them again would corrupt them.
+ * Their `duplicate` runs instead (a copy gets a page of its own, not a share).
  */
 async function saveRecord(
     collection: any,
@@ -908,9 +941,12 @@ async function saveRecord(
     }
 
     // Process custom field types: validate then beforeSave
+    const context: CustomFieldSaveContext = { collection: collection.name, record, data, req }
     if (!options.fromStoredValues) {
         data = await processCustomFieldTypes(data, collection.fields, 'validate')
-        data = await processCustomFieldTypes(data, collection.fields, 'beforeSave')
+        data = await processCustomFieldTypes(data, collection.fields, 'beforeSave', context)
+    } else {
+        data = await processCustomFieldTypes(data, collection.fields, 'duplicate', context)
     }
 
     const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0
@@ -1019,9 +1055,9 @@ export default class AdminCollectionsController {
                 : Number(offset ?? 0)
             const listView = collection.views?.list
 
-            // Build where clause from advanced filters
+            // Build where clause from advanced filters, inside the list's own rows
             const allowedFilters = listView?.filters || []
-            const where: any = parseAdvancedFilters(filters, allowedFilters)
+            const where: any = { ...parseAdvancedFilters(filters, allowedFilters), ...listView?.where }
 
             // Build search clause
             if (search && listView?.search && listView.search.length > 0) {
@@ -1406,6 +1442,7 @@ export default class AdminCollectionsController {
             }
 
             await record.destroy()
+            await cleanUpAfterDelete(collection, record, req)
 
             // Run afterDelete hook
             if (resolvedHooks?.afterDelete) {
@@ -1738,11 +1775,12 @@ export default class AdminCollectionsController {
             // page instead and let the query narrow it down.
             const where: any = q
                 ? {
+                    ...listView?.where,
                     [Op.or]: searchFields.map((field: string) => ({
                         [field]: { [Op.iLike]: `%${q}%` }
                     }))
                 }
-                : {}
+                : { ...listView?.where }
 
             const cappedLimit = Math.min(Number(limit), 50)
 
@@ -1920,9 +1958,9 @@ export default class AdminCollectionsController {
             const { format = 'csv', fields: fieldsParam, search, sort, order, showDeleted, exclude, ...filters } = req.query
             const listView = collection.views?.list
 
-            // Build where clause (reuse advanced filters)
+            // Build where clause (reuse advanced filters), inside the list's own rows
             const allowedFilters = listView?.filters || []
-            const where: any = parseAdvancedFilters(filters, allowedFilters)
+            const where: any = { ...parseAdvancedFilters(filters, allowedFilters), ...listView?.where }
 
             // Build search clause
             if (search && listView?.search && listView.search.length > 0) {
@@ -2049,8 +2087,8 @@ export default class AdminCollectionsController {
             const resolvedHooks = adminLeaf.getResolvedHooks(collectionName)
 
             if (action === 'delete') {
-                // If hooks are defined, run them per-record
-                if (resolvedHooks?.beforeDelete || resolvedHooks?.afterDelete) {
+                // If hooks or field cleanups are defined, run them per-record
+                if (resolvedHooks?.beforeDelete || resolvedHooks?.afterDelete || deleteCleanups(collection).length) {
                     const records = await collection.model.findAll({ where: { id: { [Op.in]: ids } } })
                     let deleted = 0
                     for (const record of records) {
@@ -2059,6 +2097,7 @@ export default class AdminCollectionsController {
                             if (canDelete === false) continue
                         }
                         await record.destroy()
+                        await cleanUpAfterDelete(collection, record, req)
                         if (resolvedHooks?.afterDelete) {
                             await resolvedHooks.afterDelete(record, req)
                         }

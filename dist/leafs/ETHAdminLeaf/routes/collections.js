@@ -556,9 +556,10 @@ function transformMediaUrls(data, cdnUrl) {
 }
 /**
  * Process custom field types for create/update operations
- * Runs beforeSave and validate hooks for any fields that use custom types
+ * Runs beforeSave and validate hooks for any fields that use custom types;
+ * `duplicate` gives a copied record its values.
  */
-function processCustomFieldTypes(data, fields, phase) {
+function processCustomFieldTypes(data, fields, phase, context) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!fields)
             return data;
@@ -572,13 +573,45 @@ function processCustomFieldTypes(data, fields, phase) {
             if (value === undefined)
                 continue;
             if (phase === 'beforeSave' && customType.beforeSave) {
-                result[field.name] = customType.beforeSave(value, field);
+                result[field.name] = yield customType.beforeSave(value, field, context);
+            }
+            if (phase === 'duplicate' && customType.duplicate) {
+                result[field.name] = yield customType.duplicate(value, field, context);
             }
             if (phase === 'validate' && customType.validate) {
                 yield customType.validate(value, field);
             }
         }
         return result;
+    });
+}
+/** The custom field types of a collection that clean up after a deleted record. */
+function deleteCleanups(collection) {
+    var _a, _b;
+    // A soft-deleted record can be restored: what it owns stays.
+    if ((_b = (_a = collection.model) === null || _a === void 0 ? void 0 : _a.options) === null || _b === void 0 ? void 0 : _b.paranoid)
+        return [];
+    const adminLeaf = getAdminLeaf();
+    return (collection.fields || []).flatMap((field) => {
+        var _a;
+        const cleanup = (_a = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.getCustomFieldType(field.type)) === null || _a === void 0 ? void 0 : _a.afterDelete;
+        return cleanup ? [[field, cleanup]] : [];
+    });
+}
+function cleanUpAfterDelete(collection, record, req) {
+    return __awaiter(this, void 0, void 0, function* () {
+        for (const [field, cleanup] of deleteCleanups(collection)) {
+            const value = record.get ? record.get(field.name) : record[field.name];
+            if (value === undefined || value === null)
+                continue;
+            try {
+                yield cleanup(value, field, { collection: collection.name, record, req });
+            }
+            catch (err) {
+                // The record is gone already: what is left behind is logged, not a failed delete.
+                console.error(`[ETHAdminLeaf] Cleanup of ${collection.name}.${field.name} failed:`, err);
+            }
+        }
     });
 }
 /**
@@ -746,8 +779,9 @@ function escapeCsvValue(value) {
  *     (in one transaction when there are), the after hook, the reload.
  *
  * `fromStoredValues` (a duplicate) keeps every stored column but the locked
- * ones, and skips the custom field types: the values come from the table, not
- * from a form, and converting them again would corrupt them.
+ * ones, and skips the custom field types' `beforeSave`: the values come from
+ * the table, not from a form, and converting them again would corrupt them.
+ * Their `duplicate` runs instead (a copy gets a page of its own, not a share).
  */
 function saveRecord(collection_1, record_1, body_1, req_1) {
     return __awaiter(this, arguments, void 0, function* (collection, record, body, req, options = {}) {
@@ -790,9 +824,13 @@ function saveRecord(collection_1, record_1, body_1, req_1) {
             data = (_b = yield resolvedHooks.beforeCreate(data, req)) !== null && _b !== void 0 ? _b : data;
         }
         // Process custom field types: validate then beforeSave
+        const context = { collection: collection.name, record, data, req };
         if (!options.fromStoredValues) {
             data = yield processCustomFieldTypes(data, collection.fields, 'validate');
-            data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave');
+            data = yield processCustomFieldTypes(data, collection.fields, 'beforeSave', context);
+        }
+        else {
+            data = yield processCustomFieldTypes(data, collection.fields, 'duplicate', context);
         }
         const withRelations = hasManyData.size > 0 || belongsToManyData.size > 0;
         const saved = yield inSaveTransaction(collection.model, withRelations, (transaction) => __awaiter(this, void 0, void 0, function* () {
@@ -884,9 +922,9 @@ let AdminCollectionsController = class AdminCollectionsController {
                     ? Math.max(0, (Math.max(1, Number(page)) - 1) * effectiveLimit)
                     : Number(offset !== null && offset !== void 0 ? offset : 0);
                 const listView = (_f = collection.views) === null || _f === void 0 ? void 0 : _f.list;
-                // Build where clause from advanced filters
+                // Build where clause from advanced filters, inside the list's own rows
                 const allowedFilters = (listView === null || listView === void 0 ? void 0 : listView.filters) || [];
-                const where = parseAdvancedFilters(filters, allowedFilters);
+                const where = Object.assign(Object.assign({}, parseAdvancedFilters(filters, allowedFilters)), listView === null || listView === void 0 ? void 0 : listView.where);
                 // Build search clause
                 if (search && (listView === null || listView === void 0 ? void 0 : listView.search) && listView.search.length > 0) {
                     where[Op.or] = listView.search.map((field) => ({
@@ -1212,6 +1250,7 @@ let AdminCollectionsController = class AdminCollectionsController {
                     }
                 }
                 yield record.destroy();
+                yield cleanUpAfterDelete(collection, record, req);
                 // Run afterDelete hook
                 if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterDelete) {
                     yield resolvedHooks.afterDelete(record, req);
@@ -1479,12 +1518,9 @@ let AdminCollectionsController = class AdminCollectionsController {
                 // shows an empty dropdown over a full table, so browse the first
                 // page instead and let the query narrow it down.
                 const where = q
-                    ? {
-                        [Op.or]: searchFields.map((field) => ({
+                    ? Object.assign(Object.assign({}, listView === null || listView === void 0 ? void 0 : listView.where), { [Op.or]: searchFields.map((field) => ({
                             [field]: { [Op.iLike]: `%${q}%` }
-                        }))
-                    }
-                    : {};
+                        })) }) : Object.assign({}, listView === null || listView === void 0 ? void 0 : listView.where);
                 const cappedLimit = Math.min(Number(limit), 50);
                 const results = yield collection.model.findAll({
                     where,
@@ -1631,9 +1667,9 @@ let AdminCollectionsController = class AdminCollectionsController {
             try {
                 const _l = req.query, { format = 'csv', fields: fieldsParam, search, sort, order, showDeleted, exclude } = _l, filters = __rest(_l, ["format", "fields", "search", "sort", "order", "showDeleted", "exclude"]);
                 const listView = (_g = collection.views) === null || _g === void 0 ? void 0 : _g.list;
-                // Build where clause (reuse advanced filters)
+                // Build where clause (reuse advanced filters), inside the list's own rows
                 const allowedFilters = (listView === null || listView === void 0 ? void 0 : listView.filters) || [];
-                const where = parseAdvancedFilters(filters, allowedFilters);
+                const where = Object.assign(Object.assign({}, parseAdvancedFilters(filters, allowedFilters)), listView === null || listView === void 0 ? void 0 : listView.where);
                 // Build search clause
                 if (search && (listView === null || listView === void 0 ? void 0 : listView.search) && listView.search.length > 0) {
                     where[Op.or] = listView.search.map((field) => ({
@@ -1734,8 +1770,8 @@ let AdminCollectionsController = class AdminCollectionsController {
             try {
                 const resolvedHooks = adminLeaf.getResolvedHooks(collectionName);
                 if (action === 'delete') {
-                    // If hooks are defined, run them per-record
-                    if ((resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeDelete) || (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterDelete)) {
+                    // If hooks or field cleanups are defined, run them per-record
+                    if ((resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.beforeDelete) || (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterDelete) || deleteCleanups(collection).length) {
                         const records = yield collection.model.findAll({ where: { id: { [Op.in]: ids } } });
                         let deleted = 0;
                         for (const record of records) {
@@ -1745,6 +1781,7 @@ let AdminCollectionsController = class AdminCollectionsController {
                                     continue;
                             }
                             yield record.destroy();
+                            yield cleanUpAfterDelete(collection, record, req);
                             if (resolvedHooks === null || resolvedHooks === void 0 ? void 0 : resolvedHooks.afterDelete) {
                                 yield resolvedHooks.afterDelete(record, req);
                             }

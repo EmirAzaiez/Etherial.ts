@@ -72,7 +72,7 @@ function titleOf(row, searchFields) {
 }
 function searchCollection(collection, q, limit) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e;
         const readable = readableColumns(collection);
         const searchFields = ((_c = (_b = (_a = collection.views) === null || _a === void 0 ? void 0 : _a.list) === null || _b === void 0 ? void 0 : _b.search) !== null && _c !== void 0 ? _c : []).filter((f) => readable.has(f));
         if (searchFields.length === 0) {
@@ -82,7 +82,7 @@ function searchCollection(collection, q, limit) {
         const titleColumns = [...TITLE_FIELDS, ...NAME_PAIRS.flat()].filter((f) => readable.has(f));
         const attributes = Array.from(new Set([primaryKey, ...titleColumns, ...searchFields]));
         const rows = yield collection.model.findAll({
-            where: { [Op.or]: searchFields.map((field) => ({ [field]: { [Op.iLike]: `%${q}%` } })) },
+            where: Object.assign(Object.assign({}, (_e = (_d = collection.views) === null || _d === void 0 ? void 0 : _d.list) === null || _e === void 0 ? void 0 : _e.where), { [Op.or]: searchFields.map((field) => ({ [field]: { [Op.iLike]: `%${q}%` } })) }),
             attributes,
             order: [[primaryKey, 'DESC']],
             limit,

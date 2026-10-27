@@ -79,7 +79,7 @@ async function searchCollection(collection: CollectionConfig, q: string, limit: 
     const attributes = Array.from(new Set([primaryKey, ...titleColumns, ...searchFields]))
 
     const rows = await collection.model.findAll({
-        where: { [Op.or]: searchFields.map((field) => ({ [field]: { [Op.iLike]: `%${q}%` } })) },
+        where: { ...collection.views?.list?.where, [Op.or]: searchFields.map((field) => ({ [field]: { [Op.iLike]: `%${q}%` } })) },
         attributes,
         order: [[primaryKey, 'DESC']],
         limit,
