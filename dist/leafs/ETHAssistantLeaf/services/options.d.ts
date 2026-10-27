@@ -1,5 +1,7 @@
 /** The hidden back-office collection that lists every question asked. */
 export declare const REQUESTS_COLLECTION = "assistant-requests";
+/** The agent's name wherever a person reads it: its errors, what it calls itself. */
+export declare const AGENT_NAME = "DLS Assistant";
 export type AssistantTask = 'ask' | 'summarize' | 'draft';
 export declare const TASKS: AssistantTask[];
 export interface ETHAssistantLeafConfig {

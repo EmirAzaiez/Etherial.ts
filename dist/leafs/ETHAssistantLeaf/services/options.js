@@ -7,6 +7,8 @@
 import etherial from 'etherial';
 /** The hidden back-office collection that lists every question asked. */
 export const REQUESTS_COLLECTION = 'assistant-requests';
+/** The agent's name wherever a person reads it: its errors, what it calls itself. */
+export const AGENT_NAME = 'DLS Assistant';
 export const TASKS = ['ask', 'summarize', 'draft'];
 /** Most records one proposal may touch: the bulk endpoint takes 100. */
 const MAX_PROPOSAL_RECORDS = 100;

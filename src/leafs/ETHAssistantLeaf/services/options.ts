@@ -10,6 +10,9 @@ import etherial from 'etherial'
 /** The hidden back-office collection that lists every question asked. */
 export const REQUESTS_COLLECTION = 'assistant-requests'
 
+/** The agent's name wherever a person reads it: its errors, what it calls itself. */
+export const AGENT_NAME = 'DLS Assistant'
+
 export type AssistantTask = 'ask' | 'summarize' | 'draft'
 export const TASKS: AssistantTask[] = ['ask', 'summarize', 'draft']
 

@@ -1,7 +1,3 @@
-// ──────────────────────────────────────────────────────────────────────────
-// The Anthropic Messages API, called with fetch: no SDK to add to every
-// project. Only what the assistant uses — text, tools, prompt caching.
-// ──────────────────────────────────────────────────────────────────────────
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -11,6 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import { AGENT_NAME } from './options.js';
 /** A failure the back-office can explain: `status` is what the route answers. */
 export class AssistantError extends Error {
     constructor(status, code, message) {
@@ -53,8 +50,8 @@ export function createMessage(request) {
             catch (err) {
                 lastError =
                     (err === null || err === void 0 ? void 0 : err.name) === 'AbortError'
-                        ? new AssistantError(504, 'provider_timeout', 'Claude took too long to answer')
-                        : new AssistantError(502, 'provider_unreachable', 'Could not reach Claude');
+                        ? new AssistantError(504, 'provider_timeout', `${AGENT_NAME} took too long to answer`)
+                        : new AssistantError(502, 'provider_unreachable', `Could not reach ${AGENT_NAME}`);
                 continue;
             }
             finally {
@@ -85,7 +82,7 @@ export function createMessage(request) {
                 throw new AssistantError(502, 'provider_auth', `The Anthropic key was refused: ${detail}`);
             if (!RETRYABLE.has(response.status))
                 throw new AssistantError(502, 'provider_rejected', detail);
-            lastError = new AssistantError(503, 'provider_busy', `Claude is busy: ${detail}`);
+            lastError = new AssistantError(503, 'provider_busy', `${AGENT_NAME} is busy: ${detail}`);
         }
         throw lastError !== null && lastError !== void 0 ? lastError : new AssistantError(502, 'provider_unreachable');
     });

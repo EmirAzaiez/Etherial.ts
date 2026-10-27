@@ -1,3 +1,5 @@
+import { AGENT_NAME } from './options.js'
+
 // ──────────────────────────────────────────────────────────────────────────
 // The Anthropic Messages API, called with fetch: no SDK to add to every
 // project. Only what the assistant uses — text, tools, prompt caching.
@@ -97,8 +99,8 @@ export async function createMessage(request: MessageRequest): Promise<MessageRes
         } catch (err: any) {
             lastError =
                 err?.name === 'AbortError'
-                    ? new AssistantError(504, 'provider_timeout', 'Claude took too long to answer')
-                    : new AssistantError(502, 'provider_unreachable', 'Could not reach Claude')
+                    ? new AssistantError(504, 'provider_timeout', `${AGENT_NAME} took too long to answer`)
+                    : new AssistantError(502, 'provider_unreachable', `Could not reach ${AGENT_NAME}`)
             continue
         } finally {
             clearTimeout(timer)
@@ -128,7 +130,7 @@ export async function createMessage(request: MessageRequest): Promise<MessageRes
         const detail = json?.error?.message ? String(json.error.message).slice(0, 200) : `HTTP ${response.status}`
         if (response.status === 401 || response.status === 403) throw new AssistantError(502, 'provider_auth', `The Anthropic key was refused: ${detail}`)
         if (!RETRYABLE.has(response.status)) throw new AssistantError(502, 'provider_rejected', detail)
-        lastError = new AssistantError(503, 'provider_busy', `Claude is busy: ${detail}`)
+        lastError = new AssistantError(503, 'provider_busy', `${AGENT_NAME} is busy: ${detail}`)
     }
     throw lastError ?? new AssistantError(502, 'provider_unreachable')
 }

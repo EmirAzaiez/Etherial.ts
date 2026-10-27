@@ -14,7 +14,7 @@ import { AssistantRequest } from '../models/AssistantRequest.js'
 import { AssistantError, ChatMessage, ContentBlock, Usage, createMessage, textOf } from './anthropic.js'
 import { ReadableCollection, catalogText, collectionsFor } from './catalog.js'
 import { saveTurn } from './history.js'
-import { AssistantTask, TASKS, aiAllowed, apiKeyOf, historyOn, modelsOf, proposalsOn, timezoneOf } from './options.js'
+import { AGENT_NAME, AssistantTask, TASKS, aiAllowed, apiKeyOf, historyOn, modelsOf, proposalsOn, timezoneOf } from './options.js'
 import { Proposal, isProposalTool, proposalToolsFor, runProposal, writableSide } from './proposals.js'
 import { flowsFor } from './flows.js'
 import { state } from './state.js'
@@ -281,7 +281,7 @@ function changesRule(proposals: boolean, flows: boolean): string {
 
 function rules(collections: Map<string, ReadableCollection>, proposals: boolean, flows = false): string {
     return [
-        `You are the assistant built into the back office of ${appName()}. Its staff ask you about their data — residents, bookings, requests, and so on — and you answer by reading it with your tools. You never guess a figure: every number you give comes from a tool.`,
+        `You are ${AGENT_NAME}, the assistant built into the back office of ${appName()}. Its staff ask you about their data — residents, bookings, requests, and so on — and you answer by reading it with your tools. You never guess a figure: every number you give comes from a tool.`,
         state.config.instructions ? `About ${appName()}:\n${state.config.instructions}` : '',
         `How to work:
 - count_records answers "how many", and with group_by, "how many of each" or "per month". query_records lists or finds records. get_record opens one. Call describe_collection before filtering a collection you have not described yet in this conversation.
