@@ -15,7 +15,7 @@ import { state } from './state.js'
 const ID = 1
 const FRESH = 30_000
 /** Changed when the HTML is drawn differently: every published page is written again at the next boot. */
-const DRAWING = 2
+const DRAWING = 3
 
 let saved: PageFonts = {}
 let savedHead: PageHead = {}
@@ -132,7 +132,7 @@ export async function saveSettings(body: Record<string, any>): Promise<{ setting
  */
 export async function lookChanged(): Promise<boolean> {
     const look = createHash('sha256')
-        .update(JSON.stringify({ drawing: DRAWING, theme: state.config.theme ?? {} }))
+        .update(JSON.stringify({ drawing: DRAWING, theme: state.config.theme ?? {}, publicUrl: state.config.publicUrl ?? null }))
         .digest('hex')
         .slice(0, 32)
     const [row] = await PageSettings.findOrCreate({ where: { id: ID }, defaults: { id: ID, fonts: {} } as any })

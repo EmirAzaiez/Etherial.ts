@@ -39,6 +39,7 @@ export default {
         config: {
             locales: ['en', 'ar'],       // les langues des pages, la langue par défaut en premier
             timezone: 'Asia/Dubai',      // l'heure des événements : leur lien « Add to calendar » le dit
+            publicUrl: process.env.ETH_PAGE_LEAF_PUBLIC_URL,   // https://api.exemple.com : le lien « Add to calendar » passe par l'API
             folder: 'pages',             // le dossier du media leaf (images et HTML)
             theme: {
                 brandName: { en: 'Jubail Island', ar: 'جزيرة الجبيل' },
@@ -57,6 +58,14 @@ export default {
 Le leaf déclare sa collection au back-office dans `beforeRun`. Sa place dans la config n'a pas d'importance.
 
 `timezone` : l'heure d'un événement est écrite telle quelle (`19:00`), c'est celle du projet. Le lien « Add to calendar » la donne à Google Agenda (`ctz=Asia/Dubai`), qui la montre à chacun dans son propre fuseau. Sans `timezone`, Google prend celui du téléphone.
+
+`publicUrl` : l'adresse de l'API telle que les téléphones la joignent. Le lien « Add to calendar » d'un événement passe alors par `GET /page-calendar/event.ics?title&date&until&start&end&place`, sans connexion, qui répond selon l'appareil qui l'ouvre :
+
+- un iPhone (dans l'app, Safari s'ouvre) ou un ordinateur reçoit l'événement en fichier `.ics` (`text/calendar`) : l'iPhone montre la fiche « Ajouter au calendrier », un Mac l'ouvre dans Calendrier, un PC dans Outlook ;
+- un téléphone Android, qui n'a pas cette fiche, va sur la page « nouvel événement » de Google Agenda ;
+- `&as=google`, `&as=outlook` ou `&as=file` force l'un des trois. Sur ordinateur (une souris), la page web propose les trois au clic sur le bouton : beaucoup gardent leur agenda dans le navigateur.
+
+Les heures du fichier sont en UTC, calculées depuis `timezone` (sans `timezone`, l'heure du téléphone). Sans `publicUrl`, le lien est celui de Google Agenda, comme avant.
 
 Le thème donne aussi leurs couleurs aux blocs : `primary`, `text`, `muted` et `subtle` sont celles de `theme.colors` sur le web, et celles de la palette de l'app dans l'app.
 
@@ -128,7 +137,12 @@ Toutes les pages publiées, triées par `position` (l'ordre du menu, réglé par
                         "month": "Nov",
                         "date": "Saturday, 14 November 2026",
                         "time": "19:00 – 22:00",
-                        "calendarUrl": "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Winter%20market&dates=20261114T190000/20261114T220000&ctz=Asia/Dubai"
+                        "calendarUrl": "https://api.exemple.com/page-calendar/event.ics?title=Winter+market&date=2026-11-14&start=19%3A00&end=22%3A00",
+                        "calendars": {
+                            "google": "https://api.exemple.com/page-calendar/event.ics?…&as=google",
+                            "outlook": "https://api.exemple.com/page-calendar/event.ics?…&as=outlook",
+                            "file": "https://api.exemple.com/page-calendar/event.ics?…&as=file"
+                        }
                     }
                 }
             }
@@ -241,7 +255,7 @@ Les tailles sont en pixels sur le web, en points dans l'app.
 
 Certains blocs envoyés à l'app ont un champ `resolved`, calculé par l'API dans la langue de la page (`resolveBlocks`). Le HTML du bucket est fait avec les mêmes valeurs : l'app et le web disent les mêmes mots, et le téléphone ne calcule rien.
 
-- **`event`** : `day` (« 14 »), `month` (« Nov » ; la mise en majuscules se fait au dessin), `date` (« Saturday, 14 November 2026 », ou « 2–4 December 2026 » avec `endDate`), `time` (« 19:00 – 22:00 », « 19:00 » ou `null`) et `calendarUrl`, le lien Google Agenda (`null` avec `calendar: false`). Les chiffres sont latins dans toutes les langues. Un événement sans heure prend la journée entière ; 22:00 → 02:00 finit le lendemain ; sans heure de fin, il dure une heure. Il est noté dans l'agenda sous son `title`, sinon sous le titre de la page.
+- **`event`** : `day` (« 14 »), `month` (« Nov » ; la mise en majuscules se fait au dessin), `date` (« Saturday, 14 November 2026 », ou « 2–4 December 2026 » avec `endDate`), `time` (« 19:00 – 22:00 », « 19:00 » ou `null`) et `calendarUrl`, le lien « Add to calendar » (celui de l'API avec `publicUrl`, sinon celui de Google Agenda ; `null` avec `calendar: false`), avec `calendars` (Google, Outlook, le fichier) pour qui veut choisir. Les chiffres sont latins dans toutes les langues. Un événement sans heure prend la journée entière ; 22:00 → 02:00 finit le lendemain ; sans heure de fin, il dure une heure. Il est noté dans l'agenda sous son `title`, sinon sous le titre de la page.
 - **`video`** : `provider` (`youtube`, `vimeo`, `file`, `link`), `poster` (celui du bloc, sinon l'image de YouTube) et `embedUrl` (le lecteur YouTube sans cookies ou celui de Vimeo, sinon `null`).
 - **`contact`** : pour chaque ligne, son `href` (`tel:+97124480011`, `https://wa.me/97124480011`, `mailto:…`, le lien de la carte ou du site) et son `label` : celui du bloc, sinon un mot dans la langue de la page (Call, WhatsApp, Email, Directions, Website ; اتصل, واتساب… ; Appeler, Itinéraire…).
 

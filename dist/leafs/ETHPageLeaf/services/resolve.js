@@ -9,6 +9,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
+import { calendarLinks } from './calendar.js';
 /** Bare `en` reads dates the American way ("November 14"); the pages are written for the rest of the world. */
 function intlLocale(locale) {
     return locale === 'en' ? 'en-GB' : locale;
@@ -25,43 +26,13 @@ function format(locale, options) {
         return new Intl.DateTimeFormat('en-GB', Object.assign(Object.assign({}, options), { timeZone: 'UTC' }));
     }
 }
-/** `20261114`, or `20261114T190000`. */
-function stamp(date, time) {
-    const day = date.toISOString().slice(0, 10).replace(/-/g, '');
-    return time ? `${day}T${time.replace(':', '')}00` : day;
-}
-function plusDays(date, days) {
-    return new Date(date.getTime() + days * 86400000);
-}
-/** Google Calendar's "new event" page, filled in. */
-function calendarUrl(event, options) {
-    const start = dayOf(event.date);
-    const last = event.endDate ? dayOf(event.endDate) : start;
-    let dates;
-    if (!event.startTime) {
-        // A whole day: Google wants the day after the last one.
-        dates = `${stamp(start)}/${stamp(plusDays(last, 1))}`;
-    }
-    else if (event.endTime) {
-        // 22:00 → 02:00 on one day ends the next morning.
-        const end = !event.endDate && event.endTime <= event.startTime ? plusDays(start, 1) : last;
-        dates = `${stamp(start, event.startTime)}/${stamp(end, event.endTime)}`;
-    }
-    else {
-        // No end time: an hour.
-        const [h, m] = event.startTime.split(':').map(Number);
-        const end = new Date(last.getTime() + (h * 60 + m + 60) * 60000);
-        dates = `${stamp(start, event.startTime)}/${stamp(end, end.toISOString().slice(11, 16))}`;
-    }
-    const text = (event.title || options.title || '').trim();
-    const params = [
-        'action=TEMPLATE',
-        text ? `text=${encodeURIComponent(text)}` : '',
-        `dates=${dates}`,
-        event.place ? `location=${encodeURIComponent(event.place)}` : '',
-        options.timezone ? `ctz=${encodeURIComponent(options.timezone).replace(/%2F/gi, '/')}` : '',
-    ];
-    return `https://calendar.google.com/calendar/render?${params.filter(Boolean).join('&')}`;
+function calendarOf(event, options) {
+    var _a;
+    if (event.calendar === false)
+        return { calendarUrl: null, calendars: null };
+    const title = (event.title || options.title || '').trim();
+    const { url, choices } = calendarLinks({ title, date: event.date, until: event.endDate, start: event.startTime, end: event.startTime ? event.endTime : undefined, place: ((_a = event.place) === null || _a === void 0 ? void 0 : _a.trim()) || undefined }, options.timezone);
+    return { calendarUrl: url, calendars: choices };
 }
 function resolveEvent(event, options) {
     var _a;
@@ -74,13 +45,8 @@ function resolveEvent(event, options) {
         ? format(options.locale, { day: 'numeric', month: 'long', year: 'numeric' }).formatRange(start, end)
         : format(options.locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(start);
     const time = event.startTime ? (event.endTime ? `${event.startTime} – ${event.endTime}` : event.startTime) : null;
-    return {
-        day: format(options.locale, { day: 'numeric' }).format(start),
-        month: format(options.locale, { month: 'short' }).format(start).replace(/\.$/, ''),
-        date,
-        time,
-        calendarUrl: event.calendar === false ? null : calendarUrl(event, options),
-    };
+    return Object.assign({ day: format(options.locale, { day: 'numeric' }).format(start), month: format(options.locale, { month: 'short' }).format(start).replace(/\.$/, ''), date,
+        time }, calendarOf(event, options));
 }
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 /** The video's site and its id there, from any of the addresses people copy. */

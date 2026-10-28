@@ -21,7 +21,7 @@ import { state } from './state.js';
 const ID = 1;
 const FRESH = 30000;
 /** Changed when the HTML is drawn differently: every published page is written again at the next boot. */
-const DRAWING = 2;
+const DRAWING = 3;
 let saved = {};
 let savedHead = {};
 let readAt = 0;
@@ -131,9 +131,9 @@ export function saveSettings(body) {
  */
 export function lookChanged() {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
+        var _a, _b;
         const look = createHash('sha256')
-            .update(JSON.stringify({ drawing: DRAWING, theme: (_a = state.config.theme) !== null && _a !== void 0 ? _a : {} }))
+            .update(JSON.stringify({ drawing: DRAWING, theme: (_a = state.config.theme) !== null && _a !== void 0 ? _a : {}, publicUrl: (_b = state.config.publicUrl) !== null && _b !== void 0 ? _b : null }))
             .digest('hex')
             .slice(0, 32);
         const [row] = yield PageSettings.findOrCreate({ where: { id: ID }, defaults: { id: ID, fonts: {} } });

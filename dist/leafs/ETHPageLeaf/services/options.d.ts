@@ -222,13 +222,22 @@ export type PageBlocks = Record<string, PageBlock[]>;
  * the page's language (`resolveBlocks`): nothing to compute on the phone.
  */
 export interface ResolvedExtras {
-    /** event: "14", "Nov", "Friday 14 November 2026", "19:00 – 22:00", the "Add to calendar" link (Google Calendar). */
+    /**
+     * event: "14", "Nov", "Friday 14 November 2026", "19:00 – 22:00", the "Add
+     * to calendar" link (the API's, which answers what the phone can take; or
+     * Google Calendar's), and for a computer the calendars to pick from.
+     */
     event?: {
         day: string;
         month: string;
         date: string;
         time: string | null;
         calendarUrl: string | null;
+        calendars?: {
+            google: string;
+            outlook: string;
+            file: string;
+        } | null;
     };
     /** video: what it is, the picture to show before it plays (YouTube's own when none is given), its player for a web page. */
     video?: {
@@ -329,6 +338,13 @@ export interface ETHPageLeafConfig {
     rtlLocales?: string[];
     /** The events' times are in it (`Asia/Dubai`): their "Add to calendar" link says so. */
     timezone?: string;
+    /**
+     * The API's address as phones reach it (`https://api.example.com`): an
+     * event's "Add to calendar" goes through it, to give an iPhone or a
+     * computer the event as a file and an Android phone Google Calendar.
+     * Without it the link is Google Calendar's.
+     */
+    publicUrl?: string;
     /**
      * The media leaf's folder the pages live in: their images, uploaded from
      * the back-office, and their HTML (`<folder>/<slug>/<locale>.html`). It

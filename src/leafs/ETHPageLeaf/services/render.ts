@@ -66,6 +66,8 @@ const RATIO: Record<Exclude<Ratio, 'auto'>, string> = { '16:9': '16/9', '4:3': '
 /** Each language named in itself, for the switch. */
 const NATIVE: Record<string, string> = { en: 'English', ar: 'العربية', fr: 'Français', es: 'Español', de: 'Deutsch', it: 'Italiano', ru: 'Русский', zh: '中文' }
 const ADD_TO_CALENDAR: Record<string, string> = { en: 'Add to calendar', ar: 'أضف إلى التقويم', fr: 'Ajouter au calendrier' }
+/** On a computer, the calendar file beside Google Calendar and Outlook: what opens it. */
+const CALENDAR_FILE: Record<string, string> = { en: 'Apple Calendar & others (.ics)', ar: 'تقويم Apple وغيره (.ics)', fr: 'Apple Calendar et autres (.ics)' }
 /** What an empty list block says in the preview: the back-office is in English. */
 const EMPTY: Partial<Record<PageBlock['type'], string>> = {
     gallery: 'Add images',
@@ -293,9 +295,19 @@ function eventHtml(block: ResolvedBlock & BlockOf<'event'>, ctx: Ctx): string {
         const place = `${icon('pin')}<span${editable(ctx, 'place', 'line')}>${esc(block.place)}</span>`
         info.push(map ? `<a class="ev-line ev-map" href="${esc(map)}">${place}</a>` : `<p class="ev-line">${place}</p>`)
     }
-    const calendar = ev?.calendarUrl
-        ? `<a class="btn outline ev-cal" href="${esc(ev.calendarUrl)}">${icon('calendar')}<span>${esc(ADD_TO_CALENDAR[ctx.lang] ?? ADD_TO_CALENDAR.en)}</span></a>`
-        : ''
+    const add = `${icon('calendar')}<span>${esc(ADD_TO_CALENDAR[ctx.lang] ?? ADD_TO_CALENDAR.en)}</span>`
+    // A phone: one tap, the link answers what it can take. A computer (a mouse): which calendar.
+    // Drawn as the app shows it (no chrome): the one tap.
+    const choices = ctx.input.chrome !== false ? ev?.calendars : null
+    const calendar = !ev?.calendarUrl
+        ? ''
+        : !choices
+          ? `<a class="btn outline ev-cal" href="${esc(ev.calendarUrl)}">${add}</a>`
+          : `<a class="btn outline ev-cal ev-tap" href="${esc(ev.calendarUrl)}">${add}</a>` +
+            `<details class="ev-cals"><summary class="btn outline ev-cal">${add}${icon('down', 'ev-caret')}</summary><div class="ev-menu">` +
+            `<a href="${esc(choices.google)}" target="_blank" rel="noopener">Google Calendar</a>` +
+            `<a href="${esc(choices.outlook)}" target="_blank" rel="noopener">Outlook.com</a>` +
+            `<a href="${esc(choices.file)}">${esc(CALENDAR_FILE[ctx.lang] ?? CALENDAR_FILE.en)}</a></div></details>`
     return `<div class="card ev"><div class="ev-top"><div class="ev-badge" aria-hidden="true"><span class="ev-mon">${esc(ev?.month ?? '')}</span><span class="ev-day">${esc(ev?.day ?? '–')}</span></div><div class="ev-info">${info.join('')}</div></div>${calendar}</div>`
 }
 
@@ -800,6 +812,16 @@ img.media{object-fit:cover}
 .ev-line svg{flex-shrink:0;width:16px;height:16px}
 a.ev-line{color:var(--primary)}
 .ev-cal{width:100%;min-height:44px;min-width:0;margin-top:16px;padding-block:10px;font-size:15px}
+.ev-cals{display:none;margin-top:16px}
+.ev-cals .ev-cal{margin-top:0;list-style:none;cursor:pointer;user-select:none}
+.ev-cals summary::-webkit-details-marker{display:none}
+.ev-caret{transition:transform .2s}
+.ev-cals[open] .ev-caret{transform:rotate(180deg)}
+.ev-menu{display:flex;flex-direction:column;margin-top:8px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.ev-menu a{padding:11px 16px;color:var(--text);font-size:15px;font-weight:500;line-height:1.4;text-decoration:none}
+.ev-menu a+a{border-top:1px solid var(--line)}
+.ev-menu a:hover{background:var(--subtle)}
+@media (hover:hover) and (pointer:fine){.ev-tap{display:none}.ev-cals{display:block}}
 .quote>svg{width:34px;height:34px;margin-bottom:8px;color:var(--acc)}
 .quote p{font-size:19px;line-height:1.5;font-weight:500}
 .quote figcaption{margin-top:12px;color:var(--mut);font-size:14px}

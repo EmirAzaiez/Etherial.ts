@@ -61,7 +61,7 @@ export default class ETHPageLeaf {
         this.routes = [];
         this.config = config;
         state.config = config;
-        this.routes.push({ route: path.join(__dirname, 'routes/app'), methods: ['list', 'show'] }, { route: path.join(__dirname, 'routes/admin'), methods: ['preview', 'generate', 'attached', 'templates', 'createTemplate', 'updateTemplate', 'deleteTemplate', 'settings', 'updateSettings', 'share', 'startPreview', 'stopPreview'] });
+        this.routes.push({ route: path.join(__dirname, 'routes/app'), methods: ['list', 'show', 'calendar'] }, { route: path.join(__dirname, 'routes/admin'), methods: ['preview', 'generate', 'attached', 'templates', 'createTemplate', 'updateTemplate', 'deleteTemplate', 'settings', 'updateSettings', 'share', 'startPreview', 'stopPreview'] });
     }
     /**
      * Lifecycle: beforeRun — the table to the database before it syncs, the
