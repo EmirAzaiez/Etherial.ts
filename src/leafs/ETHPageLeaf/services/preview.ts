@@ -1,8 +1,9 @@
-import { normalizeBlockList } from './blocks.js'
+import { normalizeBlockList, normalizeHead } from './blocks.js'
+import { coverFrom } from './cover.js'
 import { defaultLocaleOf, languageOf, localesOf, localize, rtlOf } from './options.js'
 import { render } from './render.js'
 import { state } from './state.js'
-import { pageFonts } from './settings.js'
+import { pageFonts, pageHead } from './settings.js'
 import { fontIdOf } from './fonts.js'
 
 /**
@@ -12,9 +13,11 @@ import { fontIdOf } from './fonts.js'
  * which one of the form it is, for the back-office to point at it.
  * `chrome: false` leaves out the brand and the language switch, for a page
  * shown inside a record (a news' content). `fonts`: those the editor is
- * trying, else the pages' own.
+ * trying, else the pages' own. `head`: how this page opens, its own choices;
+ * `look`: how every page does, as the settings are trying it (null: the
+ * theme's). `cover`: its record's photo, a media's id or an address.
  */
-export function previewPage(body: Record<string, any>): { html: string } {
+export async function previewPage(body: Record<string, any>): Promise<{ html: string }> {
     const config = state.config
     const fallback = defaultLocaleOf(config)
     const locales = localesOf(config)
@@ -24,6 +27,8 @@ export function previewPage(body: Record<string, any>): { html: string } {
     const list = normalizeBlockList(raw, 'Preview', 'draft')
     const chrome = body.chrome !== false && body.chrome !== 'false'
     const title = localize(body.title, locale, fallback).replace(/\s+/g, ' ')
+    const look = 'look' in body ? normalizeHead(body.look) : undefined
+    const own = normalizeHead(body.head)
 
     return {
         html: render({
@@ -41,6 +46,8 @@ export function previewPage(body: Record<string, any>): { html: string } {
             languages: locales.map((l) => ({ locale: l, href: '#' })),
             chrome,
             fonts: fontsOf(body.fonts),
+            head: pageHead(own, look),
+            cover: own?.photo ?? (await coverFrom(body.cover)),
             draft: true,
             marks: true,
         }),

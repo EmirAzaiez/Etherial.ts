@@ -1,10 +1,17 @@
 import { Page } from '../models/Page.js';
-import type { ResolvedBlock } from './options.js';
-/** A page as the app gets it: the blocks to draw, and the address of its HTML to share or show in a web view. */
+import type { PageHead, ResolvedBlock } from './options.js';
+/**
+ * A page as the app gets it: the blocks to draw, how it opens (`head`: the
+ * cover's height, the title's place, size, weight, case, color, font; every
+ * key set), its cover photo, and the address of its HTML to share or show in
+ * a web view.
+ */
 export declare function serializePage(page: Page, asked: string): {
     in_menu: boolean;
     position: number;
     url: string;
+    head: PageHead;
+    cover: string;
     fonts: {
         title: string;
         text: string;

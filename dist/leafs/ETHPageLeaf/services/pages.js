@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { Op } from 'sequelize';
 import { Page } from '../models/Page.js';
-import { checkSlug, normalizeLocalized, normalizePageBlocks, slugify } from './blocks.js';
+import { checkSlug, coverOf, normalizeHead, normalizeLocalized, normalizePageBlocks, slugify } from './blocks.js';
 import { PageError, languageName, localesOf } from './options.js';
 import { publish, putPreview, takeDown } from './publish.js';
 import { state } from './state.js';
@@ -20,7 +20,7 @@ import { state } from './state.js';
 const MAX_TITLE = 160;
 const MAX_SUMMARY = 300;
 /** What the HTML is made of: a write that touches none of it (the menu's order) leaves the bucket alone. */
-const PUBLISHED_FIELDS = ['slug', 'title', 'summary', 'blocks', 'published'];
+const PUBLISHED_FIELDS = ['slug', 'title', 'summary', 'blocks', 'published', 'head', 'cover'];
 /**
  * The old files of a page saved under a new address or unpublished, taken
  * down once the save went through. Keyed by the row: the save updates it in
@@ -77,7 +77,7 @@ export function prepareCreate(data) {
         const blocks = normalizePageBlocks(data.blocks, locales);
         const wanted = has(data, 'slug') && data.slug !== null && data.slug !== '' ? checkSlug(data.slug) : slugify((_a = title[locales[0]]) !== null && _a !== void 0 ? _a : '') || 'page';
         const slug = yield freeSlug(wanted);
-        const next = { slug, title, summary, blocks, published: !duplicate && bool(data.published) };
+        const next = { slug, title, summary, blocks, published: !duplicate && bool(data.published), head: normalizeHead(data.head), cover: coverOf(data.cover) };
         checkPublishable(next);
         const { columns } = yield publish(next, null);
         // A copy is not shared by the original's preview link.
@@ -99,6 +99,10 @@ export function prepareUpdate(record, data) {
             out.blocks = normalizePageBlocks(data.blocks, locales);
         if (has(data, 'published'))
             out.published = bool(data.published);
+        if (has(data, 'head'))
+            out.head = normalizeHead(data.head);
+        if (has(data, 'cover'))
+            out.cover = coverOf(data.cover);
         if (has(data, 'slug')) {
             out.slug = checkSlug(data.slug);
             if (out.slug !== record.slug && (yield taken(out.slug, record.id)))
@@ -111,6 +115,8 @@ export function prepareUpdate(record, data) {
             summary: (_c = out.summary) !== null && _c !== void 0 ? _c : previous.summary,
             blocks: (_d = out.blocks) !== null && _d !== void 0 ? _d : previous.blocks,
             published: (_e = out.published) !== null && _e !== void 0 ? _e : previous.published,
+            head: 'head' in out ? out.head : previous.head,
+            cover: 'cover' in out ? out.cover : previous.cover,
         };
         checkPublishable(next);
         const { columns, stale } = yield publish(next, previous);

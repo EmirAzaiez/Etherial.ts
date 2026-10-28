@@ -1,4 +1,4 @@
-import { PageBlock, PageTheme } from './options.js';
+import { PageBlock, PageHead, PageImage, PageTheme } from './options.js';
 import { PageFonts } from './fonts.js';
 export interface RenderInput {
     title: string;
@@ -29,6 +29,10 @@ export interface RenderInput {
     indexes?: number[];
     /** The fonts of the titles and of the text, those the back-office set. Default the theme's `font`. */
     fonts?: PageFonts;
+    /** How it opens: the cover's height, the title's place, size, color and font. Default `DEFAULT_HEAD`. */
+    head?: PageHead;
+    /** The photo across the top, above the title: the cover of the record the page belongs to. */
+    cover?: PageImage | null;
     /** A line above everything: a preview link says the page is not on the web. */
     notice?: string;
     /** Kept out of search engines, its address out of the Referer of its links: a preview link. */

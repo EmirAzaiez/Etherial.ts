@@ -1,14 +1,21 @@
 import { Op } from 'sequelize'
 
 import { Page } from '../models/Page.js'
+import { photoOf } from './blocks.js'
 import { pageIn } from './publish.js'
-import { pageFonts } from './settings.js'
+import { pageFonts, pageHead } from './settings.js'
 import { fontsIn } from './fonts.js'
-import type { ResolvedBlock } from './options.js'
+import type { PageHead, ResolvedBlock } from './options.js'
 
-/** A page as the app gets it: the blocks to draw, and the address of its HTML to share or show in a web view. */
+/**
+ * A page as the app gets it: the blocks to draw, how it opens (`head`: the
+ * cover's height, the title's place, size, weight, case, color, font; every
+ * key set), its cover photo, and the address of its HTML to share or show in
+ * a web view.
+ */
 export function serializePage(page: Page, asked: string) {
     const content = pageIn(page, asked)
+    const head = pageHead(page.head)
     return {
         id: page.id,
         slug: page.slug,
@@ -16,7 +23,9 @@ export function serializePage(page: Page, asked: string) {
         in_menu: page.in_menu,
         position: page.position,
         url: page.html?.[content.locale] ?? null,
-        fonts: appFonts(content.blocks),
+        head,
+        cover: photoOf(page)?.src ?? null,
+        fonts: appFonts(content.blocks, head),
         updated_at: page.updated_at,
     }
 }
@@ -26,9 +35,9 @@ export function serializePage(page: Page, asked: string) {
  * the catalog; null, its own), and the files of each font the page uses, the
  * blocks' own too, for those it doesn't have.
  */
-function appFonts(blocks: ResolvedBlock[]) {
+function appFonts(blocks: ResolvedBlock[], head: PageHead) {
     const fonts = pageFonts()
-    const used = fontsIn(fonts, blocks)
+    const used = fontsIn(fonts, [...blocks, { style: { font: head.font } }])
     return {
         title: fonts.title ?? null,
         text: fonts.text ?? null,

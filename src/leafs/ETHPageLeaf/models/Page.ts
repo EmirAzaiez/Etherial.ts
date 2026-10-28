@@ -1,6 +1,6 @@
 import { Table, Column, Model, AllowNull, PrimaryKey, AutoIncrement, DataType, Default } from 'etherial/components/database/provider'
 
-import type { PageBlocks } from '../services/options.js'
+import type { PageBlocks, PageHead, PageImage } from '../services/options.js'
 
 /**
  * A page written in the back-office: a title and blocks in each language.
@@ -44,6 +44,16 @@ export class Page extends Model<Page> {
     @Default({})
     @Column(DataType.JSONB)
     declare blocks: PageBlocks
+
+    /** How it opens (cover, title), for this page only: a key left out is the settings'. Null: as every page. */
+    @AllowNull(true)
+    @Column(DataType.JSONB)
+    declare head: PageHead | null
+
+    /** The photo across the top: the cover of the record the page belongs to (a news'). Null: none. */
+    @AllowNull(true)
+    @Column(DataType.JSONB)
+    declare cover: PageImage | null
 
     /** Off: the app no longer sees it, and its HTML leaves the bucket. */
     @AllowNull(false)

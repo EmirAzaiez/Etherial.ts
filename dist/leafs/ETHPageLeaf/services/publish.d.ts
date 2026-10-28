@@ -1,4 +1,4 @@
-import { PageBlocks, ResolvedBlock } from './options.js';
+import { PageBlocks, PageHead, PageImage, ResolvedBlock } from './options.js';
 /** What publishing reads of a page: the saved row, or the row about to be saved. */
 export interface PageLike {
     slug: string;
@@ -6,6 +6,10 @@ export interface PageLike {
     summary: Record<string, string>;
     blocks: PageBlocks;
     published: boolean;
+    /** How it opens, its own choices: the rest is every page's. */
+    head?: PageHead | null;
+    /** The photo across the top: its record's cover. */
+    cover?: PageImage | null;
     html?: Record<string, string> | null;
     published_slug?: string | null;
     published_at?: Date | null;

@@ -4,11 +4,15 @@ import {
     BlockStyle,
     COLOR_TOKENS,
     ContactKind,
+    HEAD_COVERS,
+    HEAD_SIZES,
+    HEAD_WEIGHTS,
     Localized,
     PageBlock,
     PageBlocks,
     PageColor,
     PageError,
+    PageHead,
     PageImage,
     PageLink,
     Ratio,
@@ -568,6 +572,39 @@ export function normalizePageBlocks(input: unknown, locales: string[], mode: Mod
         if (list.length) out[locale] = list
     }
     return out
+}
+
+/** How a page opens, as the back-office sends it: a choice it doesn't have is left out. Null when none is made. */
+export function normalizeHead(input: unknown): PageHead | null {
+    const value = parsed(input)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+    const h = value as any
+    const out: PageHead = compact({
+        cover: oneOf(h.cover, HEAD_COVERS),
+        align: oneOf(h.align, ALIGNS),
+        size: oneOf(h.size, HEAD_SIZES),
+        weight: oneOf(h.weight, HEAD_WEIGHTS),
+        upper: typeof h.upper === 'boolean' ? h.upper : undefined,
+        color: colorOf(h.color),
+        font: fontIdOf(h.font),
+        photo: coverOf(h.photo) ?? undefined,
+    })
+    return Object.keys(out).length ? out : null
+}
+
+/** The photo across the top of a page: its own, else its record's. */
+export function photoOf(page: { head?: unknown; cover?: PageImage | null }): PageImage | null {
+    return normalizeHead(page.head)?.photo ?? page.cover ?? null
+}
+
+/** A cover photo: an https address, with the upload it is when there is one. Null otherwise. */
+export function coverOf(input: unknown): PageImage | null {
+    const value = parsed(input)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+    const src = httpsOf((value as any).src)
+    if (!src) return null
+    const media = Number((value as any).media)
+    return compact({ src, media: Number.isInteger(media) && media > 0 ? media : undefined })
 }
 
 /** Every uploaded image named in blocks, however deep: any `{ src, media }` in the JSON. */

@@ -9,8 +9,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 import { Table, Column, Model, AllowNull, PrimaryKey, DataType, Default } from 'etherial/components/database/provider';
 /**
- * What the back-office sets for every page at once: their fonts. One row,
- * id 1; a font left out is the theme's.
+ * What the back-office sets for every page at once: their fonts, how they
+ * open. One row, id 1; what is left out is the theme's.
  */
 let PageSettings = class PageSettings extends Model {
 };
@@ -25,6 +25,16 @@ __decorate([
     Column(DataType.JSONB),
     __metadata("design:type", Object)
 ], PageSettings.prototype, "fonts", void 0);
+__decorate([
+    AllowNull(true),
+    Column(DataType.JSONB),
+    __metadata("design:type", Object)
+], PageSettings.prototype, "head", void 0);
+__decorate([
+    AllowNull(true),
+    Column(DataType.STRING(64)),
+    __metadata("design:type", String)
+], PageSettings.prototype, "look", void 0);
 PageSettings = __decorate([
     Table({
         timestamps: true,

@@ -43,6 +43,14 @@ export default class ETHPageLeaf {
     run({ http }: Etherial): void;
     /** Lifecycle: afterRun — tell the back-office how pages are written. */
     afterRun(): void;
+    /**
+     * At boot: the pages of records get their record's cover (those written
+     * before pages had one), and every page is written again when the theme
+     * or the way pages are drawn changed. In the background.
+     */
+    private catchUp;
+    /** Each `page` field with a `cover`: its pages without one take their record's. */
+    private fillCovers;
     commands(): {
         command: string;
         description: string;

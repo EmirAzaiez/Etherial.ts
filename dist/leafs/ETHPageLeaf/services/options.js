@@ -19,6 +19,11 @@ export const BLOCK_TYPES = [
     'divider',
     'spacer',
 ];
+export const HEAD_COVERS = ['none', 'sm', 'md', 'lg'];
+export const HEAD_SIZES = ['sm', 'md', 'lg', 'xl'];
+export const HEAD_WEIGHTS = ['regular', 'medium', 'bold'];
+/** How a page opens when nothing says otherwise: the look pages had before it could be set. */
+export const DEFAULT_HEAD = { cover: 'md', align: 'start', size: 'md', weight: 'bold', upper: false, color: 'text' };
 /** Not `pages`: the back-office's own pages are at `/pages/<page>`. */
 export const COLLECTION = 'content-pages';
 export const BLOCKS_TYPE = 'page-blocks';

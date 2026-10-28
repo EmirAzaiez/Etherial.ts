@@ -207,7 +207,41 @@ export interface PageTheme {
     fontRtl?: string
     /** Corner radius of the buttons and images, in pixels. Default 12. */
     radius?: number
+    /**
+     * How every page opens until the back-office sets another look: its cover
+     * photo, its title. A key left out is `DEFAULT_HEAD`'s.
+     */
+    head?: PageHead
 }
+
+export const HEAD_COVERS = ['none', 'sm', 'md', 'lg'] as const
+export const HEAD_SIZES = ['sm', 'md', 'lg', 'xl'] as const
+export const HEAD_WEIGHTS = ['regular', 'medium', 'bold'] as const
+
+/**
+ * How a page opens: the record's cover photo across the top (a news' own),
+ * then the title and the line under it. Set for every page in the
+ * back-office's settings, and page by page: a key a page leaves out is the
+ * settings', then the theme's.
+ */
+export interface PageHead {
+    /** The cover's height; `none` leaves it out. A page without a cover has none to show. */
+    cover?: (typeof HEAD_COVERS)[number]
+    /** The title and the line under it. */
+    align?: Align
+    size?: (typeof HEAD_SIZES)[number]
+    weight?: (typeof HEAD_WEIGHTS)[number]
+    /** In capitals. */
+    upper?: boolean
+    color?: PageColor
+    /** A font of `FONTS`; without it, the titles' font. */
+    font?: string
+    /** This page's own photo across the top, over its record's (a news' photo on the list). A page's only: every page's look has none. */
+    photo?: PageImage
+}
+
+/** How a page opens when nothing says otherwise: the look pages had before it could be set. */
+export const DEFAULT_HEAD: Required<Omit<PageHead, 'font' | 'photo'>> = { cover: 'md', align: 'start', size: 'md', weight: 'bold', upper: false, color: 'text' }
 
 /** Claude, writing a page from a few words in the editor ("Write with AI"). Needs the admin leaf's `features.ai`. */
 export interface PageAIConfig {
@@ -265,6 +299,8 @@ export interface PageFieldOptions {
     title?: string
     /** The record's column the line under the title comes from. None by default. */
     summary?: string
+    /** The record's column with its cover photo (a media field): above the title, across the page. None by default. */
+    cover?: string
 }
 
 // A project's admin collections can write `page: { … }` on a field.

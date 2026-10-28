@@ -11,6 +11,8 @@ export declare function prepareCreate(data: Record<string, any>): Promise<{
     summary: Record<string, string>;
     blocks: import("./options.js").PageBlocks;
     published: boolean;
+    head?: import("./options.js").PageHead | null;
+    cover?: import("./options.js").PageImage | null;
 }>;
 export declare function prepareUpdate(record: Page, data: Record<string, any>): Promise<Record<string, any>>;
 /** After the save: the files of the old address go, the preview link shows the new version. */

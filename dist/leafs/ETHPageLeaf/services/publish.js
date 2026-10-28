@@ -12,9 +12,10 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { Op } from 'sequelize';
 import { Page } from '../models/Page.js';
 import { PageError, defaultLocaleOf, folderOf, localesOf, localize, rtlOf } from './options.js';
+import { photoOf } from './blocks.js';
 import { render } from './render.js';
 import { resolveBlocks } from './resolve.js';
-import { pageFonts } from './settings.js';
+import { pageFonts, pageHead } from './settings.js';
 import { state } from './state.js';
 function mediaLeaf() {
     const media = etherial.eth_media_leaf;
@@ -86,6 +87,7 @@ export function renderAll(page) {
     const locales = writtenLocales(page.blocks);
     const languages = locales.map((l) => ({ locale: l, href: `${l}.html` }));
     const fonts = pageFonts();
+    const head = pageHead(page.head);
     return locales.map((locale) => {
         var _a, _b;
         const content = pageIn(page, locale);
@@ -93,7 +95,8 @@ export function renderAll(page) {
         const url = `${base}/${key}`;
         const html = render(Object.assign(Object.assign({}, content), { rtl: content.dir === 'rtl', theme: (_a = config.theme) !== null && _a !== void 0 ? _a : {}, brand: localize((_b = config.theme) === null || _b === void 0 ? void 0 : _b.brandName, locale, fallback), 
             // Next to this one in the bucket, in the same language.
-            pageHref: (slug) => `../${slug}/${locale}.html`, languages, canonical: url, timezone: config.timezone, fonts }));
+            pageHref: (slug) => `../${slug}/${locale}.html`, languages, canonical: url, timezone: config.timezone, fonts,
+            head, cover: photoOf(page) }));
         return { locale, key, url, html };
     });
 }
@@ -165,6 +168,7 @@ function renderPreview(page, key) {
     const fallback = defaultLocaleOf(config);
     const languages = writtenLocales(page.blocks).map((l) => ({ locale: l, href: `${l}.html` }));
     const fonts = pageFonts();
+    const head = pageHead(page.head);
     return localesOf(config).map((asked) => {
         var _a, _b, _c;
         const content = pageIn(page, asked);
@@ -173,7 +177,8 @@ function renderPreview(page, key) {
             key: previewKeyOf(key, asked),
             html: render(Object.assign(Object.assign({}, content), { rtl: content.dir === 'rtl', theme: (_a = config.theme) !== null && _a !== void 0 ? _a : {}, brand: localize((_b = config.theme) === null || _b === void 0 ? void 0 : _b.brandName, content.locale, fallback), 
                 // Another page opens where it is on the web.
-                pageHref: (slug) => `../../${slug}/${content.locale}.html`, languages, timezone: config.timezone, fonts, unlisted: true, notice: page.published ? undefined : ((_c = NOTICE[lang]) !== null && _c !== void 0 ? _c : NOTICE.en) })),
+                pageHref: (slug) => `../../${slug}/${content.locale}.html`, languages, timezone: config.timezone, fonts,
+                head, cover: photoOf(page), unlisted: true, notice: page.published ? undefined : ((_c = NOTICE[lang]) !== null && _c !== void 0 ? _c : NOTICE.en) })),
         };
     });
 }

@@ -1,5 +1,5 @@
 import { Model } from 'etherial/components/database/provider';
-import type { PageBlocks } from '../services/options.js';
+import type { PageBlocks, PageHead, PageImage } from '../services/options.js';
 /**
  * A page written in the back-office: a title and blocks in each language.
  * The app draws the blocks itself; the same page is also published as HTML in
@@ -15,6 +15,10 @@ export declare class Page extends Model<Page> {
     summary: Record<string, string>;
     /** `{ en: [blocks], ar: [blocks] }` */
     blocks: PageBlocks;
+    /** How it opens (cover, title), for this page only: a key left out is the settings'. Null: as every page. */
+    head: PageHead | null;
+    /** The photo across the top: the cover of the record the page belongs to (a news'). Null: none. */
+    cover: PageImage | null;
     /** Off: the app no longer sees it, and its HTML leaves the bucket. */
     published: boolean;
     /** Listed in the app's menu. Off, it opens only from a link, a push or a banner. */

@@ -1,6 +1,7 @@
 import etherial, { Etherial } from 'etherial'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
+import { Op } from 'sequelize'
 
 import { registerMediaReferences } from '../ETHMediaLeaf/models/Media.js'
 import { Page } from './models/Page.js'
@@ -8,9 +9,10 @@ import { PageTemplate } from './models/PageTemplate.js'
 import { PageSettings } from './models/PageSettings.js'
 import { registerPagesAdmin } from './admin/pages.js'
 import { mediaIdsOf } from './services/blocks.js'
-import { republishAll } from './services/publish.js'
+import { coverFrom } from './services/cover.js'
+import { PageLike, publish, republishAll, republishSoon, takeDown } from './services/publish.js'
 import { fontCatalog } from './services/fonts.js'
-import { loadSettings } from './services/settings.js'
+import { loadSettings, lookChanged, themeHead } from './services/settings.js'
 import { paletteOf, radiusOf } from './services/render.js'
 import { state } from './services/state.js'
 import { canGenerate } from './services/generate.js'
@@ -75,13 +77,13 @@ export default class ETHPageLeaf {
         database?.addModels([Page, PageTemplate, PageSettings] as any)
         registerPagesAdmin((etherial as any).eth_admin_leaf, this.config)
         // The images uploaded into a page or a template are only named in its blocks (JSON),
-        // anywhere in them: a hero's, a gallery's, a card's, a video's poster.
+        // anywhere in them: a hero's, a gallery's, a card's, a video's poster. And the cover's, the page's own photo.
         registerMediaReferences(async () => {
             const [pages, templates] = await Promise.all([
-                Page.findAll({ attributes: ['blocks'], raw: true }),
+                Page.findAll({ attributes: ['blocks', 'cover', 'head'], raw: true }),
                 PageTemplate.findAll({ attributes: ['blocks'], raw: true }),
             ])
-            return mediaIdsOf([...pages, ...templates].map((row: any) => row.blocks))
+            return mediaIdsOf([...pages, ...templates].map((row: any) => [row.blocks, row.cover, row.head]))
         })
     }
 
@@ -100,6 +102,7 @@ export default class ETHPageLeaf {
     afterRun() {
         // The fonts the back-office set, read before the first page is drawn.
         void loadSettings()
+        void this.catchUp()
         const adminLeaf = (etherial as any).eth_admin_leaf
         if (!adminLeaf?.setFeature) return
         const folder = folderOf(this.config)
@@ -134,9 +137,47 @@ export default class ETHPageLeaf {
                 defaults: { title: this.config.theme?.fonts?.title ?? null, text: this.config.theme?.fonts?.text ?? null },
                 settingsPath: '/admin/content-pages/settings',
             },
+            // How a page opens (cover, title) when nothing else is set: the theme's. Set for every
+            // page in the settings (PUT { head }), for one in its editor (`{ blocks, head }`).
+            head: { defaults: themeHead() },
             // "Write with AI" in the editor: POST a few words, the blocks stream back. Absent without a key.
             ai: canGenerate() ? { generatePath: '/admin/content-pages/generate' } : null,
         })
+    }
+
+    /**
+     * At boot: the pages of records get their record's cover (those written
+     * before pages had one), and every page is written again when the theme
+     * or the way pages are drawn changed. In the background.
+     */
+    private async catchUp() {
+        try {
+            await this.fillCovers()
+            if (await lookChanged()) republishSoon('New theme')
+        } catch (err: any) {
+            console.error('[ETHPageLeaf] Could not bring the pages up to date:', err?.message ?? err)
+        }
+    }
+
+    /** Each `page` field with a `cover`: its pages without one take their record's. */
+    private async fillCovers() {
+        const adminLeaf = (etherial as any).eth_admin_leaf
+        for (const collection of adminLeaf?.collections ?? []) {
+            for (const field of collection.fields ?? []) {
+                if (field.type !== PAGE_TYPE || !field.page?.cover || !collection.model) continue
+                const records = await collection.model.findAll({ where: { [field.name]: { [Op.ne]: null } }, attributes: [field.name, field.page.cover] })
+                for (const record of records) {
+                    const page = await Page.findByPk(record.get(field.name))
+                    if (!page || page.owner !== collection.name || page.cover) continue
+                    const cover = await coverFrom(record.get(field.page.cover))
+                    if (!cover) continue
+                    const next = { ...(page.get({ plain: true }) as PageLike), cover }
+                    const { columns, stale } = await publish(next, page.get({ plain: true }) as PageLike)
+                    await page.update({ cover, ...columns })
+                    takeDown(stale)
+                }
+            }
+        }
     }
 
     commands() {

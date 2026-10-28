@@ -9,24 +9,31 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { Op } from 'sequelize';
 import { Page } from '../models/Page.js';
+import { photoOf } from './blocks.js';
 import { pageIn } from './publish.js';
-import { pageFonts } from './settings.js';
+import { pageFonts, pageHead } from './settings.js';
 import { fontsIn } from './fonts.js';
-/** A page as the app gets it: the blocks to draw, and the address of its HTML to share or show in a web view. */
+/**
+ * A page as the app gets it: the blocks to draw, how it opens (`head`: the
+ * cover's height, the title's place, size, weight, case, color, font; every
+ * key set), its cover photo, and the address of its HTML to share or show in
+ * a web view.
+ */
 export function serializePage(page, asked) {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const content = pageIn(page, asked);
-    return Object.assign(Object.assign({ id: page.id, slug: page.slug }, content), { in_menu: page.in_menu, position: page.position, url: (_b = (_a = page.html) === null || _a === void 0 ? void 0 : _a[content.locale]) !== null && _b !== void 0 ? _b : null, fonts: appFonts(content.blocks), updated_at: page.updated_at });
+    const head = pageHead(page.head);
+    return Object.assign(Object.assign({ id: page.id, slug: page.slug }, content), { in_menu: page.in_menu, position: page.position, url: (_b = (_a = page.html) === null || _a === void 0 ? void 0 : _a[content.locale]) !== null && _b !== void 0 ? _b : null, head, cover: (_d = (_c = photoOf(page)) === null || _c === void 0 ? void 0 : _c.src) !== null && _d !== void 0 ? _d : null, fonts: appFonts(content.blocks, head), updated_at: page.updated_at });
 }
 /**
  * What the app draws the words in: the titles' font and the text's (ids of
  * the catalog; null, its own), and the files of each font the page uses, the
  * blocks' own too, for those it doesn't have.
  */
-function appFonts(blocks) {
+function appFonts(blocks, head) {
     var _a, _b;
     const fonts = pageFonts();
-    const used = fontsIn(fonts, blocks);
+    const used = fontsIn(fonts, [...blocks, { style: { font: head.font } }]);
     return {
         title: (_a = fonts.title) !== null && _a !== void 0 ? _a : null,
         text: (_b = fonts.text) !== null && _b !== void 0 ? _b : null,

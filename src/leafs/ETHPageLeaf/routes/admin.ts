@@ -146,9 +146,10 @@ export default class ETHPageAdminController {
     /**
      * GET /admin/content-pages/settings
      *
-     * What is set for every page: `{ fonts: { title, text } }`, ids of the
-     * fonts (the feature's `fonts.catalog`), null for the theme's. Any
-     * back-office user: the editor of a news draws its page in them.
+     * What is set for every page: `{ fonts: { title, text }, head }`, ids of
+     * the fonts (the feature's `fonts.catalog`), null for the theme's; how
+     * they open, a key left out the theme's. Any back-office user: the editor
+     * of a news draws its page with them.
      */
     @Get('/admin/content-pages/settings')
     @ShouldBeAuthenticated()
@@ -157,9 +158,10 @@ export default class ETHPageAdminController {
     }
 
     /**
-     * PUT /admin/content-pages/settings  { fonts: { title?, text? } }
+     * PUT /admin/content-pages/settings  { fonts?: { title?, text? }, head? }
      *
-     * A font given replaces the one set, null goes back to the theme's. Every
+     * A font given replaces the one set, null goes back to the theme's; a
+     * head replaces how every page opens, null goes back to the theme's. Every
      * published page is written into the bucket again, in the background. To
      * whoever may edit the pages.
      */
@@ -171,7 +173,7 @@ export default class ETHPageAdminController {
             res,
             async () => {
                 const { settings, changed } = await saveSettings(req.body ?? {})
-                if (changed) republishSoon('New fonts')
+                if (changed) republishSoon('New look')
                 return settings
             },
             (adminLeaf) => adminLeaf.checkAccess(req.user, COLLECTION, 'update')

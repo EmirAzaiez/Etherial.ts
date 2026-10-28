@@ -53,7 +53,9 @@ function pagesCollection(config: ETHPageLeafConfig) {
                 translations: translations('text'),
                 helpText: "A line under the title. Also in the app's list of pages and in the preview of a shared link.",
             },
-            { name: 'blocks', type: BLOCKS_TYPE, label: 'Blocks', col: 12 },
+            // The editor also sets how the page opens (its title's look): saved beside the blocks.
+            { name: 'blocks', type: BLOCKS_TYPE, label: 'Blocks', col: 12, companions: ['head'] },
+            { name: 'head', type: 'json' as const, label: 'Title look' },
             {
                 name: 'slug',
                 type: 'string' as const,

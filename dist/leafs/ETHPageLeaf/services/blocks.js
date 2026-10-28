@@ -1,4 +1,4 @@
-import { BLOCK_TYPES, COLOR_TOKENS, PageError, languageName, } from './options.js';
+import { BLOCK_TYPES, COLOR_TOKENS, HEAD_COVERS, HEAD_SIZES, HEAD_WEIGHTS, PageError, languageName, } from './options.js';
 import { fontIdOf } from './fonts.js';
 const MAX_BLOCKS = 100;
 const MAX_RICH = 10000;
@@ -547,6 +547,41 @@ export function normalizePageBlocks(input, locales, mode = 'strict') {
             out[locale] = list;
     }
     return out;
+}
+/** How a page opens, as the back-office sends it: a choice it doesn't have is left out. Null when none is made. */
+export function normalizeHead(input) {
+    var _a;
+    const value = parsed(input);
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return null;
+    const h = value;
+    const out = compact({
+        cover: oneOf(h.cover, HEAD_COVERS),
+        align: oneOf(h.align, ALIGNS),
+        size: oneOf(h.size, HEAD_SIZES),
+        weight: oneOf(h.weight, HEAD_WEIGHTS),
+        upper: typeof h.upper === 'boolean' ? h.upper : undefined,
+        color: colorOf(h.color),
+        font: fontIdOf(h.font),
+        photo: (_a = coverOf(h.photo)) !== null && _a !== void 0 ? _a : undefined,
+    });
+    return Object.keys(out).length ? out : null;
+}
+/** The photo across the top of a page: its own, else its record's. */
+export function photoOf(page) {
+    var _a, _b, _c;
+    return (_c = (_b = (_a = normalizeHead(page.head)) === null || _a === void 0 ? void 0 : _a.photo) !== null && _b !== void 0 ? _b : page.cover) !== null && _c !== void 0 ? _c : null;
+}
+/** A cover photo: an https address, with the upload it is when there is one. Null otherwise. */
+export function coverOf(input) {
+    const value = parsed(input);
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return null;
+    const src = httpsOf(value.src);
+    if (!src)
+        return null;
+    const media = Number(value.media);
+    return compact({ src, media: Number.isInteger(media) && media > 0 ? media : undefined });
 }
 /** Every uploaded image named in blocks, however deep: any `{ src, media }` in the JSON. */
 export function mediaIdsOf(value, out = []) {

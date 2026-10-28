@@ -3,10 +3,11 @@ import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { Op } from 'sequelize'
 
 import { Page } from '../models/Page.js'
-import { PageBlocks, PageError, ResolvedBlock, defaultLocaleOf, folderOf, localesOf, localize, rtlOf } from './options.js'
+import { PageBlocks, PageError, PageHead, PageImage, ResolvedBlock, defaultLocaleOf, folderOf, localesOf, localize, rtlOf } from './options.js'
+import { photoOf } from './blocks.js'
 import { render } from './render.js'
 import { resolveBlocks } from './resolve.js'
-import { pageFonts } from './settings.js'
+import { pageFonts, pageHead } from './settings.js'
 import { state } from './state.js'
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -28,6 +29,10 @@ export interface PageLike {
     summary: Record<string, string>
     blocks: PageBlocks
     published: boolean
+    /** How it opens, its own choices: the rest is every page's. */
+    head?: PageHead | null
+    /** The photo across the top: its record's cover. */
+    cover?: PageImage | null
     html?: Record<string, string> | null
     published_slug?: string | null
     published_at?: Date | null
@@ -114,6 +119,7 @@ export function renderAll(page: PageLike): { locale: string; key: string; url: s
     const locales = writtenLocales(page.blocks)
     const languages = locales.map((l) => ({ locale: l, href: `${l}.html` }))
     const fonts = pageFonts()
+    const head = pageHead(page.head)
     return locales.map((locale) => {
         const content = pageIn(page, locale)
         const key = keyOf(page.slug, locale)
@@ -129,6 +135,8 @@ export function renderAll(page: PageLike): { locale: string; key: string; url: s
             canonical: url,
             timezone: config.timezone,
             fonts,
+            head,
+            cover: photoOf(page),
         })
         return { locale, key, url, html }
     })
@@ -205,6 +213,7 @@ function renderPreview(page: PageLike, key: string): { key: string; html: string
     const fallback = defaultLocaleOf(config)
     const languages = writtenLocales(page.blocks).map((l) => ({ locale: l, href: `${l}.html` }))
     const fonts = pageFonts()
+    const head = pageHead(page.head)
     return localesOf(config).map((asked) => {
         const content = pageIn(page, asked)
         const lang = content.locale.split('-')[0]
@@ -220,6 +229,8 @@ function renderPreview(page: PageLike, key: string): { key: string; html: string
                 languages,
                 timezone: config.timezone,
                 fonts,
+                head,
+                cover: photoOf(page),
                 unlisted: true,
                 notice: page.published ? undefined : (NOTICE[lang] ?? NOTICE.en),
             }),

@@ -1,3 +1,4 @@
+import { DEFAULT_HEAD } from './options.js';
 import { PAGE_LINK, colorOf, richText, spansText } from './blocks.js';
 import { resolveBlocks } from './resolve.js';
 import { fontOf, fontStack, fontsIn, googleFontsHref } from './fonts.js';
@@ -490,7 +491,7 @@ function description(input) {
     return heading ? spansText(heading.text).trim() : '';
 }
 export function render(input) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const theme = (_a = input.theme) !== null && _a !== void 0 ? _a : {};
     const c = paletteOf(theme);
     const system = input.rtl ? cssValue(theme.fontRtl, FONT_RTL) : cssValue(theme.font, FONT);
@@ -506,8 +507,11 @@ export function render(input) {
     const lead = blocks[0];
     if ((lead === null || lead === void 0 ? void 0 : lead.type) === 'hero' && lead.title && blockHtml(lead, ctx))
         ctx.opener = lead;
+    const look = Object.assign(Object.assign({}, DEFAULT_HEAD), ((_d = input.head) !== null && _d !== void 0 ? _d : {}));
+    // A hero that opens the page is its cover already.
+    const coverSrc = !ctx.opener && look.cover !== 'none' && ((_e = input.cover) === null || _e === void 0 ? void 0 : _e.src) && /^https?:\/\//i.test(input.cover.src) ? input.cover.src : '';
     // Across the page, the cover starts at the very top.
-    const flushTop = chrome || (!!ctx.opener && !((_d = ctx.opener.style) === null || _d === void 0 ? void 0 : _d.rounded));
+    const flushTop = chrome || !!coverSrc || (!!ctx.opener && !((_f = ctx.opener.style) === null || _f === void 0 ? void 0 : _f.rounded));
     let drawn = 0;
     const body = blocks
         .map((block, i) => {
@@ -520,21 +524,21 @@ export function render(input) {
     })
         .filter(Boolean)
         .join('\n');
-    const used = fontsIn(fonts, (_e = input.blocks) !== null && _e !== void 0 ? _e : []);
+    const used = fontsIn(fonts, [...((_g = input.blocks) !== null && _g !== void 0 ? _g : []), { style: { font: look.font } }]);
     const fontLinks = used.length
         ? `<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="${esc(googleFontsHref(used))}">\n`
         : '';
-    const image = firstImage((_f = input.blocks) !== null && _f !== void 0 ? _f : []);
+    const image = (coverSrc && /^https:\/\//i.test(coverSrc) ? coverSrc : '') || firstImage((_h = input.blocks) !== null && _h !== void 0 ? _h : []);
     const about = description(input).slice(0, 200);
     const tabTitle = input.title ? (input.brand && input.brand !== input.title ? `${input.title} · ${input.brand}` : input.title) : input.brand;
-    const logoHeight = Math.max(16, Math.min(80, Number((_g = theme.logoHeight) !== null && _g !== void 0 ? _g : 28) || 28));
+    const logoHeight = Math.max(16, Math.min(80, Number((_j = theme.logoHeight) !== null && _j !== void 0 ? _j : 28) || 28));
     const logoSrc = theme.logoUrl && /^https?:\/\//i.test(theme.logoUrl) ? theme.logoUrl : '';
     const brand = logoSrc
         ? `<img src="${esc(logoSrc)}" alt="${esc(input.brand)}" style="height:${logoHeight}px">`
         : input.brand
             ? `<span>${esc(input.brand)}</span>`
             : '';
-    const others = ((_h = input.languages) !== null && _h !== void 0 ? _h : []).filter((l) => l.locale !== input.locale);
+    const others = ((_k = input.languages) !== null && _k !== void 0 ? _k : []).filter((l) => l.locale !== input.locale);
     const switcher = others.length
         ? `<nav class="langs">${others.map((l) => { var _a; return `<a href="${esc(l.href)}" hreflang="${esc(l.locale)}" lang="${esc(l.locale)}">${esc((_a = NATIVE[l.locale]) !== null && _a !== void 0 ? _a : l.locale.toUpperCase())}</a>`; }).join('')}</nav>`
         : '';
@@ -551,13 +555,23 @@ export function render(input) {
         `<meta property="og:locale" content="${esc(input.locale)}">`,
         `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">`,
         input.unlisted ? `<meta name="robots" content="noindex, nofollow">\n<meta name="referrer" content="no-referrer">` : '',
-        ...((_j = input.languages) !== null && _j !== void 0 ? _j : []).map((l) => `<link rel="alternate" hreflang="${esc(l.locale)}" href="${esc(l.href)}">`),
+        ...((_l = input.languages) !== null && _l !== void 0 ? _l : []).map((l) => `<link rel="alternate" hreflang="${esc(l.locale)}" href="${esc(l.href)}">`),
     ]
         .filter(Boolean)
         .join('\n');
-    const head = ctx.opener
-        ? ''
-        : [input.title ? `<h1 class="title">${esc(input.title)}</h1>` : '', input.summary ? `<p class="summary">${esc(input.summary)}</p>` : ''].join('');
+    const cover = coverSrc ? `<figure class="cover c-${look.cover}"${input.marks ? ' data-head' : ''}><img src="${esc(coverSrc)}" alt=""></figure>` : '';
+    const headFont = fontOf(look.font);
+    const headCss = [
+        look.color !== 'text' ? `color:${colorCss(look.color)}` : '',
+        headFont ? `--font-title:${fontStack(headFont, system)}` : '',
+    ].filter(Boolean);
+    const titled = !ctx.opener && (input.title || input.summary);
+    const head = titled
+        ? `<div class="head hd-${look.align} ts-${look.size} tw-${look.weight}${look.upper ? ' up' : ''}"${input.marks ? ' data-head' : ''}${headCss.length ? ` style="${headCss.join(';')}"` : ''}>${[
+            input.title ? `<h1 class="title">${esc(input.title)}</h1>` : '',
+            input.summary ? `<p class="summary">${esc(input.summary)}</p>` : '',
+        ].join('')}</div>`
+        : '';
     return `<!DOCTYPE html>
 <html lang="${esc(input.locale)}" dir="${dir}">
 <head>
@@ -585,12 +599,21 @@ h1,h2,h3,h4,p,figure,blockquote{margin:0}
 .brand span{font-weight:700;font-size:17px;letter-spacing:-.01em}
 .langs{display:flex;gap:8px;flex-shrink:0}
 .langs a{display:inline-flex;align-items:center;height:34px;padding:0 14px;border:1px solid var(--border);border-radius:999px;color:var(--text);font-size:14px;font-weight:600;text-decoration:none}
-.title{margin-top:12px;font-size:30px;line-height:1.2;font-weight:700;letter-spacing:-.02em}
-.top+.title{margin-top:12px}
-.page>.title:first-child{margin-top:0}
+.cover{margin-inline:calc(-1*var(--gut));background:var(--subtle)}
+.cover img{width:100%;height:var(--cover);object-fit:cover}
+.c-sm{--cover:180px}.c-md{--cover:240px}.c-lg{--cover:300px}
+.head{margin-top:12px;--ts:30px}
+.page>.head:first-child{margin-top:0}
+.cover+.head{margin-top:28px}
+.hd-center{text-align:center}.hd-end{text-align:end}
+.ts-sm{--ts:24px}.ts-lg{--ts:34px}.ts-xl{--ts:40px}
+.title{font-size:var(--ts);line-height:1.2;font-weight:700;letter-spacing:-.02em}
+.tw-regular .title{font-weight:400;letter-spacing:0}.tw-medium .title{font-weight:500;letter-spacing:-.01em}
+.up .title{text-transform:uppercase;letter-spacing:.01em}
 .summary{margin-top:10px;color:var(--muted);font-size:17px;line-height:1.5}
 .blocks{display:flex;flex-direction:column}
-.title+.blocks,.summary+.blocks{margin-top:28px}
+.head+.blocks{margin-top:28px}
+.cover+.blocks{margin-top:24px}
 .top+.blocks{margin-top:8px}
 .foot{padding:24px var(--gut) 40px;border-top:1px solid var(--border);color:var(--muted);font-size:13px;text-align:center}
 .notice{margin:0;padding:10px 20px;background:#FEF3C7;color:#78350F;font-size:13px;line-height:1.4;font-weight:600;text-align:center}
@@ -718,7 +741,8 @@ a.ev-line{color:var(--primary)}
 .details td{font-weight:600;text-align:end}
 .hr{height:0;margin:0;border:0;border-top:1px solid var(--line)}
 @media (min-width:640px){
-.title{font-size:36px}
+.head{--ts:36px}.ts-sm{--ts:28px}.ts-lg{--ts:44px}.ts-xl{--ts:52px}
+.c-sm{--cover:280px}.c-md{--cover:360px}.c-lg{--cover:432px}
 .hero{min-height:400px}.hero.h-sm{min-height:280px}.hero.h-lg{min-height:540px}
 .hero-img{position:absolute;inset:0;height:100%;max-height:none}
 .hero-title{font-size:40px}
@@ -730,12 +754,22 @@ a.ev-line{color:var(--primary)}
 .gal.track::after{display:none}
 .gal.track .slide{flex-basis:45%}
 }
+@media (min-width:1024px){
+.site{--gut:max(40px,calc((100vw - 1140px)/2))}
+@supports (width:1cqw){.site{--gut:max(40px,calc((100cqw - 1140px)/2))}}
+.head{--ts:42px}.ts-sm{--ts:32px}.ts-lg{--ts:52px}.ts-xl{--ts:60px}
+.hd-start,.hd-end,.summary{max-width:860px;margin-inline:auto}
+.sz-sm{font-size:15px}.sz-md{font-size:17px;line-height:1.65}.sz-lg{font-size:20px}
+.h1{font-size:36px}.h2{font-size:27px}.h3{font-size:21px}
+.blocks>:is(.t-heading,.t-text,.t-button,.t-faq,.t-contact,.t-event,.t-quote,.t-note,.t-details,.t-divider):not(.bleed),.blocks>.t-cards:not(.bleed):has(.c1){width:100%;max-width:860px;margin-inline:auto}
+.blocks>:is(.t-heading,.t-text,.t-button,.t-faq,.t-contact,.t-event,.t-quote,.t-note,.t-details,.t-divider).bleed{padding-inline:max(var(--px,20px),calc(50% - 430px))}
+}
 </style>
 </head>
 <body>
 ${input.notice ? `<p class="notice">${esc(input.notice)}</p>\n` : ''}<div class="site">
 <main class="page">
-${top}${head}
+${top}${cover}${head}
 <div class="blocks">
 ${body}
 </div>

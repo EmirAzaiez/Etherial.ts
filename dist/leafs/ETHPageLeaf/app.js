@@ -10,15 +10,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import etherial from 'etherial';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { Op } from 'sequelize';
 import { registerMediaReferences } from '../ETHMediaLeaf/models/Media.js';
 import { Page } from './models/Page.js';
 import { PageTemplate } from './models/PageTemplate.js';
 import { PageSettings } from './models/PageSettings.js';
 import { registerPagesAdmin } from './admin/pages.js';
 import { mediaIdsOf } from './services/blocks.js';
-import { republishAll } from './services/publish.js';
+import { coverFrom } from './services/cover.js';
+import { publish, republishAll, republishSoon, takeDown } from './services/publish.js';
 import { fontCatalog } from './services/fonts.js';
-import { loadSettings } from './services/settings.js';
+import { loadSettings, lookChanged, themeHead } from './services/settings.js';
 import { paletteOf, radiusOf } from './services/render.js';
 import { state } from './services/state.js';
 import { canGenerate } from './services/generate.js';
@@ -69,13 +71,13 @@ export default class ETHPageLeaf {
         database === null || database === void 0 ? void 0 : database.addModels([Page, PageTemplate, PageSettings]);
         registerPagesAdmin(etherial.eth_admin_leaf, this.config);
         // The images uploaded into a page or a template are only named in its blocks (JSON),
-        // anywhere in them: a hero's, a gallery's, a card's, a video's poster.
+        // anywhere in them: a hero's, a gallery's, a card's, a video's poster. And the cover's, the page's own photo.
         registerMediaReferences(() => __awaiter(this, void 0, void 0, function* () {
             const [pages, templates] = yield Promise.all([
-                Page.findAll({ attributes: ['blocks'], raw: true }),
+                Page.findAll({ attributes: ['blocks', 'cover', 'head'], raw: true }),
                 PageTemplate.findAll({ attributes: ['blocks'], raw: true }),
             ]);
-            return mediaIdsOf([...pages, ...templates].map((row) => row.blocks));
+            return mediaIdsOf([...pages, ...templates].map((row) => [row.blocks, row.cover, row.head]));
         }));
     }
     run({ http }) {
@@ -94,6 +96,7 @@ export default class ETHPageLeaf {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         // The fonts the back-office set, read before the first page is drawn.
         void loadSettings();
+        void this.catchUp();
         const adminLeaf = etherial.eth_admin_leaf;
         if (!(adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.setFeature))
             return;
@@ -129,8 +132,55 @@ export default class ETHPageLeaf {
                 defaults: { title: (_g = (_f = (_e = this.config.theme) === null || _e === void 0 ? void 0 : _e.fonts) === null || _f === void 0 ? void 0 : _f.title) !== null && _g !== void 0 ? _g : null, text: (_k = (_j = (_h = this.config.theme) === null || _h === void 0 ? void 0 : _h.fonts) === null || _j === void 0 ? void 0 : _j.text) !== null && _k !== void 0 ? _k : null },
                 settingsPath: '/admin/content-pages/settings',
             },
+            // How a page opens (cover, title) when nothing else is set: the theme's. Set for every
+            // page in the settings (PUT { head }), for one in its editor (`{ blocks, head }`).
+            head: { defaults: themeHead() },
             // "Write with AI" in the editor: POST a few words, the blocks stream back. Absent without a key.
             ai: canGenerate() ? { generatePath: '/admin/content-pages/generate' } : null,
+        });
+    }
+    /**
+     * At boot: the pages of records get their record's cover (those written
+     * before pages had one), and every page is written again when the theme
+     * or the way pages are drawn changed. In the background.
+     */
+    catchUp() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            try {
+                yield this.fillCovers();
+                if (yield lookChanged())
+                    republishSoon('New theme');
+            }
+            catch (err) {
+                console.error('[ETHPageLeaf] Could not bring the pages up to date:', (_a = err === null || err === void 0 ? void 0 : err.message) !== null && _a !== void 0 ? _a : err);
+            }
+        });
+    }
+    /** Each `page` field with a `cover`: its pages without one take their record's. */
+    fillCovers() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c;
+            const adminLeaf = etherial.eth_admin_leaf;
+            for (const collection of (_a = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.collections) !== null && _a !== void 0 ? _a : []) {
+                for (const field of (_b = collection.fields) !== null && _b !== void 0 ? _b : []) {
+                    if (field.type !== PAGE_TYPE || !((_c = field.page) === null || _c === void 0 ? void 0 : _c.cover) || !collection.model)
+                        continue;
+                    const records = yield collection.model.findAll({ where: { [field.name]: { [Op.ne]: null } }, attributes: [field.name, field.page.cover] });
+                    for (const record of records) {
+                        const page = yield Page.findByPk(record.get(field.name));
+                        if (!page || page.owner !== collection.name || page.cover)
+                            continue;
+                        const cover = yield coverFrom(record.get(field.page.cover));
+                        if (!cover)
+                            continue;
+                        const next = Object.assign(Object.assign({}, page.get({ plain: true })), { cover });
+                        const { columns, stale } = yield publish(next, page.get({ plain: true }));
+                        yield page.update(Object.assign({ cover }, columns));
+                        takeDown(stale);
+                    }
+                }
+            }
         });
     }
     commands() {

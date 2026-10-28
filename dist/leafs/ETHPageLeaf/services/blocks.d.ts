@@ -1,4 +1,4 @@
-import { Localized, PageBlock, PageBlocks, PageColor, RichText, Span } from './options.js';
+import { Localized, PageBlock, PageBlocks, PageColor, PageHead, PageImage, RichText, Span } from './options.js';
 /** `strict` refuses a block not finished; `draft` keeps it. */
 export type Mode = 'strict' | 'draft';
 /** `page:opening-hours`: opens another page, in the app as on the web. */
@@ -26,6 +26,15 @@ export declare function normalizeBlockList(input: unknown, where: string, mode?:
 export declare function normalizeBlocks(input: unknown, where: string, mode?: Mode): PageBlock[];
 /** Every language's blocks; a language the project dropped is dropped with it. */
 export declare function normalizePageBlocks(input: unknown, locales: string[], mode?: Mode): PageBlocks;
+/** How a page opens, as the back-office sends it: a choice it doesn't have is left out. Null when none is made. */
+export declare function normalizeHead(input: unknown): PageHead | null;
+/** The photo across the top of a page: its own, else its record's. */
+export declare function photoOf(page: {
+    head?: unknown;
+    cover?: PageImage | null;
+}): PageImage | null;
+/** A cover photo: an https address, with the upload it is when there is one. Null otherwise. */
+export declare function coverOf(input: unknown): PageImage | null;
 /** Every uploaded image named in blocks, however deep: any `{ src, media }` in the JSON. */
 export declare function mediaIdsOf(value: unknown, out?: number[]): number[];
 /** A title, or a summary, in each language: trimmed, single line. */

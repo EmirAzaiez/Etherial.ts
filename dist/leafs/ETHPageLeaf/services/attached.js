@@ -9,7 +9,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import etherial from 'etherial';
 import { Page } from '../models/Page.js';
-import { normalizeLocalized, normalizePageBlocks } from './blocks.js';
+import { normalizeHead, normalizeLocalized, normalizePageBlocks } from './blocks.js';
+import { coverFrom } from './cover.js';
 import { PAGE_TYPE, PageError, localesOf } from './options.js';
 import { afterUpdate, prepareCreate, prepareUpdate } from './pages.js';
 import { takeDownPage } from './publish.js';
@@ -35,6 +36,19 @@ function ownPage(record, name, collection) {
 function blocksIn(value) {
     return value && typeof value === 'object' && !Array.isArray(value) && 'blocks' in value ? value.blocks : undefined;
 }
+/** How the form says the page opens: `{ blocks, head }`. Undefined when it says nothing of it. */
+function headIn(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) && 'head' in value ? normalizeHead(value.head) : undefined;
+}
+/** The record's cover photo as this save leaves it: written now, else as it was. */
+function coverOfRecord(options, context) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!options.cover)
+            return undefined;
+        const value = Object.prototype.hasOwnProperty.call(context.data, options.cover) ? context.data[options.cover] : valueOf(context.record, options.cover);
+        return coverFrom(value);
+    });
+}
 /** A column of the record, when this save writes it. */
 function written(data, name) {
     return name && Object.prototype.hasOwnProperty.call(data, name) ? data[name] : undefined;
@@ -47,7 +61,7 @@ const same = (a, b) => stable(a) === stable(b);
 /**
  * The field's `beforeSave`: the page written with the record, its id for the
  * column. A record without a page gets one with its first block; the title
- * follows the record's. Only what changed is published again.
+ * and the cover follow the record's. Only what changed is published again.
  */
 export function savePageField(value, field, context) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -60,12 +74,14 @@ export function savePageField(value, field, context) {
         const blocks = rawBlocks === undefined ? undefined : normalizePageBlocks(rawBlocks, locales);
         const title = written(context.data, options.title);
         const summary = written(context.data, options.summary);
+        const head = headIn(value);
+        const cover = yield coverOfRecord(options, context);
         // Compared before they are checked: the length limits are the save's to tell.
         const loose = (text, name) => normalizeLocalized(text, name, locales, Infinity);
         if (!page) {
             if (!blocks || !Object.values(blocks).some((list) => list.length))
                 return current;
-            const data = yield prepareCreate({ title, summary, blocks, published: !!((_b = blocks[locales[0]]) === null || _b === void 0 ? void 0 : _b.length) });
+            const data = yield prepareCreate({ title, summary, blocks, published: !!((_b = blocks[locales[0]]) === null || _b === void 0 ? void 0 : _b.length), head, cover });
             const created = yield Page.create(Object.assign(Object.assign({}, data), { owner: context.collection, in_menu: false }));
             return created.id;
         }
@@ -78,6 +94,10 @@ export function savePageField(value, field, context) {
             changes.blocks = blocks;
             changes.published = !!((_c = blocks[locales[0]]) === null || _c === void 0 ? void 0 : _c.length);
         }
+        if (head !== undefined && !same(head, page.head))
+            changes.head = head;
+        if (cover !== undefined && !same(cover, page.cover))
+            changes.cover = cover;
         if (!Object.keys(changes).length)
             return page.id;
         yield page.update(yield prepareUpdate(page, changes));
@@ -92,7 +112,7 @@ export function copyPageField(value, field, context) {
         const page = yield ownPage({ [field.name]: value }, field.name, context.collection);
         if (!page)
             return (_a = value) !== null && _a !== void 0 ? _a : null;
-        const data = yield prepareCreate({ title: page.title, summary: page.summary, blocks: page.blocks, published: page.published });
+        const data = yield prepareCreate({ title: page.title, summary: page.summary, blocks: page.blocks, published: page.published, head: page.head, cover: page.cover });
         const copy = yield Page.create(Object.assign(Object.assign({}, data), { owner: context.collection, in_menu: false }));
         return copy.id;
     });
@@ -124,6 +144,6 @@ export function attachedPage(collectionName, id, fieldName) {
         const page = yield ownPage(record, fieldName, collectionName);
         if (!page)
             return null;
-        return { id: page.id, slug: page.slug, blocks: page.blocks, published: page.published, html: page.html };
+        return { id: page.id, slug: page.slug, blocks: page.blocks, head: page.head, cover: page.cover, published: page.published, html: page.html };
     });
 }
