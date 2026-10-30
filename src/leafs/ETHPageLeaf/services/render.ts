@@ -1,5 +1,6 @@
-import { Align, BlockOf, BlockStyle, DEFAULT_HEAD, PageBlock, PageColor, PageHead, PageImage, PageTheme, Ratio, ResolvedBlock, RichText, Space, Span } from './options.js'
+import { Align, BlockOf, BlockStyle, DEFAULT_HEAD, PageBlock, PageColor, PageHead, PageIcon, PageImage, PageTheme, Ratio, ResolvedBlock, RichText, Space, Span } from './options.js'
 import { PAGE_LINK, colorOf, richText, spansText } from './blocks.js'
+import { ICON_PATHS, iconFor } from './icons.js'
 import { resolveBlocks } from './resolve.js'
 import { PageFonts, fontOf, fontStack, fontsIn, googleFontsHref } from './fonts.js'
 
@@ -40,6 +41,10 @@ export interface RenderInput {
     head?: PageHead
     /** The photo across the top, above the title: the cover of the record the page belongs to. */
     cover?: PageImage | null
+    /** Its record's logo, on the edge of a `sheet` head, or over the cover's edge with the head's `logo`. */
+    logo?: PageImage | null
+    /** The leaf's Google key (`maps.key`): a map is Google's picture of the place. Without it, an embedded map. */
+    maps?: { key?: string }
     /** A line above everything: a preview link says the page is not on the web. */
     notice?: string
     /** Kept out of search engines, its address out of the Referer of its links: a preview link. */
@@ -54,6 +59,8 @@ export const COLORS = {
     background: '#FFFFFF',
     border: '#E5E7EB',
     subtle: '#F3F4F6',
+    /** Eyebrows, and the icons of the cards and features. The theme's primary when it sets none. */
+    accent: '#111827',
 }
 export const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 export const FONT_RTL = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif"
@@ -68,6 +75,12 @@ const NATIVE: Record<string, string> = { en: 'English', ar: 'العربية', fr
 const ADD_TO_CALENDAR: Record<string, string> = { en: 'Add to calendar', ar: 'أضف إلى التقويم', fr: 'Ajouter au calendrier' }
 /** On a computer, the calendar file beside Google Calendar and Outlook: what opens it. */
 const CALENDAR_FILE: Record<string, string> = { en: 'Apple Calendar & others (.ics)', ar: 'تقويم Apple وغيره (.ics)', fr: 'Apple Calendar et autres (.ics)' }
+/** A map's lines, as the app says them. */
+const MAP_WORDS: Record<string, { address: string; directions: string; open: string }> = {
+    en: { address: 'Address', directions: 'Directions', open: 'Open in Maps' },
+    ar: { address: 'العنوان', directions: 'الاتجاهات', open: 'افتح في الخرائط' },
+    fr: { address: 'Adresse', directions: 'Itinéraire', open: 'Ouvrir dans Plans' },
+}
 /** What an empty list block says in the preview: the back-office is in English. */
 const EMPTY: Partial<Record<PageBlock['type'], string>> = {
     gallery: 'Add images',
@@ -76,6 +89,8 @@ const EMPTY: Partial<Record<PageBlock['type'], string>> = {
     contact: 'Add ways to reach you',
     stats: 'Add figures',
     details: 'Add lines',
+    map: 'Paste a Google Maps link',
+    features: 'Add items',
 }
 
 // Lucide's shapes (ISC), drawn in the text's color.
@@ -98,8 +113,9 @@ const ICONS: Record<string, string> = {
 
 const CONTACT_ICON = { phone: 'phone', whatsapp: 'whatsapp', email: 'mail', map: 'pin', website: 'globe' } as const
 
+/** One of `ICONS`, or of the icons a block may pick (`ICON_PATHS`). */
 function icon(name: string, cls = ''): string {
-    return `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`
+    return `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ICON_PATHS[name as PageIcon] ?? ''}</svg>`
 }
 
 function esc(value: string): string {
@@ -127,7 +143,9 @@ type Palette = typeof COLORS
 
 /** The theme's colors over the defaults: what the page is drawn with, and what the editor shows. */
 export function paletteOf(theme: PageTheme | undefined): Palette {
-    return Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, cssValue((theme?.colors as any)?.[k], v)])) as Palette
+    const colors = (theme?.colors ?? {}) as Record<string, unknown>
+    const palette = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, cssValue(colors[k], v)])) as Palette
+    return { ...palette, accent: cssValue(colors.accent, palette.primary) }
 }
 
 /** The theme's corner radius, in pixels. */
@@ -264,12 +282,27 @@ function imageHtml(image: PageImage | undefined, ctx: Ctx, cls: string, style = 
     return `<div class="${cls} ph" style="${style || 'aspect-ratio:16/9'}">${icon('image')}</div>`
 }
 
-/** A button. `onDark`: in a dark box, the default one is white with the box's color for its words. */
-function buttonHtml(label: string, url: string, ctx: Ctx, cls: string, style = '', attrs = ''): string {
+/** A button, its icon (`glyph`) before its words. `attrs` go on the words. */
+function buttonHtml(label: string, url: string, ctx: Ctx, cls: string, style = '', attrs = '', glyph = ''): string {
     const href = hrefOf(url, ctx) || (ctx.draft ? '#' : '')
     if (!href) return ''
-    return `<a class="${cls}" href="${esc(href)}"${style ? ` style="${style}"` : ''}${attrs}>${esc(label)}</a>`
+    const inner = glyph ? `${glyph}<span${attrs}>${esc(label)}</span>` : esc(label)
+    return `<a class="${cls}" href="${esc(href)}"${style ? ` style="${style}"` : ''}${glyph ? '' : attrs}>${inner}</a>`
 }
+
+/**
+ * A line of a card as the app draws its information: its icon in a circle,
+ * a small label above the value, a chevron when it opens something. `value`
+ * is HTML.
+ */
+function infoRowHtml(row: { glyph: string; label: string; value: string; href?: string; link?: boolean; labelAttrs?: string; valueAttrs?: string }): string {
+    const value = row.value ? `<span class="ivalue${row.link ? ' lnk' : ''}"${row.valueAttrs ?? ''}>${row.value}</span>` : ''
+    const inner = `<span class="iicon">${row.glyph}</span><span class="itext"><span class="ilabel"${row.labelAttrs ?? ''}>${esc(row.label)}</span>${value}</span>${row.href ? icon('chevron', 'chev') : ''}`
+    return row.href ? `<a class="irow" href="${esc(row.href)}">${inner}</a>` : `<div class="irow">${inner}</div>`
+}
+
+/** A value that is an address (`www.…` too) opens it, as in the app. */
+const URLISH = /^(https?:\/\/|www\.)\S+$/i
 
 function alignOf(align: Align | undefined, fallback: Align): string {
     return `al-${align ?? fallback}`
@@ -281,7 +314,11 @@ function headingHtml(block: BlockOf<'heading'>, ctx: Ctx): string {
     const level = block.level ?? 2
     const tag = `h${level + 1}`
     const text = spansHtml(block.text, ctx)
-    return `<${tag} class="h h${level} ${alignOf(block.align, 'start')}${text ? '' : ' empty'}"${editable(ctx, 'text', 'spans')}>${text}</${tag}>`
+    const align = alignOf(block.align, 'start')
+    const title = `<${tag} class="h h${level}${block.eyebrow ? '' : ` ${align}`}${block.weight ? ` w-${block.weight}` : ''}${text ? '' : ' empty'}"${editable(ctx, 'text', 'spans')}>${text}</${tag}>`
+    if (!block.eyebrow) return title
+    // The app's section title: a short rule and the eyebrow in capitals, the title light below.
+    return `<div class="sh ${align}"><p class="eyebrow"><i aria-hidden="true"></i><span${editable(ctx, 'eyebrow', 'line')}>${esc(block.eyebrow)}</span></p>${title}</div>`
 }
 
 function eventHtml(block: ResolvedBlock & BlockOf<'event'>, ctx: Ctx): string {
@@ -321,7 +358,11 @@ function videoHtml(block: ResolvedBlock & BlockOf<'video'>, ctx: Ctx): string {
     if (video?.embedUrl && !ctx.draft) {
         player = `<div class="vid media"><iframe src="${esc(video.embedUrl)}" title="${esc(block.caption ?? 'Video')}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
     } else if (video?.provider === 'file' && /^https:\/\//i.test(block.url)) {
-        player = `<div class="vid media"><video src="${esc(block.url)}" controls playsinline preload="metadata"${poster ? ` poster="${esc(poster)}"` : ''}></video></div>`
+        // Without a picture, the frame a second in: the first one is often black.
+        const src = poster || block.url.includes('#') ? block.url : `${block.url}#t=1`
+        player = ctx.draft
+            ? `<div class="vid media">${poster ? `<img src="${esc(poster)}" alt="" loading="lazy">` : `<video src="${esc(src)}" muted playsinline preload="metadata"></video>`}${play}</div>`
+            : `<div class="vid media"><video src="${esc(src)}" controls playsinline preload="metadata"${poster ? ` poster="${esc(poster)}"` : ''}></video></div>`
     } else {
         // Another site: its picture, and a tap opens it there.
         const inner = `${poster ? `<img src="${esc(poster)}" alt="" loading="lazy">` : ''}${play}`
@@ -345,7 +386,7 @@ function galleryHtml(block: BlockOf<'gallery'>, ctx: Ctx): string {
         .filter(Boolean)
     if (!figures.length) return ''
     if (block.layout === 'grid' || figures.length === 1) return `<div class="gal grid${figures.length === 1 ? ' one' : ''}">${figures.join('')}</div>`
-    return `<div class="gal track">${figures.join('').replace(/ wide/g, '')}</div>`
+    return `<div class="gal track${block.layout === 'slides' ? ' slides' : ''}">${figures.join('').replace(/ wide/g, '')}</div>`
 }
 
 function cardsHtml(block: BlockOf<'cards'>, ctx: Ctx): string {
@@ -378,6 +419,21 @@ function contactHtml(block: ResolvedBlock & BlockOf<'contact'>, ctx: Ctx): strin
         const label = resolved[i]?.label || item.label || ''
         return { item, href, label, glyph: icon(CONTACT_ICON[item.kind] ?? 'globe') }
     })
+    if (block.layout === 'card') {
+        const words = MAP_WORDS[ctx.lang] ?? MAP_WORDS.en
+        return `<div class="icard">${items
+            .map(({ item, href, label, glyph }) => {
+                // The number, the address, the site without its https://, as the app shows them.
+                const value =
+                    item.kind === 'website'
+                        ? esc(item.value.replace(/^https?:\/\//i, '').replace(/\/$/, ''))
+                        : item.kind === 'map'
+                          ? esc(words.open)
+                          : `<bdi dir="ltr">${esc(item.value)}</bdi>`
+                return infoRowHtml({ glyph: item.kind === 'map' ? icon('navigate') : glyph, label, value, href })
+            })
+            .join('')}</div>`
+    }
     if (block.layout === 'list') {
         return `<div class="clist">${items
             .map(({ item, href, label, glyph }) => {
@@ -390,6 +446,74 @@ function contactHtml(block: ResolvedBlock & BlockOf<'contact'>, ctx: Ctx): strin
         .filter(({ href }) => href)
         .map(({ href, label, glyph }) => `<a class="pill" href="${esc(href)}">${glyph}<span>${esc(label)}</span></a>`)
         .join('')}</div>`
+}
+
+function detailsCardHtml(block: ResolvedBlock & BlockOf<'details'>, ctx: Ctx): string {
+    const icons = block.resolved?.icons ?? []
+    return `<div class="icard">${block.rows
+        .map((row, i) => {
+            const raw = (row.value ?? '').trim()
+            const link = URLISH.test(raw) ? hrefOf(/^https?:\/\//i.test(raw) ? raw.replace(/^http:/i, 'https:') : `https://${raw}`, ctx) : ''
+            return infoRowHtml({
+                glyph: icon(icons[i] ?? iconFor(row, 'info')),
+                label: row.label,
+                value: `<bdi dir="auto">${lines(row.value)}</bdi>`,
+                href: link || undefined,
+                link: !!link,
+                labelAttrs: editable(ctx, `rows.${i}.label`, 'line'),
+                valueAttrs: editable(ctx, `rows.${i}.value`, 'lines'),
+            })
+        })
+        .join('')}</div>`
+}
+
+/** Each label small above its value, a hairline between the lines: an app's "About". */
+function detailsRowsHtml(block: BlockOf<'details'>, ctx: Ctx): string {
+    return `<dl class="drows">${block.rows
+        .map((row, i) => {
+            const raw = (row.value ?? '').trim()
+            const link = URLISH.test(raw) ? hrefOf(/^https?:\/\//i.test(raw) ? raw.replace(/^http:/i, 'https:') : `https://${raw}`, ctx) : ''
+            const value = `<bdi dir="auto"${editable(ctx, `rows.${i}.value`, 'lines')}>${lines(row.value)}</bdi>`
+            return `<div class="drow"><dt${editable(ctx, `rows.${i}.label`, 'line')}>${esc(row.label)}</dt><dd>${link ? `<a href="${esc(link)}">${value}</a>` : value}</dd></div>`
+        })
+        .join('')}</dl>`
+}
+
+/**
+ * The place on a map, in a card as in the app: its address, the map (a tap
+ * opens Google Maps), a line to its directions. The map is Google's picture
+ * with the leaf's key; without one, Google's embedded map, cut to the map
+ * and its pin (a step further out: it is drawn bigger).
+ */
+function mapHtml(block: ResolvedBlock & BlockOf<'map'>, ctx: Ctx): string {
+    const map = block.resolved?.map
+    if (!map) return ''
+    const words = MAP_WORDS[ctx.lang] ?? MAP_WORDS.en
+    const embed = `https://maps.google.com/maps?q=${block.lat},${block.lng}&z=${(block.zoom ?? 15) - 1}&hl=${encodeURIComponent(ctx.lang)}&output=embed`
+    const picture = map.image
+        ? `<img class="mapimg" src="${esc(map.image)}" alt="" loading="lazy" decoding="async">`
+        : `<span class="mapimg mapclip"><iframe src="${esc(embed)}" title="${esc(words.address)}" loading="lazy" tabindex="-1"></iframe></span>`
+    // The address as a line, the map under it alone: a tap on it opens the directions.
+    if (block.layout === 'plain') {
+        const address = block.address ? `<p class="maddr"${editable(ctx, 'address', 'lines')}>${lines(block.address)}</p>` : ''
+        return `<div class="mapplain">${address}<a class="mapbox" href="${esc(map.directions)}" aria-label="${esc(words.open)}">${picture}</a></div>`
+    }
+    return `<div class="icard">${[
+        block.address ? infoRowHtml({ glyph: icon('location'), label: words.address, value: lines(block.address), valueAttrs: editable(ctx, 'address', 'lines') }) : '',
+        `<a class="mapbox" href="${esc(map.directions)}" aria-label="${esc(words.open)}">${picture}</a>`,
+        infoRowHtml({ glyph: icon('navigate'), label: words.directions, value: esc(words.open), href: map.directions }),
+    ].join('')}</div>`
+}
+
+/** What there is on site, two by two: a round icon and its words, as the app's amenities. */
+function featuresHtml(block: ResolvedBlock & BlockOf<'features'>, ctx: Ctx): string {
+    const icons = block.resolved?.icons ?? []
+    return `<ul class="feats${block.columns === 1 ? ' one' : ''}${block.variant === 'soft' ? ' soft' : ''}">${block.items
+        .map(
+            (item, i) =>
+                `<li class="feat"><span class="ficon">${icon(icons[i] ?? iconFor(item, 'check'))}</span><span class="flabel"${editable(ctx, `items.${i}.label`, 'line')}>${esc(item.label)}</span></li>`
+        )
+        .join('')}</ul>`
 }
 
 const NOTE_TONES = ['info', 'success', 'warning', 'danger']
@@ -411,7 +535,8 @@ function blockHtml(block: ResolvedBlock, ctx: Ctx): string {
                 style = `--c:${css};--on:${isDark(value) ? '#FFFFFF' : 'var(--text)'}`
             }
             const variant = block.variant ?? 'primary'
-            const button = buttonHtml(block.label, block.url, ctx, `btn ${variant}${block.full ? ' full' : ''}`, style, editable(ctx, 'label', 'line'))
+            const cls = `btn ${variant}${block.full ? ' full' : ''}${block.shape === 'cut' ? ' cut' : ''}${block.size === 'sm' ? ' sm' : ''}`
+            const button = buttonHtml(block.label, block.url, ctx, cls, style, editable(ctx, 'label', 'line'), block.icon ? icon(block.icon) : '')
             return button ? `<div class="bw ${alignOf(block.align, 'start')}">${button}</div>` : ''
         }
         case 'image': {
@@ -488,6 +613,8 @@ function blockHtml(block: ResolvedBlock, ctx: Ctx): string {
             return `<aside class="note ${tone}">${block.title ? `<p class="note-title"${editable(ctx, 'title', 'line')}>${esc(block.title)}</p>` : ''}<div class="rt${richText(block.text) ? '' : ' empty'}"${editable(ctx, 'text', 'rich')}>${richHtml(block.text, ctx)}</div></aside>`
         }
         case 'details':
+            if (block.rows.length && block.layout === 'card') return detailsCardHtml(block, ctx)
+            if (block.rows.length && block.layout === 'rows') return detailsRowsHtml(block, ctx)
             return block.rows.length
                 ? `<table class="details"><tbody>${block.rows
                       .map(
@@ -496,6 +623,10 @@ function blockHtml(block: ResolvedBlock, ctx: Ctx): string {
                       )
                       .join('')}</tbody></table>`
                 : ''
+        case 'map':
+            return mapHtml(block, ctx)
+        case 'features':
+            return block.items.length ? featuresHtml(block, ctx) : ''
         case 'divider':
             return '<hr class="hr">'
         case 'spacer':
@@ -535,9 +666,9 @@ function boxed(block: ResolvedBlock, inner: string, ctx: Ctx, first: boolean, in
     }
     if (text) {
         // Links and secondary text follow the box's own color.
-        css.push(`--fg:${text}`, `--mut:${soft(text, textValue, 0.75)}`, `--lnk:${text}`, `--line:${soft(text, textValue, 0.22)}`)
+        css.push(`--fg:${text}`, `--mut:${soft(text, textValue, 0.75)}`, `--lnk:${text}`, `--line:${soft(text, textValue, 0.22)}`, `--hc:${text}`)
     }
-    if (dark) css.push(`--acc:var(--fg)`, `--on-acc:${colorCss(background!)}`)
+    if (dark) css.push(`--acc:var(--fg)`, `--on-acc:${colorCss(background!)}`, `--ic:var(--fg)`)
     if (padding || (bleed && background)) {
         classes.push('pad')
         // Edge to edge with a background: the content stays in the page's column.
@@ -552,9 +683,22 @@ function boxed(block: ResolvedBlock, inner: string, ctx: Ctx, first: boolean, in
         css.push(`--font-text:${stack}`, `--font-title:${stack}`)
     }
     if (bleed && !background && !style.rounded) classes.push('flush')
+    // Its own corners: its buttons', pictures', map's and items' too.
+    if (style.radius !== undefined) {
+        classes.push('own-r')
+        css.push(`--radius:${style.radius}px`)
+    }
 
     const mark = ctx.input.marks ? ` data-block="${ctx.input.indexes?.[index] ?? index}"` : ''
     return `<div class="${classes.join(' ')}"${mark}${css.length ? ` style="${css.join(';')}"` : ''}>${inner}</div>`
+}
+
+/** A name cut in two lines in the middle of its words, the longer half first, as the app writes a place's name. */
+function twoLines(title: string): string {
+    const words = title.trim().split(/\s+/)
+    if (words.length < 2) return esc(title)
+    const at = Math.ceil(words.length / 2)
+    return `${esc(words.slice(0, at).join(' '))}<br>${esc(words.slice(at).join(' '))}`
 }
 
 function firstImage(blocks: PageBlock[]): string {
@@ -590,7 +734,7 @@ export function render(input: RenderInput): string {
     const chrome = input.chrome !== false
     const ctx: Ctx = { input, c, draft: !!input.draft, lang: input.locale.split('-')[0], system }
 
-    const blocks = resolveBlocks(input.blocks ?? [], { locale: input.locale, title: input.title, timezone: input.timezone })
+    const blocks = resolveBlocks(input.blocks ?? [], { locale: input.locale, title: input.title, timezone: input.timezone, mapsKey: input.maps?.key })
     const lead = blocks[0]
     if (lead?.type === 'hero' && lead.title && blockHtml(lead, ctx)) ctx.opener = lead
     const look = { ...DEFAULT_HEAD, ...(input.head ?? {}) }
@@ -609,7 +753,8 @@ export function render(input: RenderInput): string {
         .filter(Boolean)
         .join('\n')
 
-    const used = fontsIn(fonts, [...(input.blocks ?? []), { style: { font: look.font } }])
+    const titleFontId = input.rtl && look.fontRtl ? look.fontRtl : look.font
+    const used = fontsIn(fonts, [...(input.blocks ?? []), { style: { font: titleFontId } }])
     const fontLinks = used.length
         ? `<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="${esc(googleFontsHref(used))}">\n`
         : ''
@@ -648,18 +793,26 @@ export function render(input: RenderInput): string {
         .filter(Boolean)
         .join('\n')
 
-    const cover = coverSrc ? `<figure class="cover c-${look.cover}"${input.marks ? ' data-head' : ''}><img src="${esc(coverSrc)}" alt=""></figure>` : ''
-    const headFont = fontOf(look.font)
+    // A sheet rises over the cover, the record's logo on its edge: an app's detail screen.
+    const sheet = look.sheet && !!coverSrc
+    // Or the record's logo in a big circle half over the cover, the name on two lines under it: an app's place screen.
+    const badged = !sheet && !!look.logo
+    const ownLogo = (sheet || badged) && input.logo?.src && /^https:\/\//i.test(input.logo.src) ? input.logo.src : ''
+    const cover = coverSrc ? `<figure class="cover c-${look.cover}${sheet ? ' sheeted' : ''}"${input.marks ? ' data-head' : ''}><img src="${esc(coverSrc)}" alt=""></figure>` : ''
+    const headFont = fontOf(titleFontId)
     const headCss = [
         look.color !== 'text' ? `color:${colorCss(look.color)}` : '',
         headFont ? `--font-title:${fontStack(headFont, system)}` : '',
     ].filter(Boolean)
     const titled = !ctx.opener && (input.title || input.summary)
+    const name = badged ? twoLines(input.title) : esc(input.title)
+    const words = [input.title ? `<h1 class="title">${name}</h1>` : '', input.summary ? `<p class="summary">${esc(input.summary)}</p>` : ''].join('')
     const head = titled
-        ? `<div class="head hd-${look.align} ts-${look.size} tw-${look.weight}${look.upper ? ' up' : ''}"${input.marks ? ' data-head' : ''}${headCss.length ? ` style="${headCss.join(';')}"` : ''}>${[
-              input.title ? `<h1 class="title">${esc(input.title)}</h1>` : '',
-              input.summary ? `<p class="summary">${esc(input.summary)}</p>` : '',
-          ].join('')}</div>`
+        ? `<div class="head hd-${look.align} ts-${look.size} tw-${look.weight}${look.upper ? ' up' : ''}${sheet ? ' sheet' : ''}${badged ? ' badged' : ''}${badged && ownLogo && cover ? ' over' : ''}${ownLogo ? ' has-logo' : ''}"${input.marks ? ' data-head' : ''}${headCss.length ? ` style="${headCss.join(';')}"` : ''}>${
+              sheet
+                  ? `${ownLogo ? `<span class="logo"><img src="${esc(ownLogo)}" alt=""></span>` : ''}<div class="sheet-in">${words}</div>`
+                  : `${ownLogo ? `<span class="logo"><img src="${esc(ownLogo)}" alt=""></span>` : ''}${words}`
+          }</div>`
         : ''
 
     return `<!DOCTYPE html>
@@ -672,7 +825,7 @@ export function render(input: RenderInput): string {
 <title>${esc(tabTitle)}</title>
 ${meta}
 ${fontLinks}<style>
-:root{--font-text:${textFont};--font-title:${titleFont};--primary:${c.primary};--on-primary:${c.onPrimary};--text:${c.text};--muted:${c.muted};--bg:${c.background};--border:${c.border};--subtle:${c.subtle};--radius:${radius}px;--fg:var(--text);--mut:var(--muted);--lnk:var(--primary);--acc:var(--primary);--on-acc:var(--on-primary);--line:var(--border);--soft:var(--subtle);--shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px -8px rgba(16,24,40,.12)}
+:root{--font-text:${textFont};--font-title:${titleFont};--primary:${c.primary};--on-primary:${c.onPrimary};--text:${c.text};--muted:${c.muted};--bg:${c.background};--border:${c.border};--subtle:${c.subtle};--accent:${c.accent};--ic:var(--accent);--hc:var(--primary);--radius:${radius}px;--fg:var(--text);--mut:var(--muted);--lnk:var(--primary);--acc:var(--primary);--on-acc:var(--on-primary);--line:var(--border);--soft:var(--subtle);--shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px -8px rgba(16,24,40,.12)}
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-text);font-size:16px;line-height:1.6;overflow-wrap:break-word;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
@@ -692,17 +845,41 @@ h1,h2,h3,h4,p,figure,blockquote{margin:0}
 .cover{margin-inline:calc(-1*var(--gut));background:var(--subtle)}
 .cover img{width:100%;height:var(--cover);object-fit:cover}
 .c-sm{--cover:180px}.c-md{--cover:240px}.c-lg{--cover:300px}
-.head{margin-top:12px;--ts:30px}
+.head{margin-top:12px;--ts:26px}
+.sheet{--ts:28px}
 .page>.head:first-child{margin-top:0}
 .cover+.head{margin-top:28px}
 .hd-center{text-align:center}.hd-end{text-align:end}
-.ts-sm{--ts:24px}.ts-lg{--ts:34px}.ts-xl{--ts:40px}
+.ts-sm{--ts:22px}.ts-lg{--ts:30px}.ts-xl{--ts:34px}
 .title{font-size:var(--ts);line-height:1.2;font-weight:700;letter-spacing:-.02em}
-.tw-regular .title{font-weight:400;letter-spacing:0}.tw-medium .title{font-weight:500;letter-spacing:-.01em}
-.up .title{text-transform:uppercase;letter-spacing:.01em}
+.tw-regular .title{font-weight:400;letter-spacing:0}.tw-medium .title{font-weight:500;letter-spacing:-.01em}.tw-light .title{font-weight:300;letter-spacing:-.01em}
+.up .title{text-transform:uppercase;font-size:calc(var(--ts) * .8);line-height:1.25;letter-spacing:.04em}
+[dir=rtl] .up .title{letter-spacing:0}
 .summary{margin-top:10px;color:var(--muted);font-size:17px;line-height:1.5}
+.cover.sheeted{position:relative}
+.cover.sheeted::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 30%,color-mix(in srgb,var(--primary) 35%,transparent) 100%)}
+.cover.sheeted img{height:calc(var(--cover) + 28px)}
+.head.sheet{position:relative;z-index:1;max-width:none;margin:-28px calc(-1*var(--gut)) 0;padding:26px var(--gut) 0;border-radius:28px 28px 0 0;background:var(--bg)}
+.cover+.head.sheet{margin-top:-28px}
+.head.sheet.has-logo{padding-top:48px}
+.sheet .title{line-height:1.45}
+.sheet .summary{font-size:16px;line-height:25px}
+.sheet .logo{position:absolute;z-index:2;top:-34px;inset-inline-start:var(--gut);display:flex;align-items:center;justify-content:center;width:68px;height:68px;overflow:hidden;border:1px solid var(--border);border-radius:50%;background:#FFFFFF;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.sheet .logo img{width:80%;height:80%;object-fit:contain}
+.badged{--ts:24px}
+.badged .title{line-height:1.5}
+.badged .summary{margin-top:4px;font-size:13px;line-height:20px}
+.badged .logo{display:flex;align-items:center;justify-content:center;width:110px;height:110px;margin-bottom:16px;overflow:hidden;border:1px solid rgba(0,0,0,.1);border-radius:50%;background:#FFFFFF}
+.badged .logo img{width:85%;height:85%;object-fit:contain}
+.badged.hd-center .logo{margin-inline:auto}.badged.hd-end .logo{margin-inline-start:auto}
+.head.badged.over{position:relative;padding-top:72px}
+.cover+.head.badged.over{margin-top:0}
+.badged.over .logo{position:absolute;z-index:2;top:-55px;inset-inline-start:0;margin:0}
+.badged.over.hd-center .logo{inset-inline-start:calc(50% - 55px)}.badged.over.hd-end .logo{inset-inline-start:auto;inset-inline-end:0}
 .blocks{display:flex;flex-direction:column}
 .head+.blocks{margin-top:28px}
+.head.sheet+.blocks{margin-top:14px}
+.head.badged+.blocks{margin-top:4px}
 .cover+.blocks{margin-top:24px}
 .top+.blocks{margin-top:8px}
 .foot{padding:24px var(--gut) 40px;border-top:1px solid var(--border);color:var(--muted);font-size:13px;text-align:center}
@@ -720,18 +897,32 @@ h1,h2,h3,h4,p,figure,blockquote{margin:0}
 .h1{font-size:30px;line-height:1.2;letter-spacing:-.02em}
 .h2{font-size:23px;line-height:1.25}
 .h3{font-size:19px;line-height:1.3;font-weight:600;letter-spacing:-.01em}
+.eyebrow{display:flex;align-items:center;gap:10px;color:var(--ic);font-family:var(--font-text);font-size:11px;font-weight:500;line-height:16px;letter-spacing:2.4px;text-transform:uppercase}
+.eyebrow i{flex:0 0 24px;height:1px;background:currentColor}
+.sh.al-center .eyebrow{justify-content:center}.sh.al-end .eyebrow{justify-content:flex-end}
+.sh .h{font-weight:300;letter-spacing:-.4px;color:var(--hc)}
+.sh .h2{font-size:25px;line-height:38px}
+.h.w-light{font-weight:300}.h.w-regular{font-weight:400;letter-spacing:0}.h.w-medium{font-weight:500}.h.w-bold{font-weight:700}
+/* A section title, as in the app: 34px below the block before it, 14px above what it opens. */
+.blk.sa-md:has(>.sh){margin-top:14px}.blk.sb-md:has(>.sh){margin-bottom:14px}
 .rt ul,.rt ol{margin:0;padding-inline-start:22px}
 .rt>:not(:first-child){margin-top:12px}
 .rt li+li{margin-top:6px}
 .rt li::marker{color:var(--acc)}
 .sz-sm{font-size:14px;line-height:1.55}.sz-md{font-size:16px;line-height:1.6}.sz-lg{font-size:19px;line-height:1.55}
 .bw{display:flex}.bw.al-center{justify-content:center}.bw.al-end{justify-content:flex-end}
-.btn{--c:var(--acc);--on:var(--on-acc);display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;min-width:200px;max-width:100%;padding:12px 24px;border:2px solid transparent;border-radius:var(--radius);font-size:16px;font-weight:600;line-height:20px;text-align:center;text-decoration:none}
+.btn{--c:var(--acc);--on:var(--on-acc);position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;min-width:200px;max-width:100%;padding:12px 24px;border:2px solid transparent;border-radius:var(--radius);font-size:16px;font-weight:600;line-height:20px;text-align:center;text-decoration:none}
 .btn.primary{background:var(--c);border-color:var(--c);color:var(--on)}
 .btn.outline{border-color:var(--c);color:var(--c)}
 .btn.soft{background:var(--subtle);background:color-mix(in srgb,var(--c) 12%,transparent);color:var(--c)}
 .btn.full{width:100%}
 .btn svg{width:18px;height:18px;flex-shrink:0}
+.btn.outline svg{color:var(--ic)}
+.btn.cut{--cut:15px;min-height:52px;padding-block:10px;border-width:1px;border-radius:0;font-size:15px;font-weight:500;clip-path:polygon(0 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%)}
+.btn.cut.outline{min-height:50px;font-size:14px}
+.btn.cut.outline::after{content:"";position:absolute;right:-1px;bottom:-1px;width:var(--cut);height:var(--cut);background:linear-gradient(to top left,transparent 50%,var(--c) 50%,var(--c) calc(50% + 1px),transparent calc(50% + 1px))}
+.btn.cut svg{width:20px;height:20px}
+.btn.sm{min-height:45px;padding-block:8px;font-size:14px;font-weight:400;line-height:22px;letter-spacing:.5px}
 .fig.al-center{margin-inline:auto}.fig.al-end{margin-inline-start:auto}
 .fig>a{display:block}
 .media{width:100%;height:auto;border-radius:var(--radius);background:var(--subtle)}
@@ -761,6 +952,11 @@ img.media{object-fit:cover}
 .gal.track::-webkit-scrollbar{display:none}
 .gal.track::after{content:"";flex:0 0 max(1px,calc(var(--inset) - 12px))}
 .gal.track .slide{flex:0 0 85%;max-width:520px;scroll-snap-align:start}
+.gal.slides{gap:10px}
+.gal.slides::after{flex-basis:max(1px,calc(var(--inset) - 10px))}
+.gal.slides .slide{position:relative;flex-basis:78%;overflow:hidden;border-radius:18px}
+.gal.slides .media{border-radius:0}
+.gal.slides .cap{position:absolute;inset:auto 0 0;margin:0;padding:28px 14px 12px;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--primary) 75%,transparent));color:#FFFFFF;font-size:14px;line-height:1.4;font-weight:500;text-align:start}
 .vid{position:relative;display:block;aspect-ratio:16/9;overflow:hidden;background:#0E1116}
 .vid iframe,.vid video,.vid img{position:absolute;inset:0;width:100%;height:100%;max-width:none;border:0;object-fit:cover}
 .vid video{object-fit:contain;background:#000}
@@ -840,6 +1036,45 @@ a.ev-line{color:var(--primary)}
 .details th{width:40%;padding-inline-end:12px;color:var(--mut);font-weight:400;text-align:start}
 .details td{font-weight:600;text-align:end}
 .hr{height:0;margin:0;border:0;border-top:1px solid var(--line)}
+.icard{overflow:hidden;background:#FFFFFF;border:1px solid var(--border);border-radius:18px;color:var(--primary)}
+.icard>*{position:relative}
+.icard>*+*::before{content:"";position:absolute;top:0;inset-inline:64px 0;height:1px;background:var(--border);transform:scaleY(.5);transform-origin:top}
+.irow{display:flex;align-items:center;gap:12px;min-height:60px;padding:14px 16px;color:inherit;text-decoration:none}
+a.irow:active{background:var(--subtle)}
+.iicon{display:flex;flex:0 0 36px;align-items:center;justify-content:center;height:36px;border-radius:50%;background:var(--subtle);color:var(--ic)}
+.iicon svg{width:18px;height:18px}
+.itext{display:flex;flex:1;flex-direction:column;min-width:0}
+.ilabel{color:var(--muted);font-size:12.5px;line-height:17px}
+.ivalue{margin-top:2px;color:var(--primary);font-size:15px;line-height:22px;font-weight:500;overflow-wrap:anywhere}
+.ivalue.lnk{color:var(--ic);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.irow>.chev{width:18px;height:18px;color:var(--muted);opacity:.7}
+.mapbox{display:block;padding:12px}
+.mapimg{display:block;width:100%;height:152px;border:0;border-radius:12px;background:var(--subtle);object-fit:cover;pointer-events:none}
+.mapclip{position:relative;overflow:hidden}
+.mapclip iframe{position:absolute;top:-110px;left:0;width:100%;height:calc(100% + 220px);border:0}
+.feats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}
+.feats.one{grid-template-columns:minmax(0,1fr)}
+.feat{display:flex;align-items:center;gap:10px;padding:10px;background:#FFFFFF;border:1px solid var(--border);border-radius:14px;color:var(--primary)}
+.ficon{display:flex;flex:0 0 32px;align-items:center;justify-content:center;height:32px;border-radius:50%;background:var(--subtle);color:var(--ic)}
+.ficon svg{width:18px;height:18px}
+.flabel{display:-webkit-box;flex:1;min-width:0;overflow:hidden;font-size:13px;line-height:17px;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.feats.soft .feat{padding:10px 12px;background:color-mix(in srgb,var(--primary) 4%,#FFFFFF);border-color:color-mix(in srgb,var(--primary) 10%,transparent);border-radius:var(--radius);color:var(--fg)}
+.feats.soft .ficon{flex-basis:20px;height:20px;background:none}
+.feats.soft .ficon svg{width:20px;height:20px}
+.feats.soft .flabel{font-size:12px;line-height:16px}
+.drows{margin:0}
+.drow{padding:12px 0}
+.drow+.drow{border-top:1px solid var(--line)}
+.drow dt{color:var(--mut);font-size:12px;line-height:20px;font-weight:500}
+.drow dd{margin:2px 0 0;color:var(--fg);font-size:16px;line-height:24px}
+.drow dd a{color:var(--ic)}
+.maddr{color:var(--fg);font-size:16px;line-height:24px}
+.mapplain .mapbox{padding:0}
+.maddr+.mapbox{margin-top:16px}
+.mapplain .mapimg{height:170px;border-radius:var(--radius)}
+.own-r .gal.slides .slide,.own-r .feat,.own-r .icard{border-radius:var(--radius)}
+.own-r .mapimg{border-radius:max(0px,calc(var(--radius) - 4px))}
+.own-r .mapplain .mapimg{border-radius:var(--radius)}
 @media (min-width:640px){
 .head{--ts:36px}.ts-sm{--ts:28px}.ts-lg{--ts:44px}.ts-xl{--ts:52px}
 .c-sm{--cover:280px}.c-md{--cover:360px}.c-lg{--cover:432px}
@@ -853,6 +1088,10 @@ a.ev-line{color:var(--primary)}
 .gal.track{margin-inline:0;padding-inline-start:0;scroll-padding-inline:0}
 .gal.track::after{display:none}
 .gal.track .slide{flex-basis:45%}
+.gal.slides .slide{flex-basis:40%}
+.mapimg{height:240px}
+.mapplain .mapimg{height:300px}
+.feats:not(.one){grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media (min-width:1024px){
 .site{--gut:max(40px,calc((100vw - 1140px)/2))}
@@ -861,8 +1100,11 @@ a.ev-line{color:var(--primary)}
 .hd-start,.hd-end,.summary{max-width:860px;margin-inline:auto}
 .sz-sm{font-size:15px}.sz-md{font-size:17px;line-height:1.65}.sz-lg{font-size:20px}
 .h1{font-size:36px}.h2{font-size:27px}.h3{font-size:21px}
-.blocks>:is(.t-heading,.t-text,.t-button,.t-faq,.t-contact,.t-event,.t-quote,.t-note,.t-details,.t-divider):not(.bleed),.blocks>.t-cards:not(.bleed):has(.c1){width:100%;max-width:860px;margin-inline:auto}
-.blocks>:is(.t-heading,.t-text,.t-button,.t-faq,.t-contact,.t-event,.t-quote,.t-note,.t-details,.t-divider).bleed{padding-inline:max(var(--px,20px),calc(50% - 430px))}
+.sh .h2{font-size:30px;line-height:42px}
+.sheet .sheet-in{max-width:860px;margin-inline:auto}
+.sheet .logo{inset-inline-start:max(var(--gut),calc(50% - 430px))}
+.blocks>:is(.t-heading,.t-text,.t-button,.t-faq,.t-contact,.t-event,.t-quote,.t-note,.t-details,.t-map,.t-features,.t-divider):not(.bleed),.blocks>.t-cards:not(.bleed):has(.c1){width:100%;max-width:860px;margin-inline:auto}
+.blocks>:is(.t-heading,.t-text,.t-button,.t-faq,.t-contact,.t-event,.t-quote,.t-note,.t-details,.t-map,.t-features,.t-divider).bleed{padding-inline:max(var(--px,20px),calc(50% - 430px))}
 }
 </style>
 </head>

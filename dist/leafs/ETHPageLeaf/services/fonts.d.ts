@@ -7,7 +7,7 @@ export interface PageFont {
     arabic: boolean;
     weights: number[];
     italic: boolean;
-    /** Its TTF files, those it has of `'400'`, `'500'`, `'600'`, `'700'` and `'400i'` (italic). */
+    /** Its TTF files, those it has of `'300'` (light titles), `'400'`, `'500'`, `'600'`, `'700'` and `'400i'` (italic). */
     files: Record<string, string>;
 }
 /** A page's fonts: the ids of `FONTS`. One left out is the theme's, else the system's. */

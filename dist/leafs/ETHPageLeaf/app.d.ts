@@ -44,12 +44,12 @@ export default class ETHPageLeaf {
     /** Lifecycle: afterRun — tell the back-office how pages are written. */
     afterRun(): void;
     /**
-     * At boot: the pages of records get their record's cover (those written
-     * before pages had one), and every page is written again when the theme
+     * At boot: the pages of records get their record's cover and logo (those
+     * written before pages had them), and every page is written again when the theme
      * or the way pages are drawn changed. In the background.
      */
     private catchUp;
-    /** Each `page` field with a `cover`: its pages without one take their record's. */
+    /** Each `page` field with a `cover` or a `logo`: its pages without one take their record's. */
     private fillCovers;
     commands(): {
         command: string;

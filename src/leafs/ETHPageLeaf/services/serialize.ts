@@ -10,8 +10,8 @@ import type { PageHead, ResolvedBlock } from './options.js'
 /**
  * A page as the app gets it: the blocks to draw, how it opens (`head`: the
  * cover's height, the title's place, size, weight, case, color, font; every
- * key set), its cover photo, and the address of its HTML to share or show in
- * a web view.
+ * key set), its cover photo, its record's logo, and the address of its HTML
+ * to share or show in a web view.
  */
 export function serializePage(page: Page, asked: string) {
     const content = pageIn(page, asked)
@@ -25,6 +25,7 @@ export function serializePage(page: Page, asked: string) {
         url: page.html?.[content.locale] ?? null,
         head,
         cover: photoOf(page)?.src ?? null,
+        logo: page.logo?.src ?? null,
         fonts: appFonts(content.blocks, head),
         updated_at: page.updated_at,
     }

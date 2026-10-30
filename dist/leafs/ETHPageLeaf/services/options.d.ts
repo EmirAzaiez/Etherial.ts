@@ -50,6 +50,8 @@ export interface BlockStyle {
     below?: Space;
     /** The font of all its words, titles and text (an id of `FONTS`). Default the page's. */
     font?: string;
+    /** Its corners, 0 to 32 pixels, instead of the theme's radius: its buttons', pictures', map's, items' and box's. */
+    radius?: number;
 }
 /** An image: uploaded from the back-office, or an address. */
 export interface PageImage {
@@ -68,22 +70,40 @@ export interface PageLink {
 export type Ratio = 'auto' | '16:9' | '4:3' | '1:1' | '3:4';
 export type ContactKind = 'phone' | 'whatsapp' | 'email' | 'map' | 'website';
 /**
+ * The icons a block can show: a details card's rows, a features block's
+ * items, a button. One a row or an item leaves out is guessed from its words
+ * (`iconFor`); the web draws Lucide's, the app its own of the same meaning.
+ */
+export declare const PAGE_ICONS: readonly ["info", "check", "time", "calendar", "call", "mail", "globe", "location", "navigate", "price", "people", "car", "shirt", "dining", "cafe", "wifi", "water", "fitness", "accessible", "pets", "bike", "beach", "sun", "leaf", "snow", "shop", "ticket", "star", "boat", "moon", "tour", "play", "arrow", "download"];
+export type PageIcon = (typeof PAGE_ICONS)[number];
+/**
  * The pieces a page is made of, top to bottom. Every link (a button's, a
  * span's, a card's) is `https://`, `mailto:`, `tel:` or `page:<slug>`.
  * Texts the editor formats are `Span[]` (one line) or `RichText`.
  */
-export type PageBlock = ({
+export type PageBlock = (
+/**
+ * `eyebrow`: a short line above the title, after a short rule, in the accent color: "Find us" over "Location".
+ * `weight`: the title's, instead of its level's.
+ */
+{
     type: 'heading';
     text: Span[];
     level?: 1 | 2 | 3;
     align?: Align;
+    eyebrow?: string;
+    weight?: (typeof HEAD_WEIGHTS)[number];
 } | {
     type: 'text';
     text: RichText;
     align?: Align;
     size?: 'sm' | 'md' | 'lg';
 }
-/** `soft`: the color, faint, behind the label. `color` replaces the primary one. */
+/**
+ * `soft`: the color, faint, behind the label. `color` replaces the primary one. `icon`: before the label.
+ * `shape`: `round`, the theme's corners (default); `cut`, square with the bottom right corner cut, as an app's buttons.
+ * `size`: `sm`, 45 pixels high, its words smaller in the text's regular weight, spaced: an app's buttons.
+ */
  | {
     type: 'button';
     label: string;
@@ -92,6 +112,9 @@ export type PageBlock = ({
     variant?: 'primary' | 'outline' | 'soft';
     color?: PageColor;
     full?: boolean;
+    icon?: PageIcon;
+    shape?: 'round' | 'cut';
+    size?: 'sm' | 'md';
 }
 /** `width`: at most this many pixels wide. */
  | {
@@ -114,18 +137,21 @@ export type PageBlock = ({
     overlay?: number;
     align?: Align;
     position?: 'top' | 'center' | 'bottom';
-} | {
+}
+/** `slides`: a carousel of big photos, their captions on them, as an app's gallery. */
+ | {
     type: 'gallery';
     images: (PageImage & {
         caption?: string;
     })[];
-    layout?: 'carousel' | 'grid';
+    layout?: 'carousel' | 'grid' | 'slides';
     ratio?: Ratio;
 }
-/** YouTube, Vimeo, or a video file's address. */
+/** YouTube, Vimeo, or a video file's address. `media`: the file's media row when it was uploaded, so the orphan cleanup keeps it. */
  | {
     type: 'video';
     url: string;
+    media?: number;
     poster?: PageImage;
     caption?: string;
 } | {
@@ -153,7 +179,7 @@ export type PageBlock = ({
         answer: RichText;
     }[];
 }
-/** Ways to reach someone: a phone number, a WhatsApp number, an email address, a map's link, a site. */
+/** Ways to reach someone: a phone number, a WhatsApp number, an email address, a map's link, a site. `card`: rows in a bordered card. */
  | {
     type: 'contact';
     items: {
@@ -161,7 +187,7 @@ export type PageBlock = ({
         value: string;
         label?: string;
     }[];
-    layout?: 'buttons' | 'list';
+    layout?: 'buttons' | 'list' | 'card';
 }
 /** `date` / `endDate`: `YYYY-MM-DD`; `startTime` / `endTime`: `HH:MM`, in the project's `timezone`. */
  | {
@@ -195,13 +221,43 @@ export type PageBlock = ({
     text: RichText;
     tone?: 'info' | 'success' | 'warning' | 'danger';
 }
-/** Label / value lines: the hours, the place, the phone number. */
+/**
+ * Label / value lines: the hours, the place, the phone number. `card`: each row with its icon, in a bordered card.
+ * `rows`: each label small above its value, a hairline between them, as an app's "About".
+ */
  | {
     type: 'details';
     rows: {
         label: string;
         value: string;
+        icon?: PageIcon;
     }[];
+    layout?: 'table' | 'card' | 'rows';
+}
+/**
+ * A place: its address, a map, and a link to the directions. `lat` / `lng` in degrees; `zoom` 3 to 20, default 15.
+ * `plain`: the address as a line, then the map alone (a tap opens the directions), without the card.
+ */
+ | {
+    type: 'map';
+    lat: number;
+    lng: number;
+    zoom?: number;
+    address?: string;
+    layout?: 'card' | 'plain';
+}
+/**
+ * Short items with an icon, two by two: what a place offers ("Parking", "Kids area").
+ * `soft`: on a faint shade of the primary color, the icon without its circle, as an app's amenities.
+ */
+ | {
+    type: 'features';
+    items: {
+        label: string;
+        icon?: PageIcon;
+    }[];
+    columns?: 1 | 2;
+    variant?: 'card' | 'soft';
 } | {
     type: 'divider';
 } | {
@@ -250,6 +306,13 @@ export interface ResolvedExtras {
         href: string;
         label: string;
     }[];
+    /** details, features: each row's or item's icon, its own or the one its words suggest. */
+    icons?: PageIcon[];
+    /** map: the link to its directions (Google Maps), and its picture when the leaf has a Google key (`maps.key`). */
+    map?: {
+        directions: string;
+        image: string | null;
+    };
 }
 /** A block as the app gets it. */
 export type ResolvedBlock = PageBlock & {
@@ -273,6 +336,8 @@ export interface PageTheme {
         border?: string;
         /** The notes' background. */
         subtle?: string;
+        /** Eyebrows, and the icons of the cards and features. Default primary. */
+        accent?: string;
     };
     /**
      * The fonts of the pages (ids of `FONTS`) until the back-office picks
@@ -292,7 +357,7 @@ export interface PageTheme {
 }
 export declare const HEAD_COVERS: readonly ["none", "sm", "md", "lg"];
 export declare const HEAD_SIZES: readonly ["sm", "md", "lg", "xl"];
-export declare const HEAD_WEIGHTS: readonly ["regular", "medium", "bold"];
+export declare const HEAD_WEIGHTS: readonly ["light", "regular", "medium", "bold"];
 /**
  * How a page opens: the record's cover photo across the top (a news' own),
  * then the title and the line under it. Set for every page in the
@@ -311,11 +376,25 @@ export interface PageHead {
     color?: PageColor;
     /** A font of `FONTS`; without it, the titles' font. */
     font?: string;
+    /** Its font in a right-to-left language (an app's Arabic titles are often another font); without it, `font`. */
+    fontRtl?: string;
+    /**
+     * The title on a sheet that rises over the cover, its top corners rounded,
+     * the cover darker at its edges: an app's detail screen. Its record's logo
+     * (`page.logo`) sits on the sheet's edge.
+     */
+    sheet?: boolean;
+    /**
+     * Without a sheet: its record's logo (`page.logo`) in a big circle, half
+     * over the cover's bottom edge, and the title under it cut in two lines in
+     * the middle of its words, as an app's place screen.
+     */
+    logo?: boolean;
     /** This page's own photo across the top, over its record's (a news' photo on the list). A page's only: every page's look has none. */
     photo?: PageImage;
 }
 /** How a page opens when nothing says otherwise: the look pages had before it could be set. */
-export declare const DEFAULT_HEAD: Required<Omit<PageHead, 'font' | 'photo'>>;
+export declare const DEFAULT_HEAD: Required<Omit<PageHead, 'font' | 'fontRtl' | 'photo'>>;
 /** Claude, writing a page from a few words in the editor ("Write with AI"). Needs the admin leaf's `features.ai`. */
 export interface PageAIConfig {
     /** Default the assistant leaf's, else `ANTHROPIC_API_KEY`. */
@@ -362,6 +441,29 @@ export interface ETHPageLeafConfig {
     };
     /** "Write with AI" in the editor: on when the admin leaf's AI is and a key is found. `false`: off. */
     ai?: PageAIConfig | false;
+    /**
+     * A map block's picture: Google's Static Maps with this key (a browser key,
+     * it is in the page). Without it the web shows Google's map in a frame.
+     */
+    maps?: {
+        key?: string;
+    };
+    /**
+     * The project's own ready-made pages, written in code: first among the
+     * editor's templates, every language's blocks and how the page opens. A
+     * picture left empty is one to add.
+     */
+    templates?: PageReadyMade[];
+}
+/** A page the project wrote in code to start others from. */
+export interface PageReadyMade {
+    /** Stays the same: the back-office keys it. */
+    id: string;
+    name: string;
+    /** A line under its name. */
+    description?: string;
+    blocks: Partial<Record<string, PageBlock[]>>;
+    head?: PageHead;
 }
 /** Not `pages`: the back-office's own pages are at `/pages/<page>`. */
 export declare const COLLECTION = "content-pages";
@@ -382,6 +484,8 @@ export interface PageFieldOptions {
     summary?: string;
     /** The record's column with its cover photo (a media field): above the title, across the page. None by default. */
     cover?: string;
+    /** The record's column with its logo (a media field): on the edge of a `sheet` head, or over the cover with the head's `logo`. None by default. */
+    logo?: string;
 }
 declare module '../../ETHAdminLeaf/features/ActionRegistry.js' {
     interface FieldDefinition {

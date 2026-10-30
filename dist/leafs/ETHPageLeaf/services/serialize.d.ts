@@ -3,8 +3,8 @@ import type { PageHead, ResolvedBlock } from './options.js';
 /**
  * A page as the app gets it: the blocks to draw, how it opens (`head`: the
  * cover's height, the title's place, size, weight, case, color, font; every
- * key set), its cover photo, and the address of its HTML to share or show in
- * a web view.
+ * key set), its cover photo, its record's logo, and the address of its HTML
+ * to share or show in a web view.
  */
 export declare function serializePage(page: Page, asked: string): {
     in_menu: boolean;
@@ -12,6 +12,7 @@ export declare function serializePage(page: Page, asked: string): {
     url: string;
     head: PageHead;
     cover: string;
+    logo: string;
     fonts: {
         title: string;
         text: string;

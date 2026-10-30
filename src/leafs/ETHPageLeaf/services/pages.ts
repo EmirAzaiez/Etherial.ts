@@ -15,7 +15,7 @@ const MAX_TITLE = 160
 const MAX_SUMMARY = 300
 
 /** What the HTML is made of: a write that touches none of it (the menu's order) leaves the bucket alone. */
-const PUBLISHED_FIELDS = ['slug', 'title', 'summary', 'blocks', 'published', 'head', 'cover']
+const PUBLISHED_FIELDS = ['slug', 'title', 'summary', 'blocks', 'published', 'head', 'cover', 'logo']
 
 /**
  * The old files of a page saved under a new address or unpublished, taken
@@ -69,7 +69,7 @@ export async function prepareCreate(data: Record<string, any>) {
     const blocks = normalizePageBlocks(data.blocks, locales)
     const wanted = has(data, 'slug') && data.slug !== null && data.slug !== '' ? checkSlug(data.slug) : slugify(title[locales[0]] ?? '') || 'page'
     const slug = await freeSlug(wanted)
-    const next: PageLike = { slug, title, summary, blocks, published: !duplicate && bool(data.published), head: normalizeHead(data.head), cover: coverOf(data.cover) }
+    const next: PageLike = { slug, title, summary, blocks, published: !duplicate && bool(data.published), head: normalizeHead(data.head), cover: coverOf(data.cover), logo: coverOf(data.logo) }
     checkPublishable(next)
 
     const { columns } = await publish(next, null)
@@ -88,6 +88,7 @@ export async function prepareUpdate(record: Page, data: Record<string, any>) {
     if (has(data, 'published')) out.published = bool(data.published)
     if (has(data, 'head')) out.head = normalizeHead(data.head)
     if (has(data, 'cover')) out.cover = coverOf(data.cover)
+    if (has(data, 'logo')) out.logo = coverOf(data.logo)
     if (has(data, 'slug')) {
         out.slug = checkSlug(data.slug)
         if (out.slug !== record.slug && (await taken(out.slug, record.id))) throw new PageError(`Another page is already at ${out.slug}.`)
@@ -102,6 +103,7 @@ export async function prepareUpdate(record: Page, data: Record<string, any>) {
         published: out.published ?? previous.published,
         head: 'head' in out ? out.head : previous.head,
         cover: 'cover' in out ? out.cover : previous.cover,
+        logo: 'logo' in out ? out.logo : previous.logo,
     }
     checkPublishable(next)
 

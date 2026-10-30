@@ -19,6 +19,8 @@ export declare class Page extends Model<Page> {
     head: PageHead | null;
     /** The photo across the top: the cover of the record the page belongs to (a news'). Null: none. */
     cover: PageImage | null;
+    /** Its record's logo (a place's), on the edge of a `sheet` head or over the cover with the head's `logo`. Null: none. */
+    logo: PageImage | null;
     /** Off: the app no longer sees it, and its HTML leaves the bucket. */
     published: boolean;
     /** Listed in the app's menu. Off, it opens only from a link, a push or a banner. */

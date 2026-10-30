@@ -16,7 +16,7 @@ import { Page } from './models/Page.js';
 import { PageTemplate } from './models/PageTemplate.js';
 import { PageSettings } from './models/PageSettings.js';
 import { registerPagesAdmin } from './admin/pages.js';
-import { mediaIdsOf } from './services/blocks.js';
+import { mediaIdsOf, normalizeHead, normalizePageBlocks } from './services/blocks.js';
 import { coverFrom } from './services/cover.js';
 import { publish, republishAll, republishSoon, takeDown } from './services/publish.js';
 import { fontCatalog } from './services/fonts.js';
@@ -24,7 +24,7 @@ import { loadSettings, lookChanged, themeHead } from './services/settings.js';
 import { paletteOf, radiusOf } from './services/render.js';
 import { state } from './services/state.js';
 import { canGenerate } from './services/generate.js';
-import { BLOCKS_TYPE, COLLECTION, PAGE_TYPE, defaultLocaleOf, folderOf, localesOf, rtlOf } from './services/options.js';
+import { BLOCKS_TYPE, BLOCK_TYPES, COLLECTION, PAGE_ICONS, PAGE_TYPE, defaultLocaleOf, folderOf, localesOf, rtlOf } from './services/options.js';
 export * from './services/options.js';
 export { Page } from './models/Page.js';
 export { PageTemplate } from './models/PageTemplate.js';
@@ -36,6 +36,8 @@ export { localeOf } from './services/http.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** What the back-office lets people upload in an image block. */
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+/** And in a video block: MP4 plays everywhere, an iPhone's .mov on iPhones and most browsers. */
+const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 /**
  * ETHPageLeaf — simple pages to read, written in the back-office.
  *
@@ -71,13 +73,13 @@ export default class ETHPageLeaf {
         database === null || database === void 0 ? void 0 : database.addModels([Page, PageTemplate, PageSettings]);
         registerPagesAdmin(etherial.eth_admin_leaf, this.config);
         // The images uploaded into a page or a template are only named in its blocks (JSON),
-        // anywhere in them: a hero's, a gallery's, a card's, a video's poster. And the cover's, the page's own photo.
+        // anywhere in them: a hero's, a gallery's, a card's, a video's poster. And the cover's, the logo's, the page's own photo.
         registerMediaReferences(() => __awaiter(this, void 0, void 0, function* () {
             const [pages, templates] = yield Promise.all([
-                Page.findAll({ attributes: ['blocks', 'cover', 'head'], raw: true }),
+                Page.findAll({ attributes: ['blocks', 'cover', 'logo', 'head'], raw: true }),
                 PageTemplate.findAll({ attributes: ['blocks'], raw: true }),
             ]);
-            return mediaIdsOf([...pages, ...templates].map((row) => [row.blocks, row.cover, row.head]));
+            return mediaIdsOf([...pages, ...templates].map((row) => [row.blocks, row.cover, row.logo, row.head]));
         }));
     }
     run({ http }) {
@@ -93,7 +95,7 @@ export default class ETHPageLeaf {
     }
     /** Lifecycle: afterRun — tell the back-office how pages are written. */
     afterRun() {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
         // The fonts the back-office set, read before the first page is drawn.
         void loadSettings();
         void this.catchUp();
@@ -110,6 +112,9 @@ export default class ETHPageLeaf {
             defaultLocale: defaultLocaleOf(this.config),
             rtlLocales: locales.filter((l) => rtlOf(this.config, l)),
             previewPath: '/admin/content-pages/preview',
+            // The blocks a page can hold, and the icons its rows, items and buttons can show.
+            blockTypes: BLOCK_TYPES,
+            icons: PAGE_ICONS,
             // `<attachedPath>/<collection>/<id>/<field>`: the page of a record's `page` field.
             pageType: PAGE_TYPE,
             attachedPath: '/admin/content-pages/of',
@@ -119,17 +124,34 @@ export default class ETHPageLeaf {
                 accept: ((_c = rule === null || rule === void 0 ? void 0 : rule.mime_types) === null || _c === void 0 ? void 0 : _c.length) ? IMAGE_TYPES.filter((t) => rule.mime_types.includes(t)) : IMAGE_TYPES,
                 maxSize: (_d = rule === null || rule === void 0 ? void 0 : rule.max_size) !== null && _d !== void 0 ? _d : null,
             },
+            // The upload of a video block's file, to the same folder.
+            videos: {
+                folder,
+                accept: ((_e = rule === null || rule === void 0 ? void 0 : rule.mime_types) === null || _e === void 0 ? void 0 : _e.length) ? VIDEO_TYPES.filter((t) => rule.mime_types.includes(t)) : VIDEO_TYPES,
+                maxSize: (_f = rule === null || rule === void 0 ? void 0 : rule.max_size) !== null && _f !== void 0 ? _f : null,
+            },
             // The colors a block's `primary`, `subtle`… stand for, and the corners: the editor's swatches.
             theme: { colors: paletteOf(this.config.theme), radius: radiusOf(this.config.theme) },
             // GET the list, POST { name, blocks }, PUT / DELETE `<templatesPath>/<id>`.
             templatesPath: '/admin/content-pages/templates',
+            // The project's own, written in code: checked as drafts, a picture to add kept as one.
+            readyMade: ((_g = this.config.templates) !== null && _g !== void 0 ? _g : []).map((t) => {
+                var _a;
+                return ({
+                    id: t.id,
+                    name: t.name,
+                    description: t.description,
+                    blocks: normalizePageBlocks(t.blocks, locales, 'draft'),
+                    head: (_a = normalizeHead(t.head)) !== null && _a !== void 0 ? _a : undefined,
+                });
+            }),
             // `<sharePath>/<id>` of a saved page: GET its links, POST makes its preview link, DELETE stops it.
             sharePath: '/admin/content-pages/share',
             // The fonts to pick from, the theme's (what a page is in when none is set),
             // and where every page's are read (GET) and set (PUT { fonts: { title, text } }).
             fonts: {
                 catalog: fontCatalog(),
-                defaults: { title: (_g = (_f = (_e = this.config.theme) === null || _e === void 0 ? void 0 : _e.fonts) === null || _f === void 0 ? void 0 : _f.title) !== null && _g !== void 0 ? _g : null, text: (_k = (_j = (_h = this.config.theme) === null || _h === void 0 ? void 0 : _h.fonts) === null || _j === void 0 ? void 0 : _j.text) !== null && _k !== void 0 ? _k : null },
+                defaults: { title: (_k = (_j = (_h = this.config.theme) === null || _h === void 0 ? void 0 : _h.fonts) === null || _j === void 0 ? void 0 : _j.title) !== null && _k !== void 0 ? _k : null, text: (_o = (_m = (_l = this.config.theme) === null || _l === void 0 ? void 0 : _l.fonts) === null || _m === void 0 ? void 0 : _m.text) !== null && _o !== void 0 ? _o : null },
                 settingsPath: '/admin/content-pages/settings',
             },
             // How a page opens (cover, title) when nothing else is set: the theme's. Set for every
@@ -140,8 +162,8 @@ export default class ETHPageLeaf {
         });
     }
     /**
-     * At boot: the pages of records get their record's cover (those written
-     * before pages had one), and every page is written again when the theme
+     * At boot: the pages of records get their record's cover and logo (those
+     * written before pages had them), and every page is written again when the theme
      * or the way pages are drawn changed. In the background.
      */
     catchUp() {
@@ -157,26 +179,35 @@ export default class ETHPageLeaf {
             }
         });
     }
-    /** Each `page` field with a `cover`: its pages without one take their record's. */
+    /** Each `page` field with a `cover` or a `logo`: its pages without one take their record's. */
     fillCovers() {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c;
+            var _a, _b, _c, _d;
             const adminLeaf = etherial.eth_admin_leaf;
             for (const collection of (_a = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.collections) !== null && _a !== void 0 ? _a : []) {
                 for (const field of (_b = collection.fields) !== null && _b !== void 0 ? _b : []) {
-                    if (field.type !== PAGE_TYPE || !((_c = field.page) === null || _c === void 0 ? void 0 : _c.cover) || !collection.model)
+                    const columns = { cover: (_c = field.page) === null || _c === void 0 ? void 0 : _c.cover, logo: (_d = field.page) === null || _d === void 0 ? void 0 : _d.logo };
+                    if (field.type !== PAGE_TYPE || (!columns.cover && !columns.logo) || !collection.model)
                         continue;
-                    const records = yield collection.model.findAll({ where: { [field.name]: { [Op.ne]: null } }, attributes: [field.name, field.page.cover] });
+                    const attributes = [field.name, ...Object.values(columns).filter((c) => !!c)];
+                    const records = yield collection.model.findAll({ where: { [field.name]: { [Op.ne]: null } }, attributes });
                     for (const record of records) {
                         const page = yield Page.findByPk(record.get(field.name));
-                        if (!page || page.owner !== collection.name || page.cover)
+                        if (!page || page.owner !== collection.name)
                             continue;
-                        const cover = yield coverFrom(record.get(field.page.cover));
-                        if (!cover)
+                        const images = {};
+                        for (const key of ['cover', 'logo']) {
+                            if (!columns[key] || page[key])
+                                continue;
+                            const image = yield coverFrom(record.get(columns[key]));
+                            if (image)
+                                images[key] = image;
+                        }
+                        if (!Object.keys(images).length)
                             continue;
-                        const next = Object.assign(Object.assign({}, page.get({ plain: true })), { cover });
-                        const { columns, stale } = yield publish(next, page.get({ plain: true }));
-                        yield page.update(Object.assign({ cover }, columns));
+                        const next = Object.assign(Object.assign({}, page.get({ plain: true })), images);
+                        const { columns: published, stale } = yield publish(next, page.get({ plain: true }));
+                        yield page.update(Object.assign(Object.assign({}, images), published));
                         takeDown(stale);
                     }
                 }

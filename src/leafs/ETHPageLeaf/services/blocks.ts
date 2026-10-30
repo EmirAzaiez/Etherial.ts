@@ -23,6 +23,7 @@ import {
     languageName,
 } from './options.js'
 import { fontIdOf } from './fonts.js'
+import { pageIconOf } from './icons.js'
 
 // ──────────────────────────────────────────────────────────────────────────
 // A page as the back-office sends it, checked before it is saved: its title,
@@ -87,6 +88,13 @@ export function colorOf(value: unknown): PageColor | undefined {
     if (!hex) return undefined
     const six = hex[1].length === 3 ? [...hex[1]].map((c) => c + c).join('') : hex[1]
     return `#${six.toUpperCase()}`
+}
+
+/** A latitude (`max` 90) or a longitude (180) in degrees, to six places. */
+function degrees(value: unknown, max: number): number | undefined {
+    if (value === '' || value === null || value === undefined) return undefined
+    const n = Number(value)
+    return Number.isFinite(n) && Math.abs(n) <= max ? Math.round(n * 1e6) / 1e6 : undefined
 }
 
 function oneOf<T>(value: unknown, allowed: readonly T[]): T | undefined {
@@ -231,6 +239,13 @@ function checkRich(c: Check, value: unknown, what: string, required: boolean): R
 
 // ── Pieces ────────────────────────────────────────────────────────────────
 
+/** Corners in whole pixels, 0 to 32. */
+function radiusOf(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') return undefined
+    const n = Math.round(Number(value))
+    return Number.isFinite(n) && n >= 0 && n <= 32 ? n : undefined
+}
+
 function cleanStyle(value: unknown): BlockStyle | undefined {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
     const s = value as any
@@ -243,6 +258,7 @@ function cleanStyle(value: unknown): BlockStyle | undefined {
         above: oneOf(s.above, SPACES),
         below: oneOf(s.below, SPACES),
         font: fontIdOf(s.font),
+        radius: radiusOf(s.radius),
     })
     return Object.keys(out).length ? out : undefined
 }
@@ -333,7 +349,14 @@ function cleanBlock(v: any, c: Check): PageBlock {
     switch (v.type as PageBlock['type']) {
         case 'heading': {
             const level = Number(v.level)
-            return compact({ type: 'heading', text: checkSpans(c, v.text, 300, 'the heading'), level: level === 1 || level === 2 || level === 3 ? level : undefined, align })
+            return compact({
+                type: 'heading',
+                text: checkSpans(c, v.text, 300, 'the heading'),
+                level: level === 1 || level === 2 || level === 3 ? level : undefined,
+                align,
+                eyebrow: c.text(v.eyebrow, 60, "the heading's eyebrow") || undefined,
+                weight: oneOf(v.weight, HEAD_WEIGHTS),
+            })
         }
         case 'text':
             return compact({ type: 'text', text: checkRich(c, v.text, 'the text', true), align, size: oneOf(v.size, ['sm', 'md', 'lg'] as const) })
@@ -350,6 +373,9 @@ function cleanBlock(v: any, c: Check): PageBlock {
                 variant: oneOf(v.variant, ['primary', 'outline', 'soft'] as const),
                 color: colorOf(v.color),
                 full: v.full === true ? (true as const) : undefined,
+                icon: pageIconOf(v.icon),
+                shape: oneOf(v.shape, ['round', 'cut'] as const),
+                size: oneOf(v.size, ['sm'] as const),
             })
         }
         case 'image': {
@@ -384,12 +410,19 @@ function cleanBlock(v: any, c: Check): PageBlock {
                 return compact({ ...image, caption: c.text(item.caption, 300, `image ${i + 1}'s caption`) || undefined })
             })
             c.need(images.length, 'add an image.')
-            return compact({ type: 'gallery', images, layout: oneOf(v.layout, ['carousel', 'grid'] as const), ratio: oneOf(v.ratio, RATIOS) })
+            return compact({ type: 'gallery', images, layout: oneOf(v.layout, ['carousel', 'grid', 'slides'] as const), ratio: oneOf(v.ratio, RATIOS) })
         }
         case 'video': {
             const url = httpsOf(v.url)
             c.need(url, "give the video's address (https://…).")
-            return compact({ type: 'video', url, poster: cleanImage(c, v.poster, 'the poster', false), caption: c.text(v.caption, 300, 'the caption') || undefined })
+            const media = Number(v.media)
+            return compact({
+                type: 'video',
+                url,
+                media: Number.isInteger(media) && media > 0 ? media : undefined,
+                poster: cleanImage(c, v.poster, 'the poster', false),
+                caption: c.text(v.caption, 300, 'the caption') || undefined,
+            })
         }
         case 'cards': {
             const items = c.list(v.items, 30, 'cards').map((item, i) => {
@@ -439,7 +472,7 @@ function cleanBlock(v: any, c: Check): PageBlock {
                     return compact({ kind, value, label: c.text(item.label, 80, `item ${i + 1}'s words`) || undefined })
                 })
             c.need(items.length, 'add a way to reach you.')
-            return compact({ type: 'contact', items, layout: oneOf(v.layout, ['buttons', 'list'] as const) })
+            return compact({ type: 'contact', items, layout: oneOf(v.layout, ['buttons', 'list', 'card'] as const) })
         }
         case 'event': {
             const date = dateOf(v.date)
@@ -498,10 +531,34 @@ function cleanBlock(v: any, c: Check): PageBlock {
                 const value = c.text(row.value, 1000, `line ${i + 1}'s value`, true)
                 c.need(label, `line ${i + 1} has no label.`)
                 c.need(value, `line ${i + 1} has no value.`)
-                return { label, value }
+                return compact({ label, value, icon: pageIconOf(row.icon) })
             })
             c.need(rows.length, 'add a line.')
-            return { type: 'details', rows }
+            return compact({ type: 'details', rows, layout: oneOf(v.layout, ['table', 'card', 'rows'] as const) })
+        }
+        case 'map': {
+            // Draft: a map not placed yet keeps no coordinates; the page refuses it.
+            const lat = degrees(v.lat, 90)
+            const lng = degrees(v.lng, 180)
+            c.need(lat !== undefined && lng !== undefined, 'place the map: paste a Google Maps link, or its latitude and longitude.')
+            const zoom = Math.round(Number(v.zoom))
+            return compact({
+                type: 'map',
+                lat: lat as number,
+                lng: lng as number,
+                zoom: zoom >= 3 && zoom <= 20 && zoom !== 15 ? zoom : undefined,
+                address: c.text(v.address, 300, 'the address') || undefined,
+                layout: oneOf(v.layout, ['plain'] as const),
+            })
+        }
+        case 'features': {
+            const items = c.list(v.items, 24, 'items').map((item, i) => {
+                const label = c.text(item.label, 60, `item ${i + 1}`)
+                c.need(label, `item ${i + 1} has no words.`)
+                return compact({ label, icon: pageIconOf(item.icon) })
+            })
+            c.need(items.length, 'add an item.')
+            return compact({ type: 'features', items, columns: Number(v.columns) === 1 ? (1 as const) : undefined, variant: oneOf(v.variant, ['soft'] as const) })
         }
         case 'divider':
             return { type: 'divider' }
@@ -585,8 +642,11 @@ export function normalizeHead(input: unknown): PageHead | null {
         size: oneOf(h.size, HEAD_SIZES),
         weight: oneOf(h.weight, HEAD_WEIGHTS),
         upper: typeof h.upper === 'boolean' ? h.upper : undefined,
+        sheet: typeof h.sheet === 'boolean' ? h.sheet : undefined,
+        logo: typeof h.logo === 'boolean' ? h.logo : undefined,
         color: colorOf(h.color),
         font: fontIdOf(h.font),
+        fontRtl: fontIdOf(h.fontRtl),
         photo: coverOf(h.photo) ?? undefined,
     })
     return Object.keys(out).length ? out : null
@@ -607,14 +667,14 @@ export function coverOf(input: unknown): PageImage | null {
     return compact({ src, media: Number.isInteger(media) && media > 0 ? media : undefined })
 }
 
-/** Every uploaded image named in blocks, however deep: any `{ src, media }` in the JSON. */
+/** Every uploaded file named in blocks, however deep: any `{ src, media }` in the JSON, and a video's `{ url, media }`. */
 export function mediaIdsOf(value: unknown, out: number[] = []): number[] {
     const v = parsed(value)
     if (Array.isArray(v)) {
         for (const item of v) mediaIdsOf(item, out)
     } else if (v && typeof v === 'object') {
         const media = (v as any).media
-        if (typeof (v as any).src === 'string' && Number.isInteger(media) && media > 0) out.push(media)
+        if (typeof ((v as any).src ?? (v as any).url) === 'string' && Number.isInteger(media) && media > 0) out.push(media)
         for (const child of Object.values(v)) if (child && typeof child === 'object') mediaIdsOf(child, out)
     }
     return out

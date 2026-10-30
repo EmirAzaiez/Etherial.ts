@@ -23,7 +23,8 @@ import { fontIdOf } from './fonts.js';
  * shown inside a record (a news' content). `fonts`: those the editor is
  * trying, else the pages' own. `head`: how this page opens, its own choices;
  * `look`: how every page does, as the settings are trying it (null: the
- * theme's). `cover`: its record's photo, a media's id or an address.
+ * theme's). `cover`: its record's photo, a media's id or an address; `logo`:
+ * its record's logo, the same way.
  */
 export function previewPage(body) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -57,6 +58,8 @@ export function previewPage(body) {
                 fonts: fontsOf(body.fonts),
                 head: pageHead(own, look),
                 cover: (_d = own === null || own === void 0 ? void 0 : own.photo) !== null && _d !== void 0 ? _d : (yield coverFrom(body.cover)),
+                logo: yield coverFrom(body.logo),
+                maps: config.maps,
                 draft: true,
                 marks: true,
             }),

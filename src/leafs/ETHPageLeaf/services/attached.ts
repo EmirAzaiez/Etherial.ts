@@ -49,10 +49,10 @@ function headIn(value: unknown) {
     return value && typeof value === 'object' && !Array.isArray(value) && 'head' in value ? normalizeHead((value as any).head) : undefined
 }
 
-/** The record's cover photo as this save leaves it: written now, else as it was. */
-async function coverOfRecord(options: PageFieldOptions, context: SaveContext) {
-    if (!options.cover) return undefined
-    const value = Object.prototype.hasOwnProperty.call(context.data, options.cover) ? context.data[options.cover] : valueOf(context.record, options.cover)
+/** The record's cover photo, or its logo (`column`), as this save leaves it: written now, else as it was. */
+async function imageOfRecord(column: string | undefined, context: SaveContext) {
+    if (!column) return undefined
+    const value = Object.prototype.hasOwnProperty.call(context.data, column) ? context.data[column] : valueOf(context.record, column)
     return coverFrom(value)
 }
 
@@ -86,13 +86,14 @@ export async function savePageField(value: unknown, field: any, context: SaveCon
     const title = written(context.data, options.title)
     const summary = written(context.data, options.summary)
     const head = headIn(value)
-    const cover = await coverOfRecord(options, context)
+    const cover = await imageOfRecord(options.cover, context)
+    const logo = await imageOfRecord(options.logo, context)
     // Compared before they are checked: the length limits are the save's to tell.
     const loose = (text: unknown, name: string) => normalizeLocalized(text, name, locales, Infinity)
 
     if (!page) {
         if (!blocks || !Object.values(blocks).some((list) => list.length)) return current
-        const data = await prepareCreate({ title, summary, blocks, published: !!blocks[locales[0]]?.length, head, cover })
+        const data = await prepareCreate({ title, summary, blocks, published: !!blocks[locales[0]]?.length, head, cover, logo })
         const created = await Page.create({ ...data, owner: context.collection, in_menu: false } as any)
         return created.id
     }
@@ -106,6 +107,7 @@ export async function savePageField(value: unknown, field: any, context: SaveCon
     }
     if (head !== undefined && !same(head, page.head)) changes.head = head
     if (cover !== undefined && !same(cover, page.cover)) changes.cover = cover
+    if (logo !== undefined && !same(logo, page.logo)) changes.logo = logo
     if (!Object.keys(changes).length) return page.id
 
     await page.update(await prepareUpdate(page, changes))
@@ -117,7 +119,7 @@ export async function savePageField(value: unknown, field: any, context: SaveCon
 export async function copyPageField(value: unknown, field: any, context: SaveContext): Promise<number | null> {
     const page = await ownPage({ [field.name]: value }, field.name, context.collection)
     if (!page) return (value as number) ?? null
-    const data = await prepareCreate({ title: page.title, summary: page.summary, blocks: page.blocks, published: page.published, head: page.head, cover: page.cover })
+    const data = await prepareCreate({ title: page.title, summary: page.summary, blocks: page.blocks, published: page.published, head: page.head, cover: page.cover, logo: page.logo })
     const copy = await Page.create({ ...data, owner: context.collection, in_menu: false } as any)
     return copy.id
 }
@@ -142,5 +144,5 @@ export async function attachedPage(collectionName: string, id: string, fieldName
     if (!record) throw new PageError('Not found.', 404)
     const page = await ownPage(record, fieldName, collectionName)
     if (!page) return null
-    return { id: page.id, slug: page.slug, blocks: page.blocks, head: page.head, cover: page.cover, published: page.published, html: page.html }
+    return { id: page.id, slug: page.slug, blocks: page.blocks, head: page.head, cover: page.cover, logo: page.logo, published: page.published, html: page.html }
 }

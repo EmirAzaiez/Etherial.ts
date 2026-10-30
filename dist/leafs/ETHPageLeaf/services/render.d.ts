@@ -33,6 +33,12 @@ export interface RenderInput {
     head?: PageHead;
     /** The photo across the top, above the title: the cover of the record the page belongs to. */
     cover?: PageImage | null;
+    /** Its record's logo, on the edge of a `sheet` head, or over the cover's edge with the head's `logo`. */
+    logo?: PageImage | null;
+    /** The leaf's Google key (`maps.key`): a map is Google's picture of the place. Without it, an embedded map. */
+    maps?: {
+        key?: string;
+    };
     /** A line above everything: a preview link says the page is not on the web. */
     notice?: string;
     /** Kept out of search engines, its address out of the Referer of its links: a preview link. */
@@ -46,6 +52,8 @@ export declare const COLORS: {
     background: string;
     border: string;
     subtle: string;
+    /** Eyebrows, and the icons of the cards and features. The theme's primary when it sets none. */
+    accent: string;
 };
 export declare const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 export declare const FONT_RTL = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif";

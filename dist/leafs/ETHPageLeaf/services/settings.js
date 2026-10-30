@@ -21,7 +21,7 @@ import { state } from './state.js';
 const ID = 1;
 const FRESH = 30000;
 /** Changed when the HTML is drawn differently: every published page is written again at the next boot. */
-const DRAWING = 3;
+const DRAWING = 5;
 let saved = {};
 let savedHead = {};
 let readAt = 0;

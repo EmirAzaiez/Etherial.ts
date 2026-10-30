@@ -55,6 +55,11 @@ __decorate([
     __metadata("design:type", Object)
 ], Page.prototype, "cover", void 0);
 __decorate([
+    AllowNull(true),
+    Column(DataType.JSONB),
+    __metadata("design:type", Object)
+], Page.prototype, "logo", void 0);
+__decorate([
     AllowNull(false),
     Default(false),
     Column(DataType.BOOLEAN),

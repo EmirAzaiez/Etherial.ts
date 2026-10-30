@@ -1,4 +1,45 @@
 export const COLOR_TOKENS = ['primary', 'text', 'muted', 'subtle', 'white', 'black'];
+/**
+ * The icons a block can show: a details card's rows, a features block's
+ * items, a button. One a row or an item leaves out is guessed from its words
+ * (`iconFor`); the web draws Lucide's, the app its own of the same meaning.
+ */
+export const PAGE_ICONS = [
+    'info',
+    'check',
+    'time',
+    'calendar',
+    'call',
+    'mail',
+    'globe',
+    'location',
+    'navigate',
+    'price',
+    'people',
+    'car',
+    'shirt',
+    'dining',
+    'cafe',
+    'wifi',
+    'water',
+    'fitness',
+    'accessible',
+    'pets',
+    'bike',
+    'beach',
+    'sun',
+    'leaf',
+    'snow',
+    'shop',
+    'ticket',
+    'star',
+    'boat',
+    'moon',
+    'tour',
+    'play',
+    'arrow',
+    'download',
+];
 export const BLOCK_TYPES = [
     'heading',
     'text',
@@ -16,14 +57,16 @@ export const BLOCK_TYPES = [
     'stats',
     'note',
     'details',
+    'map',
+    'features',
     'divider',
     'spacer',
 ];
 export const HEAD_COVERS = ['none', 'sm', 'md', 'lg'];
 export const HEAD_SIZES = ['sm', 'md', 'lg', 'xl'];
-export const HEAD_WEIGHTS = ['regular', 'medium', 'bold'];
+export const HEAD_WEIGHTS = ['light', 'regular', 'medium', 'bold'];
 /** How a page opens when nothing says otherwise: the look pages had before it could be set. */
-export const DEFAULT_HEAD = { cover: 'md', align: 'start', size: 'md', weight: 'bold', upper: false, color: 'text' };
+export const DEFAULT_HEAD = { cover: 'md', align: 'start', size: 'md', weight: 'bold', upper: false, color: 'text', sheet: false, logo: false };
 /** Not `pages`: the back-office's own pages are at `/pages/<page>`. */
 export const COLLECTION = 'content-pages';
 export const BLOCKS_TYPE = 'page-blocks';

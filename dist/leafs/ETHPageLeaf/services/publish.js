@@ -41,7 +41,7 @@ export function writtenLocales(blocks) {
     return written.length ? written : [locales[0]];
 }
 export function pageIn(page, asked) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const config = state.config;
     const fallback = defaultLocaleOf(config);
     const locales = localesOf(config);
@@ -54,7 +54,7 @@ export function pageIn(page, asked) {
         dir: rtlOf(config, locale) ? 'rtl' : 'ltr',
         title,
         summary: localize(page.summary, locale, fallback),
-        blocks: resolveBlocks((_e = (_d = page.blocks) === null || _d === void 0 ? void 0 : _d[locale]) !== null && _e !== void 0 ? _e : [], { locale, title, timezone: config.timezone }),
+        blocks: resolveBlocks((_e = (_d = page.blocks) === null || _d === void 0 ? void 0 : _d[locale]) !== null && _e !== void 0 ? _e : [], { locale, title, timezone: config.timezone, mapsKey: (_f = config.maps) === null || _f === void 0 ? void 0 : _f.key }),
     };
 }
 function put(key, html, cacheControl) {
@@ -89,14 +89,14 @@ export function renderAll(page) {
     const fonts = pageFonts();
     const head = pageHead(page.head);
     return locales.map((locale) => {
-        var _a, _b;
+        var _a, _b, _c;
         const content = pageIn(page, locale);
         const key = keyOf(page.slug, locale);
         const url = `${base}/${key}`;
         const html = render(Object.assign(Object.assign({}, content), { rtl: content.dir === 'rtl', theme: (_a = config.theme) !== null && _a !== void 0 ? _a : {}, brand: localize((_b = config.theme) === null || _b === void 0 ? void 0 : _b.brandName, locale, fallback), 
             // Next to this one in the bucket, in the same language.
             pageHref: (slug) => `../${slug}/${locale}.html`, languages, canonical: url, timezone: config.timezone, fonts,
-            head, cover: photoOf(page) }));
+            head, cover: photoOf(page), logo: (_c = page.logo) !== null && _c !== void 0 ? _c : null, maps: config.maps }));
         return { locale, key, url, html };
     });
 }
@@ -170,7 +170,7 @@ function renderPreview(page, key) {
     const fonts = pageFonts();
     const head = pageHead(page.head);
     return localesOf(config).map((asked) => {
-        var _a, _b, _c;
+        var _a, _b, _c, _d;
         const content = pageIn(page, asked);
         const lang = content.locale.split('-')[0];
         return {
@@ -178,7 +178,7 @@ function renderPreview(page, key) {
             html: render(Object.assign(Object.assign({}, content), { rtl: content.dir === 'rtl', theme: (_a = config.theme) !== null && _a !== void 0 ? _a : {}, brand: localize((_b = config.theme) === null || _b === void 0 ? void 0 : _b.brandName, content.locale, fallback), 
                 // Another page opens where it is on the web.
                 pageHref: (slug) => `../../${slug}/${content.locale}.html`, languages, timezone: config.timezone, fonts,
-                head, cover: photoOf(page), unlisted: true, notice: page.published ? undefined : ((_c = NOTICE[lang]) !== null && _c !== void 0 ? _c : NOTICE.en) })),
+                head, cover: photoOf(page), logo: (_c = page.logo) !== null && _c !== void 0 ? _c : null, maps: config.maps, unlisted: true, notice: page.published ? undefined : ((_d = NOTICE[lang]) !== null && _d !== void 0 ? _d : NOTICE.en) })),
         };
     });
 }

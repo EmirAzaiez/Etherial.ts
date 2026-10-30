@@ -16,14 +16,14 @@ import { fontsIn } from './fonts.js';
 /**
  * A page as the app gets it: the blocks to draw, how it opens (`head`: the
  * cover's height, the title's place, size, weight, case, color, font; every
- * key set), its cover photo, and the address of its HTML to share or show in
- * a web view.
+ * key set), its cover photo, its record's logo, and the address of its HTML
+ * to share or show in a web view.
  */
 export function serializePage(page, asked) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     const content = pageIn(page, asked);
     const head = pageHead(page.head);
-    return Object.assign(Object.assign({ id: page.id, slug: page.slug }, content), { in_menu: page.in_menu, position: page.position, url: (_b = (_a = page.html) === null || _a === void 0 ? void 0 : _a[content.locale]) !== null && _b !== void 0 ? _b : null, head, cover: (_d = (_c = photoOf(page)) === null || _c === void 0 ? void 0 : _c.src) !== null && _d !== void 0 ? _d : null, fonts: appFonts(content.blocks, head), updated_at: page.updated_at });
+    return Object.assign(Object.assign({ id: page.id, slug: page.slug }, content), { in_menu: page.in_menu, position: page.position, url: (_b = (_a = page.html) === null || _a === void 0 ? void 0 : _a[content.locale]) !== null && _b !== void 0 ? _b : null, head, cover: (_d = (_c = photoOf(page)) === null || _c === void 0 ? void 0 : _c.src) !== null && _d !== void 0 ? _d : null, logo: (_f = (_e = page.logo) === null || _e === void 0 ? void 0 : _e.src) !== null && _f !== void 0 ? _f : null, fonts: appFonts(content.blocks, head), updated_at: page.updated_at });
 }
 /**
  * What the app draws the words in: the titles' font and the text's (ids of

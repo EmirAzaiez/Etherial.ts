@@ -15,7 +15,8 @@ import { fontIdOf } from './fonts.js'
  * shown inside a record (a news' content). `fonts`: those the editor is
  * trying, else the pages' own. `head`: how this page opens, its own choices;
  * `look`: how every page does, as the settings are trying it (null: the
- * theme's). `cover`: its record's photo, a media's id or an address.
+ * theme's). `cover`: its record's photo, a media's id or an address; `logo`:
+ * its record's logo, the same way.
  */
 export async function previewPage(body: Record<string, any>): Promise<{ html: string }> {
     const config = state.config
@@ -48,6 +49,8 @@ export async function previewPage(body: Record<string, any>): Promise<{ html: st
             fonts: fontsOf(body.fonts),
             head: pageHead(own, look),
             cover: own?.photo ?? (await coverFrom(body.cover)),
+            logo: await coverFrom(body.logo),
+            maps: config.maps,
             draft: true,
             marks: true,
         }),

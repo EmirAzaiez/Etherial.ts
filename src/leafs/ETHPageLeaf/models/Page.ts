@@ -55,6 +55,11 @@ export class Page extends Model<Page> {
     @Column(DataType.JSONB)
     declare cover: PageImage | null
 
+    /** Its record's logo (a place's), on the edge of a `sheet` head or over the cover with the head's `logo`. Null: none. */
+    @AllowNull(true)
+    @Column(DataType.JSONB)
+    declare logo: PageImage | null
+
     /** Off: the app no longer sees it, and its HTML leaves the bucket. */
     @AllowNull(false)
     @Default(false)

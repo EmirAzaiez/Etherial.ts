@@ -25,6 +25,7 @@ export declare function attachedPage(collectionName: string, id: string, fieldNa
     blocks: import("./options.js").PageBlocks;
     head: import("./options.js").PageHead;
     cover: import("./options.js").PageImage;
+    logo: import("./options.js").PageImage;
     published: boolean;
     html: Record<string, string>;
 }>;

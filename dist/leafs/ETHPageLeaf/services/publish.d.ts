@@ -10,6 +10,8 @@ export interface PageLike {
     head?: PageHead | null;
     /** The photo across the top: its record's cover. */
     cover?: PageImage | null;
+    /** Its record's logo, on the edge of a `sheet` head or over the cover with the head's `logo`. */
+    logo?: PageImage | null;
     html?: Record<string, string> | null;
     published_slug?: string | null;
     published_at?: Date | null;

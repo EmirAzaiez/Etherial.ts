@@ -35,7 +35,7 @@ export declare function photoOf(page: {
 }): PageImage | null;
 /** A cover photo: an https address, with the upload it is when there is one. Null otherwise. */
 export declare function coverOf(input: unknown): PageImage | null;
-/** Every uploaded image named in blocks, however deep: any `{ src, media }` in the JSON. */
+/** Every uploaded file named in blocks, however deep: any `{ src, media }` in the JSON, and a video's `{ url, media }`. */
 export declare function mediaIdsOf(value: unknown, out?: number[]): number[];
 /** A title, or a summary, in each language: trimmed, single line. */
 export declare function normalizeLocalized(input: unknown, field: string, locales: string[], max: number): Record<string, string>;

@@ -10,6 +10,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 import { calendarLinks } from './calendar.js';
+import { iconFor } from './icons.js';
 /** Bare `en` reads dates the American way ("November 14"); the pages are written for the rest of the world. */
 function intlLocale(locale) {
     return locale === 'en' ? 'en-GB' : locale;
@@ -77,7 +78,7 @@ function videoOf(url) {
         if (id)
             return { provider: 'vimeo', id };
     }
-    if (/\.(mp4|mov|webm|m3u8)$/i.test(parsed.pathname))
+    if (/\.(mp4|m4v|mov|webm|m3u8)$/i.test(parsed.pathname))
         return { provider: 'file' };
     return { provider: 'link' };
 }
@@ -109,7 +110,26 @@ function resolveContact(contact, locale) {
     const words = (_a = CONTACT_WORDS[locale.split('-')[0]]) !== null && _a !== void 0 ? _a : CONTACT_WORDS.en;
     return contact.items.map((item) => { var _a; return ({ href: contactHref(item.kind, (_a = item.value) !== null && _a !== void 0 ? _a : ''), label: item.label || words[item.kind] }); });
 }
-/** The blocks with what each one needs worked out (`resolved`), for the app and the web. */
+/** Google's map of the place: its directions, and its picture (as the app draws it) when there is a key. */
+function resolveMap(map, key) {
+    var _a;
+    if (!Number.isFinite(map.lat) || !Number.isFinite(map.lng))
+        return undefined;
+    const at = `${map.lat},${map.lng}`;
+    const image = key
+        ? `https://maps.googleapis.com/maps/api/staticmap?center=${at}&zoom=${(_a = map.zoom) !== null && _a !== void 0 ? _a : 15}&size=600x300&scale=2&markers=color:red%7C${at}&key=${encodeURIComponent(key)}`
+        : null;
+    return { directions: `https://www.google.com/maps/search/?api=1&query=${at}`, image };
+}
+/** Two titles that read the same: case, spaces and punctuation aside. */
+function sameWords(a, b) {
+    const words = (s) => (s !== null && s !== void 0 ? s : '').toLocaleLowerCase().replace(/[\p{P}\p{S}\s]+/gu, ' ').trim();
+    return !!words(a) && words(a) === words(b);
+}
+/**
+ * The blocks with what each one needs worked out (`resolved`), for the app and the web.
+ * An event titled like the page loses its title: the page's is right above the card.
+ */
 export function resolveBlocks(blocks, options) {
     return blocks.map((block) => {
         const _a = block, { resolved: _old } = _a, plain = __rest(_a, ["resolved"]);
@@ -118,11 +138,22 @@ export function resolveBlocks(blocks, options) {
             const event = resolveEvent(plain, options);
             if (event)
                 resolved = { event };
+            if (sameWords(plain.title, options.title))
+                delete plain.title;
         }
         else if (plain.type === 'video')
             resolved = { video: resolveVideo(plain) };
         else if (plain.type === 'contact')
             resolved = { contact: resolveContact(plain, options.locale) };
+        else if (plain.type === 'details')
+            resolved = { icons: plain.rows.map((row) => iconFor(row, 'info')) };
+        else if (plain.type === 'features')
+            resolved = { icons: plain.items.map((item) => iconFor(item, 'check')) };
+        else if (plain.type === 'map') {
+            const map = resolveMap(plain, options.mapsKey);
+            if (map)
+                resolved = { map };
+        }
         return resolved ? Object.assign(Object.assign({}, plain), { resolved }) : plain;
     });
 }

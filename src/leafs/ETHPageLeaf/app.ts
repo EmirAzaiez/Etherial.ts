@@ -8,7 +8,7 @@ import { Page } from './models/Page.js'
 import { PageTemplate } from './models/PageTemplate.js'
 import { PageSettings } from './models/PageSettings.js'
 import { registerPagesAdmin } from './admin/pages.js'
-import { mediaIdsOf } from './services/blocks.js'
+import { mediaIdsOf, normalizeHead, normalizePageBlocks } from './services/blocks.js'
 import { coverFrom } from './services/cover.js'
 import { PageLike, publish, republishAll, republishSoon, takeDown } from './services/publish.js'
 import { fontCatalog } from './services/fonts.js'
@@ -16,7 +16,7 @@ import { loadSettings, lookChanged, themeHead } from './services/settings.js'
 import { paletteOf, radiusOf } from './services/render.js'
 import { state } from './services/state.js'
 import { canGenerate } from './services/generate.js'
-import { BLOCKS_TYPE, COLLECTION, ETHPageLeafConfig, PAGE_TYPE, defaultLocaleOf, folderOf, localesOf, rtlOf } from './services/options.js'
+import { BLOCKS_TYPE, BLOCK_TYPES, COLLECTION, ETHPageLeafConfig, PAGE_ICONS, PAGE_TYPE, defaultLocaleOf, folderOf, localesOf, rtlOf } from './services/options.js'
 
 export * from './services/options.js'
 export { Page } from './models/Page.js'
@@ -34,6 +34,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /** What the back-office lets people upload in an image block. */
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+/** And in a video block: MP4 plays everywhere, an iPhone's .mov on iPhones and most browsers. */
+const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
 
 /**
  * ETHPageLeaf — simple pages to read, written in the back-office.
@@ -77,13 +79,13 @@ export default class ETHPageLeaf {
         database?.addModels([Page, PageTemplate, PageSettings] as any)
         registerPagesAdmin((etherial as any).eth_admin_leaf, this.config)
         // The images uploaded into a page or a template are only named in its blocks (JSON),
-        // anywhere in them: a hero's, a gallery's, a card's, a video's poster. And the cover's, the page's own photo.
+        // anywhere in them: a hero's, a gallery's, a card's, a video's poster. And the cover's, the logo's, the page's own photo.
         registerMediaReferences(async () => {
             const [pages, templates] = await Promise.all([
-                Page.findAll({ attributes: ['blocks', 'cover', 'head'], raw: true }),
+                Page.findAll({ attributes: ['blocks', 'cover', 'logo', 'head'], raw: true }),
                 PageTemplate.findAll({ attributes: ['blocks'], raw: true }),
             ])
-            return mediaIdsOf([...pages, ...templates].map((row: any) => [row.blocks, row.cover, row.head]))
+            return mediaIdsOf([...pages, ...templates].map((row: any) => [row.blocks, row.cover, row.logo, row.head]))
         })
     }
 
@@ -115,6 +117,9 @@ export default class ETHPageLeaf {
             defaultLocale: defaultLocaleOf(this.config),
             rtlLocales: locales.filter((l) => rtlOf(this.config, l)),
             previewPath: '/admin/content-pages/preview',
+            // The blocks a page can hold, and the icons its rows, items and buttons can show.
+            blockTypes: BLOCK_TYPES,
+            icons: PAGE_ICONS,
             // `<attachedPath>/<collection>/<id>/<field>`: the page of a record's `page` field.
             pageType: PAGE_TYPE,
             attachedPath: '/admin/content-pages/of',
@@ -124,10 +129,24 @@ export default class ETHPageLeaf {
                 accept: rule?.mime_types?.length ? IMAGE_TYPES.filter((t) => rule.mime_types.includes(t)) : IMAGE_TYPES,
                 maxSize: rule?.max_size ?? null,
             },
+            // The upload of a video block's file, to the same folder.
+            videos: {
+                folder,
+                accept: rule?.mime_types?.length ? VIDEO_TYPES.filter((t) => rule.mime_types.includes(t)) : VIDEO_TYPES,
+                maxSize: rule?.max_size ?? null,
+            },
             // The colors a block's `primary`, `subtle`… stand for, and the corners: the editor's swatches.
             theme: { colors: paletteOf(this.config.theme), radius: radiusOf(this.config.theme) },
             // GET the list, POST { name, blocks }, PUT / DELETE `<templatesPath>/<id>`.
             templatesPath: '/admin/content-pages/templates',
+            // The project's own, written in code: checked as drafts, a picture to add kept as one.
+            readyMade: (this.config.templates ?? []).map((t) => ({
+                id: t.id,
+                name: t.name,
+                description: t.description,
+                blocks: normalizePageBlocks(t.blocks, locales, 'draft'),
+                head: normalizeHead(t.head) ?? undefined,
+            })),
             // `<sharePath>/<id>` of a saved page: GET its links, POST makes its preview link, DELETE stops it.
             sharePath: '/admin/content-pages/share',
             // The fonts to pick from, the theme's (what a page is in when none is set),
@@ -146,8 +165,8 @@ export default class ETHPageLeaf {
     }
 
     /**
-     * At boot: the pages of records get their record's cover (those written
-     * before pages had one), and every page is written again when the theme
+     * At boot: the pages of records get their record's cover and logo (those
+     * written before pages had them), and every page is written again when the theme
      * or the way pages are drawn changed. In the background.
      */
     private async catchUp() {
@@ -159,21 +178,28 @@ export default class ETHPageLeaf {
         }
     }
 
-    /** Each `page` field with a `cover`: its pages without one take their record's. */
+    /** Each `page` field with a `cover` or a `logo`: its pages without one take their record's. */
     private async fillCovers() {
         const adminLeaf = (etherial as any).eth_admin_leaf
         for (const collection of adminLeaf?.collections ?? []) {
             for (const field of collection.fields ?? []) {
-                if (field.type !== PAGE_TYPE || !field.page?.cover || !collection.model) continue
-                const records = await collection.model.findAll({ where: { [field.name]: { [Op.ne]: null } }, attributes: [field.name, field.page.cover] })
+                const columns = { cover: field.page?.cover as string | undefined, logo: field.page?.logo as string | undefined }
+                if (field.type !== PAGE_TYPE || (!columns.cover && !columns.logo) || !collection.model) continue
+                const attributes = [field.name, ...Object.values(columns).filter((c): c is string => !!c)]
+                const records = await collection.model.findAll({ where: { [field.name]: { [Op.ne]: null } }, attributes })
                 for (const record of records) {
                     const page = await Page.findByPk(record.get(field.name))
-                    if (!page || page.owner !== collection.name || page.cover) continue
-                    const cover = await coverFrom(record.get(field.page.cover))
-                    if (!cover) continue
-                    const next = { ...(page.get({ plain: true }) as PageLike), cover }
-                    const { columns, stale } = await publish(next, page.get({ plain: true }) as PageLike)
-                    await page.update({ cover, ...columns })
+                    if (!page || page.owner !== collection.name) continue
+                    const images: Partial<Pick<PageLike, 'cover' | 'logo'>> = {}
+                    for (const key of ['cover', 'logo'] as const) {
+                        if (!columns[key] || page[key]) continue
+                        const image = await coverFrom(record.get(columns[key]!))
+                        if (image) images[key] = image
+                    }
+                    if (!Object.keys(images).length) continue
+                    const next = { ...(page.get({ plain: true }) as PageLike), ...images }
+                    const { columns: published, stale } = await publish(next, page.get({ plain: true }) as PageLike)
+                    await page.update({ ...images, ...published })
                     takeDown(stale)
                 }
             }
