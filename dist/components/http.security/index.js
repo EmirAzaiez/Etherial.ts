@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import etherial from '../../index.js';
 import { DatabaseBruteForceStore, MemoryBruteForceStore } from './store.js';
 // ============================================
@@ -105,6 +105,16 @@ export class HttpSecurity {
         };
         if (config.keyGenerator) {
             options.keyGenerator = config.keyGenerator;
+        }
+        else if (this.config.trustProxy) {
+            // Behind a proxy that Express doesn't trust, `req.ip` is the proxy's: every client would
+            // share one counter, and ten sign-ins a minute from anyone would block everybody's. The
+            // limit counts the client the brute-force protection sees (IPv6 by /56, as by default).
+            options.keyGenerator = (req) => {
+                var _a;
+                const ip = ((_a = req.app) === null || _a === void 0 ? void 0 : _a.get('trust proxy')) ? req.ip || this.getClientIP(req) : this.getClientIP(req);
+                return ipKeyGenerator(ip.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, ''));
+            };
         }
         if (config.skip) {
             options.skip = config.skip;

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express'
-import rateLimit, { Options as RateLimitOptions } from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator, Options as RateLimitOptions } from 'express-rate-limit'
 import etherial, { IEtherialModule } from '../../index.js'
 import { BruteForceStore, DatabaseBruteForceStore, MemoryBruteForceStore } from './store.js'
 
@@ -175,6 +175,14 @@ export class HttpSecurity implements IEtherialModule {
 
         if (config.keyGenerator) {
             options.keyGenerator = config.keyGenerator
+        } else if (this.config.trustProxy) {
+            // Behind a proxy that Express doesn't trust, `req.ip` is the proxy's: every client would
+            // share one counter, and ten sign-ins a minute from anyone would block everybody's. The
+            // limit counts the client the brute-force protection sees (IPv6 by /56, as by default).
+            options.keyGenerator = (req: Request) => {
+                const ip = req.app?.get('trust proxy') ? req.ip || this.getClientIP(req) : this.getClientIP(req)
+                return ipKeyGenerator(ip.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, ''))
+            }
         }
 
         if (config.skip) {
