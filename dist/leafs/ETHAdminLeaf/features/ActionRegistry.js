@@ -86,7 +86,7 @@ function formatLabel(name) {
         .trim();
 }
 export function yupToForm(schema) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const fields = [];
     // Get the schema description
     const desc = schema.describe();
@@ -99,19 +99,22 @@ export function yupToForm(schema) {
                 required: !fieldDesc.optional && !fieldDesc.nullable,
                 defaultValue: fieldDesc.default
             };
+            // `.meta({ helpText: '…' })`: said under the field's label in the action's form.
+            if (typeof ((_a = fieldDesc.meta) === null || _a === void 0 ? void 0 : _a.helpText) === 'string')
+                field.helpText = fieldDesc.meta.helpText;
             // Extract tests (validations)
             for (const test of fieldDesc.tests || []) {
                 if (test.name === 'min') {
                     if (field.type === 'string')
-                        field.minLength = (_a = test.params) === null || _a === void 0 ? void 0 : _a.min;
+                        field.minLength = (_b = test.params) === null || _b === void 0 ? void 0 : _b.min;
                     else
-                        field.min = (_b = test.params) === null || _b === void 0 ? void 0 : _b.min;
+                        field.min = (_c = test.params) === null || _c === void 0 ? void 0 : _c.min;
                 }
                 if (test.name === 'max') {
                     if (field.type === 'string')
-                        field.maxLength = (_c = test.params) === null || _c === void 0 ? void 0 : _c.max;
+                        field.maxLength = (_d = test.params) === null || _d === void 0 ? void 0 : _d.max;
                     else
-                        field.max = (_d = test.params) === null || _d === void 0 ? void 0 : _d.max;
+                        field.max = (_e = test.params) === null || _e === void 0 ? void 0 : _e.max;
                 }
                 if (test.name === 'email')
                     field.type = 'email';

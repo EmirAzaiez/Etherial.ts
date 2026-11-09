@@ -490,6 +490,8 @@ export function yupToForm(schema: yup.Schema<any>): FieldDefinition[] {
                 required: !fieldDesc.optional && !fieldDesc.nullable,
                 defaultValue: fieldDesc.default
             }
+            // `.meta({ helpText: '…' })`: said under the field's label in the action's form.
+            if (typeof fieldDesc.meta?.helpText === 'string') field.helpText = fieldDesc.meta.helpText
 
             // Extract tests (validations)
             for (const test of fieldDesc.tests || []) {
