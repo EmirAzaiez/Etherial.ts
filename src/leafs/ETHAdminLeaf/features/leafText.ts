@@ -39,6 +39,10 @@ const FR: Record<string, string> = {
     Date: 'Date',
     Attempt: 'Tentative',
     Origin: 'Origine',
+    'Wrong credentials': 'Identifiants incorrects',
+    'No back-office access': 'Pas d’accès au back-office',
+    'Too many attempts': 'Trop de tentatives',
+    'Too many sign-ins in a minute': 'Trop de connexions en une minute',
 
     // Change history
     Change: 'Modification',

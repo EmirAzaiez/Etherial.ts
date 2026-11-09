@@ -101,6 +101,19 @@ export declare function loginJournalCollection(config: LoginJournalConfig, hasUs
         relation?: undefined;
     } | {
         name: string;
+        type: "select";
+        label: string;
+        filterable: boolean;
+        options: {
+            value: string;
+            label: string;
+        }[];
+        readonly?: undefined;
+        sortable?: undefined;
+        searchable?: undefined;
+        relation?: undefined;
+    } | {
+        name: string;
         type: "string";
         label: string;
         filterable: boolean;

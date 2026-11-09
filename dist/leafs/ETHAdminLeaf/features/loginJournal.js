@@ -77,6 +77,13 @@ function tokenOf(body) {
     const token = (_b = (_a = body === null || body === void 0 ? void 0 : body.data) === null || _a === void 0 ? void 0 : _a.token) !== null && _b !== void 0 ? _b : body === null || body === void 0 ? void 0 : body.token;
     return typeof token === 'string' && token ? token : null;
 }
+/** The reasons a sign-in is refused for, as stored, and how they read (in the back-office's language when it has one). */
+const REASONS = {
+    'api.form.errors.invalid_login': 'Wrong credentials',
+    no_admin_access: 'No back-office access',
+    too_many_attempts: 'Too many attempts',
+    rate_limit_exceeded: 'Too many sign-ins in a minute',
+};
 function reasonOf(status, body) {
     var _a;
     const error = Array.isArray(body === null || body === void 0 ? void 0 : body.errors) ? body.errors[0] : (_a = body === null || body === void 0 ? void 0 : body.error) !== null && _a !== void 0 ? _a : body === null || body === void 0 ? void 0 : body.message;
@@ -209,7 +216,16 @@ export function loginJournalCollection(config, hasUsers, linked, t = (text) => t
                     relation: Object.assign({ collection: usersCollection, displayField }, (displayTemplate ? { displayTemplate } : {})),
                 }
                 : { name: 'user_id', type: 'integer', label: t('Account'), filterable: true },
-            { name: 'reason', type: 'string', label: t('Reason'), filterable: true },
+            // In English the code itself, as before; another language reads the known ones (any other stays as stored).
+            t.active
+                ? {
+                    name: 'reason',
+                    type: 'select',
+                    label: t('Reason'),
+                    filterable: true,
+                    options: Object.entries(REASONS).map(([value, text]) => ({ value, label: t(text) })),
+                }
+                : { name: 'reason', type: 'string', label: t('Reason'), filterable: true },
             { name: 'ip', type: 'string', label: t('IP address'), searchable: true, filterable: true },
             { name: 'client', type: 'string', label: t('Browser') },
             { name: 'user_agent', type: 'text', label: t('User agent'), readonly: true },

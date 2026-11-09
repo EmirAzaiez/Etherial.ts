@@ -88,6 +88,14 @@ function tokenOf(body: any): string | null {
     return typeof token === 'string' && token ? token : null
 }
 
+/** The reasons a sign-in is refused for, as stored, and how they read (in the back-office's language when it has one). */
+const REASONS: Record<string, string> = {
+    'api.form.errors.invalid_login': 'Wrong credentials',
+    no_admin_access: 'No back-office access',
+    too_many_attempts: 'Too many attempts',
+    rate_limit_exceeded: 'Too many sign-ins in a minute',
+}
+
 function reasonOf(status: number, body: any): string {
     const error = Array.isArray(body?.errors) ? body.errors[0] : body?.error ?? body?.message
     const text = typeof error === 'string' ? error : error?.message
@@ -224,7 +232,16 @@ export function loginJournalCollection(config: LoginJournalConfig, hasUsers: boo
                       relation: { collection: usersCollection, displayField, ...(displayTemplate ? { displayTemplate } : {}) },
                   }
                 : { name: 'user_id', type: 'integer' as const, label: t('Account'), filterable: true },
-            { name: 'reason', type: 'string' as const, label: t('Reason'), filterable: true },
+            // In English the code itself, as before; another language reads the known ones (any other stays as stored).
+            t.active
+                ? {
+                      name: 'reason',
+                      type: 'select' as const,
+                      label: t('Reason'),
+                      filterable: true,
+                      options: Object.entries(REASONS).map(([value, text]) => ({ value, label: t(text) })),
+                  }
+                : { name: 'reason', type: 'string' as const, label: t('Reason'), filterable: true },
             { name: 'ip', type: 'string' as const, label: t('IP address'), searchable: true, filterable: true },
             { name: 'client', type: 'string' as const, label: t('Browser') },
             { name: 'user_agent', type: 'text' as const, label: t('User agent'), readonly: true },
