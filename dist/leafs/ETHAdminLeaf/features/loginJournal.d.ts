@@ -18,8 +18,8 @@ export interface LoginJournalConfig {
 }
 export declare const LOGIN_JOURNAL_COLLECTION = "admin-logins";
 export declare function loginJournalOptions(value: boolean | LoginJournalConfig | undefined): LoginJournalConfig | null;
-/** "Chrome 141 on macOS" — enough to recognise a session, not a full parser. */
-export declare function describeClient(ua: string | undefined): string | null;
+/** "Chrome 141 on macOS" (« Chrome 141 sur macOS » in French) — enough to recognise a session, not a full parser. */
+export declare function describeClient(ua: string | undefined, t?: LeafText): string | null;
 export declare function loginJournalMiddleware(config: LoginJournalConfig): (req: Request, res: Response, next: NextFunction) => void;
 /**
  * Joins each row to its account when the project has a user model, so the list

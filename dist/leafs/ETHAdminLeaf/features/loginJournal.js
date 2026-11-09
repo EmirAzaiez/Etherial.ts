@@ -26,7 +26,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import etherial from 'etherial';
 import { AdminLoginLog } from '../models/AdminLoginLog.js';
-import { modelTemplateFields } from './leafText.js';
+import { leafText, modelTemplateFields } from './leafText.js';
 export const LOGIN_JOURNAL_COLLECTION = 'admin-logins';
 export function loginJournalOptions(value) {
     if (!value)
@@ -51,8 +51,8 @@ function ipOf(req) {
     const ip = first || req.ip || ((_c = req.socket) === null || _c === void 0 ? void 0 : _c.remoteAddress) || '';
     return ip.replace(/^::ffff:/, '') || null;
 }
-/** "Chrome 141 on macOS" — enough to recognise a session, not a full parser. */
-export function describeClient(ua) {
+/** "Chrome 141 on macOS" (« Chrome 141 sur macOS » in French) — enough to recognise a session, not a full parser. */
+export function describeClient(ua, t = (text) => text) {
     var _a, _b;
     if (!ua)
         return null;
@@ -69,7 +69,7 @@ export function describeClient(ua) {
         (/Linux/.test(ua) && 'Linux') ||
         null;
     if (browser && os)
-        return `${browser} on ${os}`;
+        return `${browser} ${t('on', 'client')} ${os}`;
     return browser || os || ua.slice(0, 60);
 }
 function tokenOf(body) {
@@ -92,7 +92,7 @@ function reasonOf(status, body) {
 }
 function record(attempt, status, body, tagged) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
+        var _a, _b;
         const adminLeaf = etherial.eth_admin_leaf;
         const httpAuth = etherial.http_auth;
         const token = status < 400 && !((body === null || body === void 0 ? void 0 : body.status) >= 400) ? tokenOf(body) : null;
@@ -122,7 +122,8 @@ function record(attempt, status, body, tagged) {
             success,
             reason,
             ip: attempt.ip,
-            client: describeClient(ua),
+            // Stored as it reads: in the back-office's language when it has one.
+            client: describeClient(ua, leafText((_b = adminLeaf === null || adminLeaf === void 0 ? void 0 : adminLeaf.settings) === null || _b === void 0 ? void 0 : _b.locale)),
             user_agent: ua ? ua.slice(0, 1000) : null,
         });
     });

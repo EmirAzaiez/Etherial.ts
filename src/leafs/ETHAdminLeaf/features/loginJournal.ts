@@ -19,7 +19,7 @@
 import etherial from 'etherial'
 import type { Request, Response, NextFunction } from 'express'
 import { AdminLoginLog } from '../models/AdminLoginLog.js'
-import { modelTemplateFields, type LeafText } from './leafText.js'
+import { leafText, modelTemplateFields, type LeafText } from './leafText.js'
 
 export interface LoginJournalConfig {
     /** Login routes watched even when the request is not tagged by the back-office. */
@@ -62,8 +62,8 @@ function ipOf(req: Request): string | null {
     return ip.replace(/^::ffff:/, '') || null
 }
 
-/** "Chrome 141 on macOS" — enough to recognise a session, not a full parser. */
-export function describeClient(ua: string | undefined): string | null {
+/** "Chrome 141 on macOS" (« Chrome 141 sur macOS » in French) — enough to recognise a session, not a full parser. */
+export function describeClient(ua: string | undefined, t: LeafText = (text) => text): string | null {
     if (!ua) return null
     const browser =
         (/Edg\/(\d+)/.exec(ua) && `Edge ${/Edg\/(\d+)/.exec(ua)![1]}`) ||
@@ -79,7 +79,7 @@ export function describeClient(ua: string | undefined): string | null {
         (/Windows/.test(ua) && 'Windows') ||
         (/Linux/.test(ua) && 'Linux') ||
         null
-    if (browser && os) return `${browser} on ${os}`
+    if (browser && os) return `${browser} ${t('on', 'client')} ${os}`
     return browser || os || ua.slice(0, 60)
 }
 
@@ -139,7 +139,8 @@ async function record(attempt: Attempt, status: number, body: any, tagged: boole
         success,
         reason,
         ip: attempt.ip,
-        client: describeClient(ua),
+        // Stored as it reads: in the back-office's language when it has one.
+        client: describeClient(ua, leafText(adminLeaf?.settings?.locale)),
         user_agent: ua ? ua.slice(0, 1000) : null,
     } as any)
 }

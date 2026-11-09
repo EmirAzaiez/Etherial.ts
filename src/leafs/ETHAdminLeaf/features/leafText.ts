@@ -43,6 +43,7 @@ const FR: Record<string, string> = {
     'No back-office access': 'Pas d’accès au back-office',
     'Too many attempts': 'Trop de tentatives',
     'Too many sign-ins in a minute': 'Trop de connexions en une minute',
+    on_client: 'sur',
 
     // Change history
     Change: 'Modification',
