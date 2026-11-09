@@ -132,7 +132,8 @@ export default class ETHUserLeafAuthController {
      *
      * @returns {Promise<any>} JSON response with success/error status
      *
-     * @success {200} Password updated successfully
+     * @success {200} Password updated successfully. Every other session is signed out; `data.token`
+     * replaces this session's token (the one sent is revoked with the others).
      * @error {400} Current password incorrect | New password same as current
      * @error {404} User not found
      * @error {500} Internal server error
@@ -147,7 +148,7 @@ export default class ETHUserLeafAuthController {
      * Success Response:
      * {
      *   "status": 200,
-     *   "data": {}
+     *   "data": { "token": "eyJhbGciOi..." }
      * }
      *
      * Error Response:
@@ -172,13 +173,14 @@ export default class ETHUserLeafAuthController {
 
                     if (!isSamePassword) {
                         const hashedNewPassword = await bcrypt.hash(req.form.new_password, 10)
+                        const tokenVersion = (user.token_version || 0) + 1
 
                         await user.update({
                             password: hashedNewPassword,
                             credentials_expired: false,
                             credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
                             // Revoke every outstanding JWT — a password change should sign other sessions out.
-                            token_version: (user.token_version || 0) + 1,
+                            token_version: tokenVersion,
                         })
 
                         await user.sendEmailForPasswordNotification('update')
@@ -190,9 +192,17 @@ export default class ETHUserLeafAuthController {
                             resource: 'user',
                         })
 
+                        // This session stays signed in: its token again (same claims, `device`
+                        // included), at the new version. A client that ignores it is signed out
+                        // with the others, as before.
+                        const sent = String(req.headers.authorization || '').replace(/^Bearer /i, '')
+                        const { iat, exp, tv, ...claims } = (etherial.http_auth.verifyToken(sent) || {}) as Record<string, any>
+
                         res.success({
                             status: 200,
-                            data: {},
+                            data: {
+                                token: etherial.http_auth.generateToken({ ...claims, user_id: user.id, tv: tokenVersion }),
+                            },
                         })
                     } else {
                         res.error({

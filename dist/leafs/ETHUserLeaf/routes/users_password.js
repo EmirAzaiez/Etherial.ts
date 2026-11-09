@@ -16,6 +16,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 import etherial from 'etherial';
 import { Controller, Post, Put } from 'etherial/components/http/provider';
 import { ShouldValidateYupForm } from 'etherial/components/http/yup.validator';
@@ -127,7 +138,8 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
      *
      * @returns {Promise<any>} JSON response with success/error status
      *
-     * @success {200} Password updated successfully
+     * @success {200} Password updated successfully. Every other session is signed out; `data.token`
+     * replaces this session's token (the one sent is revoked with the others).
      * @error {400} Current password incorrect | New password same as current
      * @error {404} User not found
      * @error {500} Internal server error
@@ -142,7 +154,7 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
      * Success Response:
      * {
      *   "status": 200,
-     *   "data": {}
+     *   "data": { "token": "eyJhbGciOi..." }
      * }
      *
      * Error Response:
@@ -162,12 +174,13 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                         const isSamePassword = yield bcrypt.compare(req.form.new_password, user.password);
                         if (!isSamePassword) {
                             const hashedNewPassword = yield bcrypt.hash(req.form.new_password, 10);
+                            const tokenVersion = (user.token_version || 0) + 1;
                             yield user.update({
                                 password: hashedNewPassword,
                                 credentials_expired: false,
                                 credentials_expire_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
                                 // Revoke every outstanding JWT — a password change should sign other sessions out.
-                                token_version: (user.token_version || 0) + 1,
+                                token_version: tokenVersion,
                             });
                             yield user.sendEmailForPasswordNotification('update');
                             yield user.insertAuditLog({
@@ -176,9 +189,16 @@ let ETHUserLeafAuthController = class ETHUserLeafAuthController {
                                 status: 'Success',
                                 resource: 'user',
                             });
+                            // This session stays signed in: its token again (same claims, `device`
+                            // included), at the new version. A client that ignores it is signed out
+                            // with the others, as before.
+                            const sent = String(req.headers.authorization || '').replace(/^Bearer /i, '');
+                            const _a = (etherial.http_auth.verifyToken(sent) || {}), { iat, exp, tv } = _a, claims = __rest(_a, ["iat", "exp", "tv"]);
                             res.success({
                                 status: 200,
-                                data: {},
+                                data: {
+                                    token: etherial.http_auth.generateToken(Object.assign(Object.assign({}, claims), { user_id: user.id, tv: tokenVersion })),
+                                },
                             });
                         }
                         else {

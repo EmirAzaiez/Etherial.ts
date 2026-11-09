@@ -53,7 +53,8 @@ export default class ETHUserLeafAuthController {
      *
      * @returns {Promise<any>} JSON response with success/error status
      *
-     * @success {200} Password updated successfully
+     * @success {200} Password updated successfully. Every other session is signed out; `data.token`
+     * replaces this session's token (the one sent is revoked with the others).
      * @error {400} Current password incorrect | New password same as current
      * @error {404} User not found
      * @error {500} Internal server error
@@ -68,7 +69,7 @@ export default class ETHUserLeafAuthController {
      * Success Response:
      * {
      *   "status": 200,
-     *   "data": {}
+     *   "data": { "token": "eyJhbGciOi..." }
      * }
      *
      * Error Response:
