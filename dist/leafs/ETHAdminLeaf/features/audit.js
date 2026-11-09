@@ -29,6 +29,7 @@ import etherial from 'etherial';
 import { Op } from 'sequelize';
 import { runExclusive } from '../../../components/database/lock.js';
 import { AdminAuditLog } from '../models/AdminAuditLog.js';
+import { fillTemplate, modelTemplateFields } from './leafText.js';
 export const AUDIT_COLLECTION = 'admin-audit';
 /** Values stored in place of what must not be kept (secrets) or could not be (too long). */
 export const MASKED = { __masked: true };
@@ -43,6 +44,7 @@ export function auditOptions(value) {
 const storage = new AsyncLocalStorage();
 let adminPrefix = '/admin';
 let displayField = 'email';
+let displayTemplate;
 /**
  * Runs `fn` with `actor` as the author of every write it makes, awaited or
  * not. `source` says where the change came through (default: the actor type).
@@ -64,7 +66,7 @@ function labelOf(user) {
         return null;
     const get = (key) => (typeof user.get === 'function' ? user.get(key) : user[key]);
     const name = [(_a = get('firstname')) !== null && _a !== void 0 ? _a : get('first_name'), (_b = get('lastname')) !== null && _b !== void 0 ? _b : get('last_name')].filter(Boolean).join(' ');
-    const label = get(displayField) || name || get('name') || get('email') || get('username');
+    const label = (displayTemplate && fillTemplate(displayTemplate, get)) || get(displayField) || name || get('name') || get('email') || get('username');
     return label ? String(label).slice(0, 255) : null;
 }
 /** The author of a write made now, and where it came through. */
@@ -98,6 +100,7 @@ export function auditContextMiddleware(config, prefix) {
     var _a;
     adminPrefix = prefix;
     displayField = (_a = config.usersDisplayField) !== null && _a !== void 0 ? _a : 'email';
+    displayTemplate = config.usersDisplayTemplate;
     // Keeps what a middleware mounted earlier set (an integration's `withActor`).
     return (req, _res, next) => storage.run(Object.assign(Object.assign({}, storage.getStore()), { req }), next);
 }
@@ -423,16 +426,18 @@ export function auditOf(collection) {
     return (collection === null || collection === void 0 ? void 0 : collection.model) ? auditedModels.get(collection.model) : undefined;
 }
 /** The read-only collection listing every recorded change. */
-export function auditCollection(config, tracked, hasUsers, linked) {
-    var _a, _b;
+export function auditCollection(config, tracked, hasUsers, linked, t = (text) => text) {
+    var _a, _b, _c;
     const usersCollection = (_a = config.usersCollection) !== null && _a !== void 0 ? _a : 'users';
     const userField = (_b = config.usersDisplayField) !== null && _b !== void 0 ? _b : 'email';
-    const include = linked ? [{ association: 'actor', attributes: ['id', userField] }] : [];
+    const userTemplate = config.usersDisplayTemplate;
+    const attributes = [...new Set(['id', userField, ...modelTemplateFields(userTemplate, (_c = config.userModel) !== null && _c !== void 0 ? _c : 'User')])];
+    const include = linked ? [{ association: 'actor', attributes }] : [];
     const ACTIONS = [
-        { value: 'create', label: 'Created', color: 'green' },
-        { value: 'update', label: 'Edited', color: 'blue' },
-        { value: 'delete', label: 'Deleted', color: 'red' },
-        { value: 'restore', label: 'Restored', color: 'purple' },
+        { value: 'create', label: t('Created', 'action'), color: 'green' },
+        { value: 'update', label: t('Edited'), color: 'blue' },
+        { value: 'delete', label: t('Deleted'), color: 'red' },
+        { value: 'restore', label: t('Restored'), color: 'purple' },
     ];
     return {
         name: AUDIT_COLLECTION,
@@ -440,55 +445,55 @@ export function auditCollection(config, tracked, hasUsers, linked) {
         crud: ['list', 'show'],
         exportable: true,
         meta: {
-            label: 'Change',
-            labelPlural: 'Change history',
+            label: t('Change'),
+            labelPlural: t('Change history'),
             icon: 'History',
-            description: 'Every change to a record, who made it and what it was before',
+            description: t('Every change to a record, who made it and what it was before'),
             group: 'System',
             order: 96,
         },
         fields: [
             { name: 'id', type: 'integer', readonly: true, sortable: true },
-            { name: 'action', type: 'select', label: 'Change', filterable: true, options: ACTIONS },
+            { name: 'action', type: 'select', label: t('Change'), filterable: true, options: ACTIONS },
             {
                 name: 'collection',
                 type: 'select',
-                label: 'Collection',
+                label: t('Collection'),
                 filterable: true,
                 options: tracked.map((name) => ({ value: name, label: name })),
             },
-            { name: 'record_id', type: 'string', label: 'Record', searchable: true },
+            { name: 'record_id', type: 'string', label: t('Record'), searchable: true },
             {
                 name: 'actor_type',
                 type: 'select',
-                label: 'By',
+                label: t('By'),
                 filterable: true,
                 options: [
-                    { value: 'user', label: 'A person', color: 'blue' },
+                    { value: 'user', label: t('A person'), color: 'blue' },
                     { value: 'salesforce', label: 'Salesforce', color: 'purple' },
-                    { value: 'system', label: 'System', color: 'gray' },
-                    { value: 'guest', label: 'Signed-out visitor', color: 'gray' },
+                    { value: 'system', label: t('System'), color: 'gray' },
+                    { value: 'guest', label: t('Signed-out visitor'), color: 'gray' },
                 ],
             },
             hasUsers
-                ? { name: 'actor_id', type: 'relation', label: 'Person', filterable: true, relation: { collection: usersCollection, displayField: userField } }
-                : { name: 'actor_id', type: 'integer', label: 'Person', filterable: true },
-            { name: 'actor_label', type: 'string', label: 'Author', searchable: true },
+                ? { name: 'actor_id', type: 'relation', label: t('Person'), filterable: true, relation: Object.assign({ collection: usersCollection, displayField: userField }, (userTemplate ? { displayTemplate: userTemplate } : {})) }
+                : { name: 'actor_id', type: 'integer', label: t('Person'), filterable: true },
+            { name: 'actor_label', type: 'string', label: t('Author'), searchable: true },
             {
                 name: 'source',
                 type: 'select',
-                label: 'Through',
+                label: t('Through'),
                 filterable: true,
                 options: [
-                    { value: 'back-office', label: 'Back office' },
-                    { value: 'app', label: 'App' },
+                    { value: 'back-office', label: t('Back office') },
+                    { value: 'app', label: t('App') },
                     { value: 'salesforce', label: 'Salesforce' },
-                    { value: 'system', label: 'System' },
+                    { value: 'system', label: t('System') },
                 ],
             },
-            { name: 'changes', type: 'json', label: 'Changes', readonly: true },
-            { name: 'meta', type: 'json', label: 'Context', readonly: true },
-            { name: 'created_at', type: 'datetime', label: 'Date', readonly: true, sortable: true, filterable: true },
+            { name: 'changes', type: 'json', label: t('Changes'), readonly: true },
+            { name: 'meta', type: 'json', label: t('Context'), readonly: true },
+            { name: 'created_at', type: 'datetime', label: t('Date'), readonly: true, sortable: true, filterable: true },
         ],
         views: {
             list: {
@@ -501,9 +506,9 @@ export function auditCollection(config, tracked, hasUsers, linked) {
             show: {
                 layout: 'sections',
                 sections: [
-                    { title: 'Change', fields: ['action', 'collection', 'record_id', 'created_at'] },
-                    { title: 'Author', fields: ['actor_type', 'actor_id', 'actor_label', 'source'] },
-                    { title: 'Details', fields: ['changes', 'meta'] },
+                    { title: t('Change'), fields: ['action', 'collection', 'record_id', 'created_at'] },
+                    { title: t('Author'), fields: ['actor_type', 'actor_id', 'actor_label', 'source'] },
+                    { title: t('Details'), fields: ['changes', 'meta'] },
                 ],
                 include,
             },

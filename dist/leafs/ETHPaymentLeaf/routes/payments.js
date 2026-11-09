@@ -337,11 +337,8 @@ let ETHPaymentLeafController = class ETHPaymentLeafController {
                         : undefined,
                     reason: req.form.reason
                 }, payment.provider);
-                const newRefundedAmount = payment.amount_refunded + refundAmount;
-                yield payment.update({
-                    amount_refunded: newRefundedAmount,
-                    status: newRefundedAmount >= payment.amount ? 'refunded' : 'partially_refunded'
-                });
+                // Counted once: the provider's refund webhook reports the same refund id.
+                yield payment.recordRefund(refund.id, refundAmount);
                 res.success({
                     status: 200,
                     data: {
@@ -582,7 +579,7 @@ let ETHPaymentLeafController = class ETHPaymentLeafController {
      */
     webhook(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
+            var _a, _b, _c;
             const providerName = req.params.provider;
             try {
                 const provider = leaf().getProvider(providerName);
@@ -657,12 +654,9 @@ let ETHPaymentLeafController = class ETHPaymentLeafController {
                                 }
                             });
                             if (refundPayment) {
-                                const newRefundedAmount = refundPayment.amount_refunded + event.data.refund.amount.amount;
-                                yield refundPayment.update({
-                                    amount_refunded: newRefundedAmount,
-                                    status: newRefundedAmount >= refundPayment.amount ? 'refunded' : 'partially_refunded'
-                                });
-                                if ((_b = leaf().config.invoices) === null || _b === void 0 ? void 0 : _b.enabled) {
+                                // Already counted when the refund went through POST /payments/:id/refund.
+                                yield refundPayment.recordRefund(event.data.refund.id, (_b = event.data.refund.amount) === null || _b === void 0 ? void 0 : _b.amount);
+                                if ((_c = leaf().config.invoices) === null || _c === void 0 ? void 0 : _c.enabled) {
                                     try {
                                         yield leaf().generateCreditNoteForPayment(refundPayment, event.data.refund);
                                     }

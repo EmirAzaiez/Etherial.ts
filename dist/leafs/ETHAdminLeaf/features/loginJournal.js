@@ -26,6 +26,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import etherial from 'etherial';
 import { AdminLoginLog } from '../models/AdminLoginLog.js';
+import { modelTemplateFields } from './leafText.js';
 export const LOGIN_JOURNAL_COLLECTION = 'admin-logins';
 export function loginJournalOptions(value) {
     if (!value)
@@ -166,21 +167,23 @@ export function linkLoginJournalToUsers(config) {
     return true;
 }
 /** The read-only collection the back-office lists the journal with. */
-export function loginJournalCollection(config, hasUsers, linked) {
-    var _a, _b;
+export function loginJournalCollection(config, hasUsers, linked, t = (text) => text) {
+    var _a, _b, _c;
     const usersCollection = (_a = config.usersCollection) !== null && _a !== void 0 ? _a : 'users';
     const displayField = (_b = config.usersDisplayField) !== null && _b !== void 0 ? _b : 'email';
-    const include = linked ? [{ association: 'user', attributes: ['id', displayField] }] : [];
+    const displayTemplate = config.usersDisplayTemplate;
+    const attributes = [...new Set(['id', displayField, ...modelTemplateFields(displayTemplate, (_c = config.userModel) !== null && _c !== void 0 ? _c : 'User')])];
+    const include = linked ? [{ association: 'user', attributes }] : [];
     return {
         name: LOGIN_JOURNAL_COLLECTION,
         model: AdminLoginLog,
         crud: ['list', 'show'],
         exportable: true,
         meta: {
-            label: 'Login',
-            labelPlural: 'Back-office logins',
+            label: t('Login'),
+            labelPlural: t('Back-office logins'),
             icon: 'LogIn',
-            description: 'Every sign-in to the back-office, successful or not',
+            description: t('Every sign-in to the back-office, successful or not'),
             group: 'System',
             order: 95,
         },
@@ -189,28 +192,28 @@ export function loginJournalCollection(config, hasUsers, linked) {
             {
                 name: 'success',
                 type: 'select',
-                label: 'Result',
+                label: t('Result'),
                 filterable: true,
                 options: [
-                    { value: 'true', label: 'Signed in', color: 'green' },
-                    { value: 'false', label: 'Refused', color: 'red' },
+                    { value: 'true', label: t('Signed in'), color: 'green' },
+                    { value: 'false', label: t('Refused'), color: 'red' },
                 ],
             },
-            { name: 'identifier', type: 'string', label: 'Login', searchable: true, sortable: true },
+            { name: 'identifier', type: 'string', label: t('Login', 'identifier'), searchable: true, sortable: true },
             hasUsers
                 ? {
                     name: 'user_id',
                     type: 'relation',
-                    label: 'Account',
+                    label: t('Account'),
                     filterable: true,
-                    relation: { collection: usersCollection, displayField },
+                    relation: Object.assign({ collection: usersCollection, displayField }, (displayTemplate ? { displayTemplate } : {})),
                 }
-                : { name: 'user_id', type: 'integer', label: 'Account', filterable: true },
-            { name: 'reason', type: 'string', label: 'Reason', filterable: true },
-            { name: 'ip', type: 'string', label: 'IP address', searchable: true, filterable: true },
-            { name: 'client', type: 'string', label: 'Browser' },
-            { name: 'user_agent', type: 'text', label: 'User agent', readonly: true },
-            { name: 'created_at', type: 'datetime', label: 'Date', readonly: true, sortable: true, filterable: true },
+                : { name: 'user_id', type: 'integer', label: t('Account'), filterable: true },
+            { name: 'reason', type: 'string', label: t('Reason'), filterable: true },
+            { name: 'ip', type: 'string', label: t('IP address'), searchable: true, filterable: true },
+            { name: 'client', type: 'string', label: t('Browser') },
+            { name: 'user_agent', type: 'text', label: t('User agent'), readonly: true },
+            { name: 'created_at', type: 'datetime', label: t('Date'), readonly: true, sortable: true, filterable: true },
         ],
         views: {
             list: {
@@ -223,8 +226,8 @@ export function loginJournalCollection(config, hasUsers, linked) {
             show: {
                 layout: 'sections',
                 sections: [
-                    { title: 'Attempt', fields: ['success', 'reason', 'identifier', 'user_id', 'created_at'] },
-                    { title: 'Origin', fields: ['ip', 'client', 'user_agent'] },
+                    { title: t('Attempt'), fields: ['success', 'reason', 'identifier', 'user_id', 'created_at'] },
+                    { title: t('Origin'), fields: ['ip', 'client', 'user_agent'] },
                 ],
                 include,
             },

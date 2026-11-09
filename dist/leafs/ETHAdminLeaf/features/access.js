@@ -196,7 +196,7 @@ export function linkRolesToUsers() {
  * `permissions` is a matrix the back-office builds from the schema, so new
  * collections show up in it without touching this.
  */
-export function adminRolesCollection() {
+export function adminRolesCollection(t = (text) => text) {
     var _a, _b, _c, _d, _e, _f;
     const User = roles ? (_c = (_b = (_a = etherial.database) === null || _a === void 0 ? void 0 : _a.sequelize) === null || _b === void 0 ? void 0 : _b.models) === null || _c === void 0 ? void 0 : _c[roles.usersModel] : null;
     const userColumns = Object.keys((User === null || User === void 0 ? void 0 : User.rawAttributes) || {});
@@ -205,26 +205,19 @@ export function adminRolesCollection() {
         name: ADMIN_ROLES_COLLECTION,
         model: AdminRole,
         crud: ['list', 'show', 'create', 'update', 'delete'],
-        meta: {
-            label: 'Admin Role',
-            labelPlural: 'Admin Roles',
-            icon: 'shield',
-            description: 'What each staff role can see and do in the back-office',
-            group: 'System',
-            order: 1,
-        },
+        meta: Object.assign(Object.assign({ label: t('Admin Role'), labelPlural: t('Admin Roles'), icon: 'shield', description: t('What each staff role can see and do in the back-office') }, (t.active ? { labelNew: t('New role') } : {})), { group: 'System', order: 1 }),
         fields: [
             { name: 'id', type: 'integer', label: 'ID', readonly: true, sortable: true },
-            { name: 'name', type: 'string', label: 'Name', required: true, searchable: true, sortable: true, col: 6 },
-            { name: 'description', type: 'text', label: 'Description', col: 12 },
+            { name: 'name', type: 'string', label: t('Name'), required: true, searchable: true, sortable: true, col: 6 },
+            { name: 'description', type: 'text', label: t('Description'), col: 12 },
             {
                 name: 'permissions',
                 type: 'permissions-matrix',
-                label: 'Permissions',
-                helpText: 'Tick a module to give the whole of it, or pick collection by collection.',
+                label: t('Permissions'),
+                helpText: t('Tick a module to give the whole of it, or pick collection by collection.'),
             },
-            { name: 'created_at', type: 'datetime', label: 'Created', readonly: true, sortable: true },
-            { name: 'updated_at', type: 'datetime', label: 'Updated', readonly: true, sortable: true },
+            { name: 'created_at', type: 'datetime', label: t('Created'), readonly: true, sortable: true },
+            { name: 'updated_at', type: 'datetime', label: t('Updated'), readonly: true, sortable: true },
         ],
         views: {
             list: {
@@ -235,14 +228,14 @@ export function adminRolesCollection() {
             show: {
                 layout: 'sections',
                 sections: [
-                    { title: 'Role', fields: ['name', 'description'] },
-                    { title: 'Permissions', fields: ['permissions'] },
+                    { title: t('Role'), fields: ['name', 'description'] },
+                    { title: t('Permissions'), fields: ['permissions'] },
                 ],
                 collections: User
                     ? [
                         {
                             name: (_e = roles === null || roles === void 0 ? void 0 : roles.usersCollection) !== null && _e !== void 0 ? _e : 'users',
-                            title: 'Staff with this role',
+                            title: t('Staff with this role'),
                             model: User,
                             foreignKey: (_f = roles === null || roles === void 0 ? void 0 : roles.roleIdColumn) !== null && _f !== void 0 ? _f : 'admin_role_id',
                             fields: staffFields,

@@ -105,6 +105,12 @@ export declare class BasePayment extends Model<any> {
      */
     getRefundableAmount(): number;
     /**
+     * Records a refund in `amount_refunded` and the status, once per refund id:
+     * the refund route and the provider's webhook both report the same refund.
+     * Returns false when that refund was already counted.
+     */
+    recordRefund(refundId: string | null | undefined, amount: number): Promise<boolean>;
+    /**
      * Check if fully refunded
      */
     isFullyRefunded(): boolean;

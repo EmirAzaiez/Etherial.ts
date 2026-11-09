@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AdminAuditLog } from '../models/AdminAuditLog.js';
 import type { CollectionConfig } from './CollectionConfig.js';
+import { type LeafText } from './leafText.js';
 export interface AuditActor {
     /** `user` for a person, `salesforce`, `system`, or any name an integration gives itself. */
     type: string;
@@ -23,6 +24,12 @@ export interface AuditConfig {
     usersCollection?: string;
     /** Field of the request's user shown as their name. Default `email`. */
     usersDisplayField?: string;
+    /**
+     * How the author reads instead, from their columns: `{firstname} {lastname}`, `{a|b}`
+     * the first not empty. Written with each change, so entries made before keep their label;
+     * falls back to `usersDisplayField` when it comes out empty.
+     */
+    usersDisplayTemplate?: string;
     /** Sequelize model the author ids belong to, joined in the change list. Default `User`. */
     userModel?: string;
 }
@@ -75,7 +82,7 @@ export declare function linkAuditToUsers(config: AuditConfig): boolean;
 /** The model, collection and secrets for a collection's records, when they are tracked. */
 export declare function auditOf(collection: CollectionConfig | undefined): ModelAudit | undefined;
 /** The read-only collection listing every recorded change. */
-export declare function auditCollection(config: AuditConfig, tracked: string[], hasUsers: boolean, linked: boolean): {
+export declare function auditCollection(config: AuditConfig, tracked: string[], hasUsers: boolean, linked: boolean, t?: LeafText): {
     name: string;
     model: typeof AdminAuditLog;
     crud: ("list" | "show")[];
@@ -127,6 +134,7 @@ export declare function auditCollection(config: AuditConfig, tracked: string[], 
         label: string;
         filterable: boolean;
         relation: {
+            displayTemplate?: string;
             collection: string;
             displayField: string;
         };

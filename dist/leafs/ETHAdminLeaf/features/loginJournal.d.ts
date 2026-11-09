@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AdminLoginLog } from '../models/AdminLoginLog.js';
+import { type LeafText } from './leafText.js';
 export interface LoginJournalConfig {
     /** Login routes watched even when the request is not tagged by the back-office. */
     routes?: string[];
@@ -7,6 +8,11 @@ export interface LoginJournalConfig {
     usersCollection?: string;
     /** Field of that collection shown for the user. Default `email`. */
     usersDisplayField?: string;
+    /**
+     * How the account reads instead, from its columns: `{firstname} {lastname}`,
+     * `{a|b}` the first not empty. Falls back to `usersDisplayField` when it comes out empty.
+     */
+    usersDisplayTemplate?: string;
     /** Sequelize model the user ids belong to, joined so the list names the account. Default `User`. */
     userModel?: string;
 }
@@ -22,7 +28,7 @@ export declare function loginJournalMiddleware(config: LoginJournalConfig): (req
  */
 export declare function linkLoginJournalToUsers(config: LoginJournalConfig): boolean;
 /** The read-only collection the back-office lists the journal with. */
-export declare function loginJournalCollection(config: LoginJournalConfig, hasUsers: boolean, linked: boolean): {
+export declare function loginJournalCollection(config: LoginJournalConfig, hasUsers: boolean, linked: boolean, t?: LeafText): {
     name: string;
     model: typeof AdminLoginLog;
     crud: ("list" | "show")[];
@@ -75,6 +81,7 @@ export declare function loginJournalCollection(config: LoginJournalConfig, hasUs
         label: string;
         filterable: boolean;
         relation: {
+            displayTemplate?: string;
             collection: string;
             displayField: string;
         };

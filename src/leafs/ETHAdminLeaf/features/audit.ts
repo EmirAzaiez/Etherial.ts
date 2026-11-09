@@ -23,6 +23,7 @@ import type { Request, Response, NextFunction } from 'express'
 import { runExclusive } from '../../../components/database/lock.js'
 import { AdminAuditLog } from '../models/AdminAuditLog.js'
 import type { CollectionConfig } from './CollectionConfig.js'
+import { fillTemplate, modelTemplateFields, type LeafText } from './leafText.js'
 
 export interface AuditActor {
     /** `user` for a person, `salesforce`, `system`, or any name an integration gives itself. */
@@ -47,6 +48,12 @@ export interface AuditConfig {
     usersCollection?: string
     /** Field of the request's user shown as their name. Default `email`. */
     usersDisplayField?: string
+    /**
+     * How the author reads instead, from their columns: `{firstname} {lastname}`, `{a|b}`
+     * the first not empty. Written with each change, so entries made before keep their label;
+     * falls back to `usersDisplayField` when it comes out empty.
+     */
+    usersDisplayTemplate?: string
     /** Sequelize model the author ids belong to, joined in the change list. Default `User`. */
     userModel?: string
 }
@@ -76,6 +83,7 @@ interface AuditStore {
 const storage = new AsyncLocalStorage<AuditStore>()
 let adminPrefix = '/admin'
 let displayField = 'email'
+let displayTemplate: string | undefined
 
 /**
  * Runs `fn` with `actor` as the author of every write it makes, awaited or
@@ -98,7 +106,7 @@ function labelOf(user: any): string | null {
     if (!user) return null
     const get = (key: string) => (typeof user.get === 'function' ? user.get(key) : user[key])
     const name = [get('firstname') ?? get('first_name'), get('lastname') ?? get('last_name')].filter(Boolean).join(' ')
-    const label = get(displayField) || name || get('name') || get('email') || get('username')
+    const label = (displayTemplate && fillTemplate(displayTemplate, get)) || get(displayField) || name || get('name') || get('email') || get('username')
     return label ? String(label).slice(0, 255) : null
 }
 
@@ -133,6 +141,7 @@ export function currentActor(): { actor: AuditActor; source: string; meta: Recor
 export function auditContextMiddleware(config: AuditConfig, prefix: string) {
     adminPrefix = prefix
     displayField = config.usersDisplayField ?? 'email'
+    displayTemplate = config.usersDisplayTemplate
     // Keeps what a middleware mounted earlier set (an integration's `withActor`).
     return (req: Request, _res: Response, next: NextFunction) => storage.run({ ...storage.getStore(), req }, next)
 }
@@ -459,15 +468,17 @@ export function auditOf(collection: CollectionConfig | undefined): ModelAudit | 
 }
 
 /** The read-only collection listing every recorded change. */
-export function auditCollection(config: AuditConfig, tracked: string[], hasUsers: boolean, linked: boolean) {
+export function auditCollection(config: AuditConfig, tracked: string[], hasUsers: boolean, linked: boolean, t: LeafText = (text) => text) {
     const usersCollection = config.usersCollection ?? 'users'
     const userField = config.usersDisplayField ?? 'email'
-    const include = linked ? [{ association: 'actor', attributes: ['id', userField] }] : []
+    const userTemplate = config.usersDisplayTemplate
+    const attributes = [...new Set(['id', userField, ...modelTemplateFields(userTemplate, config.userModel ?? 'User')])]
+    const include = linked ? [{ association: 'actor', attributes }] : []
     const ACTIONS = [
-        { value: 'create', label: 'Created', color: 'green' },
-        { value: 'update', label: 'Edited', color: 'blue' },
-        { value: 'delete', label: 'Deleted', color: 'red' },
-        { value: 'restore', label: 'Restored', color: 'purple' },
+        { value: 'create', label: t('Created', 'action'), color: 'green' },
+        { value: 'update', label: t('Edited'), color: 'blue' },
+        { value: 'delete', label: t('Deleted'), color: 'red' },
+        { value: 'restore', label: t('Restored'), color: 'purple' },
     ]
     return {
         name: AUDIT_COLLECTION,
@@ -475,55 +486,55 @@ export function auditCollection(config: AuditConfig, tracked: string[], hasUsers
         crud: ['list', 'show'] as ('list' | 'show')[],
         exportable: true,
         meta: {
-            label: 'Change',
-            labelPlural: 'Change history',
+            label: t('Change'),
+            labelPlural: t('Change history'),
             icon: 'History',
-            description: 'Every change to a record, who made it and what it was before',
+            description: t('Every change to a record, who made it and what it was before'),
             group: 'System',
             order: 96,
         },
         fields: [
             { name: 'id', type: 'integer' as const, readonly: true, sortable: true },
-            { name: 'action', type: 'select' as const, label: 'Change', filterable: true, options: ACTIONS },
+            { name: 'action', type: 'select' as const, label: t('Change'), filterable: true, options: ACTIONS },
             {
                 name: 'collection',
                 type: 'select' as const,
-                label: 'Collection',
+                label: t('Collection'),
                 filterable: true,
                 options: tracked.map((name) => ({ value: name, label: name })),
             },
-            { name: 'record_id', type: 'string' as const, label: 'Record', searchable: true },
+            { name: 'record_id', type: 'string' as const, label: t('Record'), searchable: true },
             {
                 name: 'actor_type',
                 type: 'select' as const,
-                label: 'By',
+                label: t('By'),
                 filterable: true,
                 options: [
-                    { value: 'user', label: 'A person', color: 'blue' },
+                    { value: 'user', label: t('A person'), color: 'blue' },
                     { value: 'salesforce', label: 'Salesforce', color: 'purple' },
-                    { value: 'system', label: 'System', color: 'gray' },
-                    { value: 'guest', label: 'Signed-out visitor', color: 'gray' },
+                    { value: 'system', label: t('System'), color: 'gray' },
+                    { value: 'guest', label: t('Signed-out visitor'), color: 'gray' },
                 ],
             },
             hasUsers
-                ? { name: 'actor_id', type: 'relation' as const, label: 'Person', filterable: true, relation: { collection: usersCollection, displayField: userField } }
-                : { name: 'actor_id', type: 'integer' as const, label: 'Person', filterable: true },
-            { name: 'actor_label', type: 'string' as const, label: 'Author', searchable: true },
+                ? { name: 'actor_id', type: 'relation' as const, label: t('Person'), filterable: true, relation: { collection: usersCollection, displayField: userField, ...(userTemplate ? { displayTemplate: userTemplate } : {}) } }
+                : { name: 'actor_id', type: 'integer' as const, label: t('Person'), filterable: true },
+            { name: 'actor_label', type: 'string' as const, label: t('Author'), searchable: true },
             {
                 name: 'source',
                 type: 'select' as const,
-                label: 'Through',
+                label: t('Through'),
                 filterable: true,
                 options: [
-                    { value: 'back-office', label: 'Back office' },
-                    { value: 'app', label: 'App' },
+                    { value: 'back-office', label: t('Back office') },
+                    { value: 'app', label: t('App') },
                     { value: 'salesforce', label: 'Salesforce' },
-                    { value: 'system', label: 'System' },
+                    { value: 'system', label: t('System') },
                 ],
             },
-            { name: 'changes', type: 'json' as const, label: 'Changes', readonly: true },
-            { name: 'meta', type: 'json' as const, label: 'Context', readonly: true },
-            { name: 'created_at', type: 'datetime' as const, label: 'Date', readonly: true, sortable: true, filterable: true },
+            { name: 'changes', type: 'json' as const, label: t('Changes'), readonly: true },
+            { name: 'meta', type: 'json' as const, label: t('Context'), readonly: true },
+            { name: 'created_at', type: 'datetime' as const, label: t('Date'), readonly: true, sortable: true, filterable: true },
         ],
         views: {
             list: {
@@ -536,9 +547,9 @@ export function auditCollection(config: AuditConfig, tracked: string[], hasUsers
             show: {
                 layout: 'sections' as const,
                 sections: [
-                    { title: 'Change', fields: ['action', 'collection', 'record_id', 'created_at'] },
-                    { title: 'Author', fields: ['actor_type', 'actor_id', 'actor_label', 'source'] },
-                    { title: 'Details', fields: ['changes', 'meta'] },
+                    { title: t('Change'), fields: ['action', 'collection', 'record_id', 'created_at'] },
+                    { title: t('Author'), fields: ['actor_type', 'actor_id', 'actor_label', 'source'] },
+                    { title: t('Details'), fields: ['changes', 'meta'] },
                 ],
                 include,
             },

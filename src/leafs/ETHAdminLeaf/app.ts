@@ -60,6 +60,7 @@ import {
     adminRolesCollection,
 } from './features/access.js'
 import { AdminRole } from './models/AdminRole.js'
+import { leafText } from './features/leafText.js'
 
 export type AccessChecker = (
     user: any,
@@ -82,6 +83,11 @@ export interface AdminSettings {
     custom?: Record<string, any>
     /** How the back-office menu is laid out. */
     navigation?: AdminNavigation
+    /**
+     * The back-office's language (`fr`); English when unset. The front reads it,
+     * and the leaf's own collections (roles, sign-ins, change history) follow it.
+     */
+    locale?: string
 }
 
 /** A menu group, matched by the `meta.group` the collections and pages declare. */
@@ -1014,14 +1020,14 @@ export default class ETHAdminLeaf {
      */
     afterRun() {
         if (rolesConfig() && !this._collections.has(ADMIN_ROLES_COLLECTION)) {
-            this.registerCollection(adminRolesCollection())
+            this.registerCollection(adminRolesCollection(leafText(this._settings.locale)))
         }
 
         const journal = loginJournalOptions(this._features.loginJournal)
         if (journal && !this._collections.has(LOGIN_JOURNAL_COLLECTION)) {
             const linked = linkLoginJournalToUsers(journal)
             const hasUsers = this._collections.has(journal.usersCollection ?? 'users')
-            this.registerCollection(loginJournalCollection(journal, hasUsers, linked) as CollectionConfig)
+            this.registerCollection(loginJournalCollection(journal, hasUsers, linked, leafText(this._settings.locale)) as CollectionConfig)
         }
 
         const audit = auditOptions(this._features.audit)
@@ -1029,7 +1035,7 @@ export default class ETHAdminLeaf {
             this._auditedCollections = installAuditHooks(Array.from(this._collections.values()), audit)
             const linked = linkAuditToUsers(audit)
             const hasUsers = this._collections.has(audit.usersCollection ?? 'users')
-            this.registerCollection(auditCollection(audit, this._auditedCollections, hasUsers, linked) as CollectionConfig)
+            this.registerCollection(auditCollection(audit, this._auditedCollections, hasUsers, linked, leafText(this._settings.locale)) as CollectionConfig)
             scheduleAuditRetention(audit)
             console.log(`[ETHAdminLeaf] Change history on ${this._auditedCollections.length} collections`)
         }

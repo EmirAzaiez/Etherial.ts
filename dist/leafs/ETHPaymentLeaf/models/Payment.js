@@ -7,6 +7,15 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 import { Column, Model, AllowNull, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt, DataType, Default, Index } from 'etherial/components/database/provider';
 import { formatMoney, ZERO_DECIMAL_CURRENCIES, THREE_DECIMAL_CURRENCIES } from '../providers/base.js';
 /**
@@ -53,19 +62,36 @@ export class BasePayment extends Model {
      * Check if payment can be refunded
      */
     canRefund() {
-        return this.status === 'succeeded' && this.amount_refunded < this.amount;
+        return (this.status === 'succeeded' || this.status === 'partially_refunded') && this.getRefundableAmount() > 0;
     }
     /**
      * Get remaining refundable amount
      */
     getRefundableAmount() {
-        return this.amount - this.amount_refunded;
+        // BIGINT columns come back from Postgres as strings: compare and add them as numbers.
+        return Number(this.amount) - Number(this.amount_refunded || 0);
+    }
+    /**
+     * Records a refund in `amount_refunded` and the status, once per refund id:
+     * the refund route and the provider's webhook both report the same refund.
+     * Returns false when that refund was already counted.
+     */
+    recordRefund(refundId, amount) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const counted = Array.isArray((_a = this.metadata) === null || _a === void 0 ? void 0 : _a.refund_ids) ? this.metadata.refund_ids : [];
+            if (refundId && counted.includes(refundId))
+                return false;
+            const refunded = Math.min(Number(this.amount), Number(this.amount_refunded || 0) + Number(amount || 0));
+            yield this.update(Object.assign({ amount_refunded: refunded, status: refunded >= Number(this.amount) ? 'refunded' : 'partially_refunded' }, (refundId ? { metadata: Object.assign(Object.assign({}, (this.metadata || {})), { refund_ids: [...counted, refundId] }) } : {})));
+            return true;
+        });
     }
     /**
      * Check if fully refunded
      */
     isFullyRefunded() {
-        return this.amount_refunded >= this.amount;
+        return Number(this.amount_refunded || 0) >= Number(this.amount);
     }
     /**
      * Get payment method details from provider_data (if available)

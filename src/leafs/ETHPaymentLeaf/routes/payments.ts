@@ -403,11 +403,8 @@ export default class ETHPaymentLeafController {
                 payment.provider
             )
 
-            const newRefundedAmount = payment.amount_refunded + refundAmount
-            await payment.update({
-                amount_refunded: newRefundedAmount,
-                status: newRefundedAmount >= payment.amount ? 'refunded' : 'partially_refunded'
-            })
+            // Counted once: the provider's refund webhook reports the same refund id.
+            await payment.recordRefund(refund.id, refundAmount)
 
             res.success({
                 status: 200,
@@ -777,11 +774,8 @@ export default class ETHPaymentLeafController {
                         })
 
                         if (refundPayment) {
-                            const newRefundedAmount = refundPayment.amount_refunded + event.data.refund.amount.amount
-                            await refundPayment.update({
-                                amount_refunded: newRefundedAmount,
-                                status: newRefundedAmount >= refundPayment.amount ? 'refunded' : 'partially_refunded'
-                            })
+                            // Already counted when the refund went through POST /payments/:id/refund.
+                            await refundPayment.recordRefund(event.data.refund.id, event.data.refund.amount?.amount)
 
                             if (leaf().config.invoices?.enabled) {
                                 try {

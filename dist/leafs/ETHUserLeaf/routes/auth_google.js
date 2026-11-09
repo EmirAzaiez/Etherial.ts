@@ -128,7 +128,8 @@ let ETHUserLeafAuthGoogleController = class ETHUserLeafAuthGoogleController {
                     status: 200,
                     data: {
                         token: etherial.http_auth.generateToken({
-                            user_id: user.id
+                            user_id: user.id,
+                            tv: user.token_version
                         })
                     }
                 });

@@ -26,6 +26,11 @@ export interface AdminSettings {
     custom?: Record<string, any>;
     /** How the back-office menu is laid out. */
     navigation?: AdminNavigation;
+    /**
+     * The back-office's language (`fr`); English when unset. The front reads it,
+     * and the leaf's own collections (roles, sign-ins, change history) follow it.
+     */
+    locale?: string;
 }
 /** A menu group, matched by the `meta.group` the collections and pages declare. */
 export interface AdminNavigationGroup {

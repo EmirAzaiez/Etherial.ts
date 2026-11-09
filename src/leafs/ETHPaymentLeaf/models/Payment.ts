@@ -180,21 +180,40 @@ export class BasePayment extends Model<any> {
      * Check if payment can be refunded
      */
     canRefund(): boolean {
-        return this.status === 'succeeded' && this.amount_refunded < this.amount
+        return (this.status === 'succeeded' || this.status === 'partially_refunded') && this.getRefundableAmount() > 0
     }
 
     /**
      * Get remaining refundable amount
      */
     getRefundableAmount(): number {
-        return this.amount - this.amount_refunded
+        // BIGINT columns come back from Postgres as strings: compare and add them as numbers.
+        return Number(this.amount) - Number(this.amount_refunded || 0)
+    }
+
+    /**
+     * Records a refund in `amount_refunded` and the status, once per refund id:
+     * the refund route and the provider's webhook both report the same refund.
+     * Returns false when that refund was already counted.
+     */
+    async recordRefund(refundId: string | null | undefined, amount: number): Promise<boolean> {
+        const counted: string[] = Array.isArray(this.metadata?.refund_ids) ? this.metadata.refund_ids : []
+        if (refundId && counted.includes(refundId)) return false
+
+        const refunded = Math.min(Number(this.amount), Number(this.amount_refunded || 0) + Number(amount || 0))
+        await this.update({
+            amount_refunded: refunded,
+            status: refunded >= Number(this.amount) ? 'refunded' : 'partially_refunded',
+            ...(refundId ? { metadata: { ...(this.metadata || {}), refund_ids: [...counted, refundId] } } : {}),
+        })
+        return true
     }
 
     /**
      * Check if fully refunded
      */
     isFullyRefunded(): boolean {
-        return this.amount_refunded >= this.amount
+        return Number(this.amount_refunded || 0) >= Number(this.amount)
     }
 
     /**

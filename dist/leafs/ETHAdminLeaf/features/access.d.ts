@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { CollectionPermission, RolePermissions } from '../models/AdminRole.js';
 import type { CollectionConfig } from './CollectionConfig.js';
+import type { LeafText } from './leafText.js';
 export type { CollectionPermission, RolePermissions } from '../models/AdminRole.js';
 /**
  * Who may do what in the back-office.
@@ -89,7 +90,7 @@ export declare function linkRolesToUsers(): boolean;
  * `permissions` is a matrix the back-office builds from the schema, so new
  * collections show up in it without touching this.
  */
-export declare function adminRolesCollection(): CollectionConfig;
+export declare function adminRolesCollection(t?: LeafText): CollectionConfig;
 /**
  * The accounts that can open the back-office, optionally only those holding
  * `permission` (default `view`) on `collection`. Credentials are never read.

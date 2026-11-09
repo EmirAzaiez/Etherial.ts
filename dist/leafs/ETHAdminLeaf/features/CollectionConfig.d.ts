@@ -67,6 +67,8 @@ export interface CollectionMeta {
     labelPlural?: string;
     icon?: string;
     description?: string;
+    /** The create button and page title (« Nouveau rôle »), instead of « New {label} ». */
+    labelNew?: string;
     group?: string;
     order?: number;
     /**

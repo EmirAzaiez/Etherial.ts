@@ -33,6 +33,8 @@ export interface FieldValidation {
 export interface FieldRelation {
     collection: string
     displayField?: string
+    /** How the related record reads (`{firstname} {lastname}`, `{a|b}` the first not empty), from the view's `include`. */
+    displayTemplate?: string
     /**
      * Second line under each option (e.g. a code, a city, an email).
      * Also searched when `searchable` is on — two projects can share a name.

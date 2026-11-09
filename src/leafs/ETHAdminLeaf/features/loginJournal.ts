@@ -19,6 +19,7 @@
 import etherial from 'etherial'
 import type { Request, Response, NextFunction } from 'express'
 import { AdminLoginLog } from '../models/AdminLoginLog.js'
+import { modelTemplateFields, type LeafText } from './leafText.js'
 
 export interface LoginJournalConfig {
     /** Login routes watched even when the request is not tagged by the back-office. */
@@ -27,6 +28,11 @@ export interface LoginJournalConfig {
     usersCollection?: string
     /** Field of that collection shown for the user. Default `email`. */
     usersDisplayField?: string
+    /**
+     * How the account reads instead, from its columns: `{firstname} {lastname}`,
+     * `{a|b}` the first not empty. Falls back to `usersDisplayField` when it comes out empty.
+     */
+    usersDisplayTemplate?: string
     /** Sequelize model the user ids belong to, joined so the list names the account. Default `User`. */
     userModel?: string
 }
@@ -177,20 +183,22 @@ export function linkLoginJournalToUsers(config: LoginJournalConfig): boolean {
 }
 
 /** The read-only collection the back-office lists the journal with. */
-export function loginJournalCollection(config: LoginJournalConfig, hasUsers: boolean, linked: boolean) {
+export function loginJournalCollection(config: LoginJournalConfig, hasUsers: boolean, linked: boolean, t: LeafText = (text) => text) {
     const usersCollection = config.usersCollection ?? 'users'
     const displayField = config.usersDisplayField ?? 'email'
-    const include = linked ? [{ association: 'user', attributes: ['id', displayField] }] : []
+    const displayTemplate = config.usersDisplayTemplate
+    const attributes = [...new Set(['id', displayField, ...modelTemplateFields(displayTemplate, config.userModel ?? 'User')])]
+    const include = linked ? [{ association: 'user', attributes }] : []
     return {
         name: LOGIN_JOURNAL_COLLECTION,
         model: AdminLoginLog,
         crud: ['list', 'show'] as ('list' | 'show')[],
         exportable: true,
         meta: {
-            label: 'Login',
-            labelPlural: 'Back-office logins',
+            label: t('Login'),
+            labelPlural: t('Back-office logins'),
             icon: 'LogIn',
-            description: 'Every sign-in to the back-office, successful or not',
+            description: t('Every sign-in to the back-office, successful or not'),
             group: 'System',
             order: 95,
         },
@@ -199,28 +207,28 @@ export function loginJournalCollection(config: LoginJournalConfig, hasUsers: boo
             {
                 name: 'success',
                 type: 'select' as const,
-                label: 'Result',
+                label: t('Result'),
                 filterable: true,
                 options: [
-                    { value: 'true', label: 'Signed in', color: 'green' },
-                    { value: 'false', label: 'Refused', color: 'red' },
+                    { value: 'true', label: t('Signed in'), color: 'green' },
+                    { value: 'false', label: t('Refused'), color: 'red' },
                 ],
             },
-            { name: 'identifier', type: 'string' as const, label: 'Login', searchable: true, sortable: true },
+            { name: 'identifier', type: 'string' as const, label: t('Login', 'identifier'), searchable: true, sortable: true },
             hasUsers
                 ? {
                       name: 'user_id',
                       type: 'relation' as const,
-                      label: 'Account',
+                      label: t('Account'),
                       filterable: true,
-                      relation: { collection: usersCollection, displayField },
+                      relation: { collection: usersCollection, displayField, ...(displayTemplate ? { displayTemplate } : {}) },
                   }
-                : { name: 'user_id', type: 'integer' as const, label: 'Account', filterable: true },
-            { name: 'reason', type: 'string' as const, label: 'Reason', filterable: true },
-            { name: 'ip', type: 'string' as const, label: 'IP address', searchable: true, filterable: true },
-            { name: 'client', type: 'string' as const, label: 'Browser' },
-            { name: 'user_agent', type: 'text' as const, label: 'User agent', readonly: true },
-            { name: 'created_at', type: 'datetime' as const, label: 'Date', readonly: true, sortable: true, filterable: true },
+                : { name: 'user_id', type: 'integer' as const, label: t('Account'), filterable: true },
+            { name: 'reason', type: 'string' as const, label: t('Reason'), filterable: true },
+            { name: 'ip', type: 'string' as const, label: t('IP address'), searchable: true, filterable: true },
+            { name: 'client', type: 'string' as const, label: t('Browser') },
+            { name: 'user_agent', type: 'text' as const, label: t('User agent'), readonly: true },
+            { name: 'created_at', type: 'datetime' as const, label: t('Date'), readonly: true, sortable: true, filterable: true },
         ],
         views: {
             list: {
@@ -233,8 +241,8 @@ export function loginJournalCollection(config: LoginJournalConfig, hasUsers: boo
             show: {
                 layout: 'sections' as const,
                 sections: [
-                    { title: 'Attempt', fields: ['success', 'reason', 'identifier', 'user_id', 'created_at'] },
-                    { title: 'Origin', fields: ['ip', 'client', 'user_agent'] },
+                    { title: t('Attempt'), fields: ['success', 'reason', 'identifier', 'user_id', 'created_at'] },
+                    { title: t('Origin'), fields: ['ip', 'client', 'user_agent'] },
                 ],
                 include,
             },
