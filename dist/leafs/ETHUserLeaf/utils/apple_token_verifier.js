@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import * as jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 /**
  * Apple's public JWKS endpoint.
